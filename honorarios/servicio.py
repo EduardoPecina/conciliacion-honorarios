@@ -14,6 +14,7 @@ from .estado_sat import consultar_estados, progreso_en_consola
 from .historial import cargar_historial, guardar_historial
 from .reporte import generar_reporte
 from .sap import consultar_sap, progreso_en_consola as progreso_sap_en_consola
+from .utilidades import fecha_actual, validar_periodo
 
 
 @dataclass
@@ -51,13 +52,15 @@ def ruta_cache_sap(rutas, anio, mes):
 
 def conciliar_periodo(rutas, anio, mes, avisar=print, progreso_sat=progreso_en_consola,
                       progreso_sap=progreso_sap_en_consola, reusar_sap=True,
-                      consultar_sat=consultar_estados, consultar_sap=consultar_sap):
+                      consultar_sat=consultar_estados, consultar_sap=consultar_sap, hoy=None):
     """Corre la conciliación con las rutas de entradas.rutas_en() / obtener_rutas().
 
     avisar(texto): muestra el avance.  progreso_sat(hechas, total) y progreso_sap(hechas, total, id): avance de
     las consultas. SAP se consulta siempre con la sesión de SAP GUI abierta en esta computadora; reusar_sap=False
     ignora las consultas guardadas del periodo (si se corrigió algo en SAP).
-    NO registra el historial de UUID: eso lo decide quien llama, con registrar_historial()."""
+    NO registra el historial de UUID: eso lo decide quien llama, con registrar_historial().
+    hoy: fecha de referencia (por omisión, la de internet); no se concilia un periodo que todavía no llega."""
+    validar_periodo(anio, mes, hoy or fecha_actual()[0])
     avisos = []
 
     def aviso(texto):

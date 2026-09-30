@@ -3,9 +3,13 @@
 import hashlib
 import re
 import unicodedata
+import urllib.error
+import urllib.request
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
+from email.utils import parsedate_to_datetime
 
-from .config import PARECE_RFC_MX, PATRON_RFC, RFC_GENERICO_EXTRANJERO
+from .config import PARECE_RFC_MX, PATRON_RFC, RFC_GENERICO_EXTRANJERO, URL_ESTADO_SAT, ZONA_HORARIA
 
 
 def clasificar_rfc(rfc):
@@ -22,6 +26,39 @@ def clasificar_rfc(rfc):
 
 class ErrorUsuario(Exception):
     """Error explicado en español para quien usa el programa."""
+
+
+def _zona():
+    try:
+        from zoneinfo import ZoneInfo
+        return ZoneInfo(ZONA_HORARIA)
+    except Exception:                     # Windows sin la base de zonas horarias: Monterrey es UTC-6 todo el año
+        return timezone(timedelta(hours=-6))
+
+
+def fecha_actual(tiempo_espera=5):
+    """Fecha y hora actuales en Monterrey según internet (encabezado Date del servicio del SAT, al que la red
+    ya tiene acceso). Así el periodo no depende de que el reloj de la PC esté bien. Sin conexión se usa el reloj
+    de la PC. Devuelve (datetime, "internet" | "reloj de la PC")."""
+    peticion = urllib.request.Request(URL_ESTADO_SAT, method="HEAD")
+    try:
+        with urllib.request.urlopen(peticion, timeout=tiempo_espera) as respuesta:
+            encabezado = respuesta.headers.get("Date")
+    except urllib.error.HTTPError as e:   # aunque responda con error, el servidor manda su fecha
+        encabezado = e.headers.get("Date") if e.headers else None
+    except Exception:
+        encabezado = None
+    try:
+        return parsedate_to_datetime(encabezado).astimezone(_zona()).replace(tzinfo=None), "internet"
+    except Exception:
+        return datetime.now(), "reloj de la PC"
+
+
+def validar_periodo(anio, mes, hoy):
+    """No se concilia un periodo que todavía no llega (regla de negocio: aplica al portal y al .bat)."""
+    if (anio, mes) > (hoy.year, hoy.month):
+        raise ErrorUsuario(f"El periodo {mes:02d}/{anio} todavía no llega (hoy es {hoy:%d/%m/%Y}). "
+                           "Solo se puede conciliar el mes actual o meses anteriores.")
 
 
 # ------------------------------------------------------------------

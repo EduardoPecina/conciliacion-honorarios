@@ -12,6 +12,7 @@ from pathlib import Path
 # ------------------------------------------------------------------
 RFC_SOCIEDAD = "SIN070530EI5"            # RFC receptor obligatorio en los XML
 SOCIEDAD_SAP = "TM26"
+ZONA_HORARIA = "America/Monterrey"       # para saber qué día es (periodo actual)
 
 # Datos del receptor en CFDI 4.0. Si se dejan vacíos, esa validación no se hace (se avisa al iniciar).
 NOMBRE_SOCIEDAD = "SERVICIOS INTEGRALES NOVA DE MONTERREY"   # Razón social de la Constancia, sin "S.A. de C.V."

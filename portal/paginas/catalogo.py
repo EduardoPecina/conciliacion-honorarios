@@ -3,11 +3,11 @@ cuando exista la base de datos, las altas y cambios se harán aquí."""
 
 import streamlit as st
 
-from honorarios.config import ARCHIVO_CATALOGO, CONFIG
+from honorarios.config import ARCHIVO_CATALOGO, CONFIG, SOCIEDAD_SAP
 from honorarios.entradas import leer_catalogo
 from honorarios.utilidades import ErrorUsuario
 
-st.title("Catálogo de proveedores")
+st.title(f"Catálogo de Proveedores {SOCIEDAD_SAP}")
 st.info(f"Por ahora el catálogo se edita en el Excel **{ARCHIVO_CATALOGO}** (carpeta _Configuracion). "
         "Esta página solo lo consulta.")
 

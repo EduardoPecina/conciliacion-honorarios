@@ -11,6 +11,8 @@ import pandas as pd
 from .config import ARCHIVO_CATALOGO, COLUMNAS_TXT, CONFIG, MESES, NOMBRE_TABLA_CATALOGO, RAIZ
 from .utilidades import (
     ErrorUsuario,
+    fecha_actual,
+    validar_periodo,
     clasificar_rfc,
     importe_txt,
     importe_xml,
@@ -27,8 +29,8 @@ NOMBRES_MES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "
                "octubre", "noviembre", "diciembre"]
 
 
-def pedir_periodo():
-    hoy = datetime.now()
+def pedir_periodo(hoy=None):
+    hoy = hoy or fecha_actual()[0]
     print("=" * 60)
     print("  CONCILIACIÓN DE HONORARIOS")
     print("=" * 60)
@@ -38,6 +40,7 @@ def pedir_periodo():
            or str(hoy.month))
     if not anio.isdigit() or len(anio) != 4 or not mes.isdigit() or not 1 <= int(mes) <= 12:
         raise ErrorUsuario("El año o el mes no son válidos. Ejemplo: año 2026, mes 9.")
+    validar_periodo(int(anio), int(mes), hoy)
     print(f"\nPeriodo a conciliar: {NOMBRES_MES[int(mes) - 1]} {anio}")
     return int(anio), int(mes)
 

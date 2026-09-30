@@ -1,5 +1,19 @@
 # Historial de cambios
 
+## [1.7.0] - 2026-09-30
+
+### Agregado
+- No se concilian periodos del futuro (portal y `.bat`). La fecha de "hoy" se toma de internet (encabezado `Date`
+  del servicio del SAT); sin conexión, del reloj de la PC. El portal solo ofrece el mes actual y los anteriores
+  (y el año anterior completo).
+- Portal: mientras se procesa, la página queda bloqueada con un aviso para no detener la conciliación al cambiar
+  de página o de control. Se libera sola al terminar.
+- Portal: lugar para el logo de la empresa (`portal/recursos/logo.png`).
+
+### Cambiado
+- Portal: "Conciliar" pasa a "Conciliador Automático"; "Catálogo de proveedores" a "Catálogo de Proveedores
+  TM26"; título "Conciliación de Honorarios".
+
 ## [1.6.1] - 2026-09-30
 
 ### Cambiado
