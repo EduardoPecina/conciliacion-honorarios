@@ -68,20 +68,6 @@ def normalizar_id(valor):
     return texto
 
 
-VALORES_ACTIVO = {"1": "1", "SI": "1", "S": "1", "TRUE": "1", "VERDADERO": "1", "ACTIVO": "1", "": "1",
-                  "0": "0", "NO": "0", "N": "0", "FALSE": "0", "FALSO": "0", "INACTIVO": "0",
-                  "BLOQUEADO": "0", "BAJA": "0"}
-
-
-def normalizar_activo(valor):
-    """Devuelve '1' o '0'. Acepta 1/0, Sí/No, VERDADERO/FALSO (booleanos de Excel), Activo/Inactivo.
-    Un valor no reconocido devuelve '?' y el catálogo se rechaza (no se asume activo)."""
-    if isinstance(valor, bool):
-        return "1" if valor else "0"
-    texto = normalizar_nombre(normalizar_id(valor))
-    return VALORES_ACTIVO.get(texto, "?")
-
-
 def normalizar_nombre(texto):
     """Mayúsculas, sin acentos ni signos: para comparar razones sociales."""
     texto = unicodedata.normalize("NFKD", texto or "")

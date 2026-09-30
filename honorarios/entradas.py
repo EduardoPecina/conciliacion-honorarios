@@ -15,7 +15,6 @@ from .utilidades import (
     importe_txt,
     importe_xml,
     leer_texto,
-    normalizar_activo,
     normalizar_id,
     normalizar_nombre,
 )
@@ -106,17 +105,6 @@ def leer_catalogo(ruta):
              else t)
             for d, t in zip(declarado, catalogo["TipoRFC"])]
     catalogo["Nombre"] = catalogo["Nombre"].fillna("").astype(str).str.strip()
-    if "Activo" in catalogo.columns:
-        originales = catalogo["Activo"]
-        catalogo["Activo"] = originales.map(normalizar_activo)
-        raros = [f"{i} ('{v}')" for i, v, a in zip(catalogo["IDProveedor"], originales, catalogo["Activo"])
-                 if a == "?"]
-        if raros:
-            raise ErrorUsuario("Valores no reconocidos en la columna Activo (usa 1/0 o Sí/No):\n  "
-                               + "\n  ".join(raros[:10]))
-    else:
-        catalogo["Activo"] = "1"
-
     duplicados = catalogo[catalogo["IDProveedor"].duplicated()]["IDProveedor"].tolist()
     if duplicados:
         raise ErrorUsuario(f"El catálogo tiene IDs repetidos: {', '.join(duplicados[:10])}")
