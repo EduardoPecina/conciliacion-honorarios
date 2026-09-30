@@ -111,7 +111,7 @@ Por ahora el portal solo acepta conexiones desde la misma computadora (`address 
 | Historial de UUID | UUID ya conciliados, por periodo |
 
 - **Periodo:** solo se ofrecen el mes actual y los anteriores (y los 12 meses del año anterior, para conciliar diciembre en enero). Un periodo que todavía no llega no se puede conciliar, ni en el portal ni en el `.bat`. La fecha de "hoy" se toma de internet (encabezado `Date` del servicio del SAT, al que la red ya tiene acceso) para no depender del reloj de la PC; sin conexión se usa el reloj de la PC y el portal lo indica.
-- **Mientras procesa**, la página completa queda bloqueada con un aviso: cambiar de página, cambiar un control o cerrar la pestaña detendría la conciliación. Al terminar se libera sola.
+- **Mientras procesa**, un aviso azul recuerda que cambiar de página o cerrar la pestaña detiene la conciliación. No se bloquea nada (se puede hacer scroll para ver el avance): si alguien da clic en otra página del menú o en "Cerrar el portal", el navegador pregunta si de verdad quiere salir; al cerrar o recargar la pestaña, el navegador muestra su aviso de "¿Salir del sitio?". La decisión es del usuario.
 - **Logo:** guarda el logo de la empresa como `portal/recursos/logo.png` (ver `portal/recursos/LEEME.md`); aparece arriba del título y del menú.
 
 El portal corre en la computadora de cada usuario y usa **su** sesión de SAP GUI, igual que el `.bat`: antes de dar clic en **Procesar**, abre SAP e inicia sesión. Sin SAP (o sin respuesta del SAT) el botón "Confirmar" queda bloqueado.

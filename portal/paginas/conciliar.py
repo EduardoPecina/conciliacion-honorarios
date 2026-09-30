@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as componentes
 
 from honorarios.config import MESES, RAIZ
 from honorarios.entradas import NOMBRES_MES, rutas_en
@@ -13,7 +14,7 @@ from honorarios.reporte import ORDEN_ESTATUS, RESPONSABLE_POR_ESTATUS
 from honorarios.servicio import conciliar_periodo, registrar_historial, ruta_cache_sap
 from honorarios.utilidades import ErrorUsuario, fecha_actual
 from portal.archivos import preparar_carpeta
-from portal.estilo import BLOQUEO, ruta_logo
+from portal.estilo import aviso_al_salir, ruta_logo
 
 CRUZADOS = ("Cruzado", "Cruzado (pago quebrado)")
 
@@ -67,8 +68,11 @@ procesar = st.button("Procesar", type="primary", disabled=not (txt and xmls), us
 # ------------------------------------------------------------------ 2. Proceso
 if procesar:
     st.session_state.pop("conciliacion", None)
-    bloqueo = st.empty()                                   # pantalla bloqueada mientras se procesa
-    bloqueo.markdown(BLOQUEO, unsafe_allow_html=True)
+    aviso = st.empty()                                     # pregunta antes de salir de la página (no bloquea)
+    with aviso:
+        componentes.html(aviso_al_salir(True), height=0)
+    nota = st.info("⏳ **Conciliación en proceso.** Puedes hacer scroll y usar otros programas (excepto SAP). "
+                   "Si cambias de página o cierras esta pestaña, el proceso se detiene.")
     with st.status("Procesando...", expanded=True) as estado:
         barra = st.progress(0.0, text="Consulta al SAT")
         barra_sap = st.progress(0.0, text="Consulta a SAP")
@@ -96,7 +100,9 @@ if procesar:
             estado.update(label="Error inesperado", state="error")
             st.error(f"Error inesperado: {type(e).__name__}: {e}\n\n"
                      "Toma captura de este mensaje y compártela con quien mantiene el programa.")
-    bloqueo.empty()                                        # terminó (bien o con error): se libera la pantalla
+    with aviso:                                            # terminó (bien o con error): ya no se pregunta al salir
+        componentes.html(aviso_al_salir(False), height=0)
+    nota.empty()
 
 # ------------------------------------------------------------------ 3. Resultado
 conciliacion = st.session_state.get("conciliacion")

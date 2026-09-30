@@ -1,5 +1,13 @@
 # Historial de cambios
 
+## [1.8.1] - 2026-09-30
+
+### Cambiado
+- Portal: el aviso mientras se procesa ya no bloquea la página (no dejaba hacer scroll para ver las barras de
+  avance). Ahora es un aviso informativo; solo si se da clic en otra página del menú o en "Cerrar el portal", el
+  navegador pregunta "¿Quieres salir de todas formas?" (Aceptar sale, Cancelar se queda y el proceso sigue). Al
+  cerrar o recargar la pestaña, el navegador muestra su aviso de "¿Salir del sitio?".
+
 ## [1.8.0] - 2026-09-30
 
 ### Cambiado
