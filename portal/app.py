@@ -15,13 +15,18 @@ if str(RAIZ_REPO) not in sys.path:
     sys.path.insert(0, str(RAIZ_REPO))           # para importar honorarios/ y portal/
 
 from honorarios import __version__  # noqa: E402
+from honorarios.config import SOCIEDAD_SAP  # noqa: E402
+from portal.estilo import ruta_logo  # noqa: E402
 
 st.set_page_config(page_title="Portal de Honorarios", page_icon="🩺", layout="wide")
 
+if ruta_logo():
+    st.logo(str(ruta_logo()), size="large")
+
 paginas = Path(__file__).parent / "paginas"
 navegacion = st.navigation([
-    st.Page(paginas / "conciliar.py", title="Conciliar", icon="✅", default=True),
-    st.Page(paginas / "catalogo.py", title="Catálogo de proveedores", icon="📇"),
+    st.Page(paginas / "conciliar.py", title="Conciliador Automático", icon="✅", default=True),
+    st.Page(paginas / "catalogo.py", title=f"Catálogo de Proveedores {SOCIEDAD_SAP}", icon="📇"),
     st.Page(paginas / "historial.py", title="Historial de UUID", icon="🗂️"),
 ])
 st.sidebar.caption(f"Conciliación de Honorarios · versión {__version__}")

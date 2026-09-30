@@ -9,4 +9,4 @@ de config.VALIDACIONES. Si alguna no se pudo ejecutar (historial ilegible, SAP p
 sin respuesta...), la línea sale "Cruzado con observaciones" y dice cuál faltó.
 """
 
-__version__ = "1.6.0"
+__version__ = "1.7.0"

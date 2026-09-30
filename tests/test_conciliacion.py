@@ -9,6 +9,7 @@ import os
 import sys
 import tempfile
 import unittest
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -400,15 +401,16 @@ class TestToleranciaImpuestos(unittest.TestCase):
 
 
 class TestPreguntas(unittest.TestCase):
+    HOY = datetime(2026, 9, 30, 12, 0)
+
     def preguntar(self, *respuestas):
         from unittest import mock
         with mock.patch("builtins.input", side_effect=list(respuestas)) as entrada, \
                 mock.patch("builtins.print"):
-            return entradas.pedir_periodo(), [c.args[0] for c in entrada.call_args_list]
+            return entradas.pedir_periodo(hoy=self.HOY), [c.args[0] for c in entrada.call_args_list]
 
     def test_enter_usa_el_periodo_actual(self):
-        from datetime import datetime
-        hoy = datetime.now()
+        hoy = self.HOY
         periodo, textos = self.preguntar("", "")
         self.assertEqual(periodo, (hoy.year, hoy.month))
         self.assertIn(f"Enter = {hoy.year}, año actual", textos[0])
@@ -418,9 +420,39 @@ class TestPreguntas(unittest.TestCase):
         self.assertEqual(self.preguntar("2025", "12")[0], (2025, 12))
 
     def test_periodo_invalido(self):
-        for anio, mes in (("26", "9"), ("2026", "13"), ("dos mil", "9")):
+        for anio, mes in (("26", "9"), ("2026", "13"), ("dos mil", "9"),
+                          ("2026", "10"), ("2027", "1")):          # los dos últimos: todavía no llegan
             with self.subTest(anio=anio, mes=mes), self.assertRaises(utilidades.ErrorUsuario):
                 self.preguntar(anio, mes)
+
+
+class TestFecha(unittest.TestCase):
+    def test_periodo_del_futuro_no_se_concilia(self):
+        enero = datetime(2027, 1, 15)
+        utilidades.validar_periodo(2027, 1, enero)                   # el mes actual sí
+        utilidades.validar_periodo(2026, 12, enero)                  # el anterior también
+        for anio, mes in ((2027, 2), (2028, 1)):
+            with self.subTest(anio=anio, mes=mes), self.assertRaises(utilidades.ErrorUsuario):
+                utilidades.validar_periodo(anio, mes, enero)
+
+    def test_fecha_sin_internet_usa_el_reloj(self):
+        from unittest import mock
+        with mock.patch("urllib.request.urlopen", side_effect=OSError("sin red")):
+            fecha, fuente = utilidades.fecha_actual()
+        self.assertEqual(fuente, "reloj de la PC")
+
+    def test_fecha_de_internet(self):
+        from unittest import mock
+
+        class Respuesta:
+            headers = {"Date": "Fri, 01 Jan 2027 05:30:00 GMT"}     # 23:30 del 31 de diciembre en Monterrey
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+
+        with mock.patch("urllib.request.urlopen", return_value=Respuesta()):
+            fecha, fuente = utilidades.fecha_actual()
+        self.assertEqual(fuente, "internet")
+        self.assertEqual((fecha.year, fecha.month, fecha.day, fecha.hour), (2026, 12, 31, 23))
 
 
 class TestUtilidades(unittest.TestCase):

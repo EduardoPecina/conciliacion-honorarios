@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 import zipfile
+from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -22,6 +23,7 @@ from honorarios.entradas import obtener_rutas, rutas_en  # noqa: E402
 from portal.archivos import preparar_carpeta  # noqa: E402
 
 ANIO, MES = datos_prueba.ANIO, datos_prueba.MES
+HOY = datetime(ANIO, MES, 30)
 
 
 def sap_simulado(ids, carpeta_salida, anio, mes, reusar=True, progreso=None, avisar=None):
@@ -42,7 +44,7 @@ class TestServicio(unittest.TestCase):
         ruta_historial = CONFIG / ARCHIVO_HISTORIAL
         ruta_historial.unlink(missing_ok=True)
         avisos = []
-        conciliacion = servicio.conciliar_periodo(obtener_rutas(ANIO, MES), ANIO, MES, avisar=avisos.append,
+        conciliacion = servicio.conciliar_periodo(obtener_rutas(ANIO, MES), ANIO, MES, hoy=HOY, avisar=avisos.append,
                                                   progreso_sat=lambda h, t: None, consultar_sat=sat_todo_vigente,
                                                   consultar_sap=sap_simulado)
         estatus = {}
@@ -66,7 +68,7 @@ class TestServicio(unittest.TestCase):
         ruta_historial = CONFIG / ARCHIVO_HISTORIAL
         ruta_historial.unlink(missing_ok=True)
         sin_sap = lambda *a, **k: (None, "No se pudo conectar a SAP")
-        conciliacion = servicio.conciliar_periodo(obtener_rutas(ANIO, MES), ANIO, MES, avisar=lambda t: None,
+        conciliacion = servicio.conciliar_periodo(obtener_rutas(ANIO, MES), ANIO, MES, hoy=HOY, avisar=lambda t: None,
                                                   progreso_sat=lambda h, t: None, consultar_sat=sat_todo_vigente,
                                                   consultar_sap=sin_sap)
         self.assertEqual(conciliacion.sin_consultar, ["SAP"])
@@ -133,6 +135,17 @@ class TestPaginasDelPortal(unittest.TestCase):
     def test_conciliar_sin_archivos_no_deja_procesar(self):
         app = self.abrir("conciliar.py")
         self.assertTrue(app.button[0].disabled)
+        self.assertEqual(app.title[0].value, "Conciliación de Honorarios")
+
+    def test_no_se_ofrecen_meses_del_futuro(self):
+        from honorarios.utilidades import fecha_actual
+        hoy, _ = fecha_actual()
+        app = self.abrir("conciliar.py")
+        anio, mes = app.selectbox[0], app.selectbox[1]
+        self.assertEqual(anio.options, [str(hoy.year - 1), str(hoy.year)])
+        self.assertEqual(len(mes.options), hoy.month)              # año actual: de enero al mes actual
+        anio.set_value(hoy.year - 1).run()
+        self.assertEqual(len(app.selectbox[1].options), 12)       # año anterior: los 12 meses
 
     def test_catalogo(self):
         app = self.abrir("catalogo.py")

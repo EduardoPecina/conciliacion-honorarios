@@ -24,7 +24,11 @@ def main():
     print("\nRevisando carpetas...")
     rutas = obtener_rutas(anio, mes)
 
-    print("\nLa validación contra SAP es obligatoria: SAP debe estar abierto con tu sesión iniciada.")
+    print("\nAntes de continuar (la validación contra SAP es obligatoria):")
+    print("  - SAP abierto en el sistema productivo, con tu sesión iniciada")
+    print("  - Acceso a la transacción FK03 y scripting de SAP GUI habilitado (los otorga IT)")
+    print("Se usará la primera ventana de SAP que abriste: guarda lo que tengas ahí.")
+    print("No uses SAP hasta que termine; puedes seguir trabajando en otros programas.")
     input("Cuando SAP esté listo, presiona Enter para continuar...")
     reusar_sap = not ruta_cache_sap(rutas, anio, mes).exists() or si(
         "Hay consultas SAP guardadas de este mes. ¿Reusarlas? (di 'n' si corregiste algo en SAP)", "s")
