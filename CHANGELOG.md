@@ -1,5 +1,16 @@
 # Historial de cambios
 
+## [1.2.0] - 2026-09-30
+
+### Agregado
+- Verificación opcional del estatus de cada factura en el SAT (Vigente / Cancelado / No encontrado) con el
+  servicio web oficial `ConsultaCFDIService`, que no tiene captcha. El programa pregunta al iniciar
+  (por defecto "n", ver `ESTADO_SAT_POR_DEFECTO`).
+  - Cancelada: "Rechazar". Si el médico reemitió por el mismo importe, se cruza la nueva.
+  - No encontrada, o con cancelación en proceso: "Detenida".
+  - Sin respuesta del SAT: "Cruzado con observaciones" con "Validaciones no realizadas".
+  - Nueva columna `EstadoSAT` en Detalle y en XML sin TXT; resumen de la consulta en la hoja Info.
+
 ## [1.1.1] - 2026-09-30
 
 ### Corregido

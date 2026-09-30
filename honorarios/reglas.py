@@ -25,6 +25,7 @@ from .config import (
     UUID_REPETIDO_SIEMPRE_DETIENE,
     VERSIONES_CFDI_OK,
 )
+from .estado_sat import en_proceso_de_cancelacion
 from .utilidades import a_decimal, normalizar_nombre
 
 
@@ -109,6 +110,24 @@ def validar_xml(f, ctx):
         o.append(f"{f['Conceptos02SinImpuestos']} concepto(s) marcados 02 (objeto de impuesto) sin ningún "
                  "impuesto desglosado: XML mal emitido")
     ok.add("cfdi")
+
+    # Estatus en el SAT (solo si en esta corrida se pidió consultarlo)
+    if ctx.get("estados_sat") is not None and f["UUID"]:
+        consulta = ctx["estados_sat"].get(f["UUID"])
+        if consulta and consulta["Estado"]:
+            if consulta["Estado"] == "Cancelado":
+                r.append("Factura CANCELADA en el SAT: no se puede pagar, pedir la factura que la sustituye")
+            elif consulta["Estado"] == "No encontrado":
+                d.append("El SAT no encuentra este CFDI con el UUID, RFC y total del XML: puede ser un XML alterado "
+                         "o apócrifo, o recién timbrado (puede tardar hasta 72 horas en aparecer); volver a consultar")
+            elif en_proceso_de_cancelacion(consulta):
+                d.append(f"El emisor pidió cancelar esta factura y el SAT espera que {RFC_SOCIEDAD} acepte o rechace "
+                         "la cancelación en el portal del SAT (si no responde en 3 días hábiles, se cancela sola): "
+                         "aclarar con el médico antes de pagar")
+            ok.add("estado_sat")
+        else:
+            o.append("No se pudo consultar el estatus en el SAT: "
+                     + (consulta["Error"] if consulta else "no se consultó este UUID"))
 
     # Historial de meses anteriores
     if ctx["historial"] is not None:

@@ -105,7 +105,7 @@ def escribir_resumen(hoja, detalle_cols, n_filas, n_xml):
     hoja.append(["Otros indicadores", "Cantidad", None, None, "Cómo se calcula"])
     extras = [
         ("Líneas con validaciones no realizadas", f"=COUNTIF({rango(OB)},\"*Validaciones no realizadas*\")",
-         "SAP (si se pidió) o el historial de UUID no se pudieron consultar para esas líneas"),
+         "SAP o el SAT (si se pidieron) o el historial de UUID no se pudieron consultar para esas líneas"),
         ("Líneas con discrepancia SAP", f"=COUNTIF({rango(S)},\"Sí\")",
          "Líneas del Detalle con DiscrepanciaSAP = Sí"),
         ("Líneas con impuestos a revisar", f"=COUNTIF({rango(R)},\"Revisar\")",
@@ -488,7 +488,8 @@ def escribir_instrucciones(libro):
         ("• Cruzado: pasó TODAS las validaciones. No hay nada que revisar.", False),
         ("     Se validó: importe contra TXT, timbre, versión 4.0, datos del receptor (RFC, régimen, uso CFDI),", False),
         ("     periodo, tipo I, método y forma de pago (PUE con 03 o 99 / PPD con 99), moneda, total del XML, impuestos,", False),
-        ("     códigos de retención en SAP (si se pidió) y que el UUID no se haya", False),
+        ("     códigos de retención en SAP (si se pidió), que la factura siga vigente en el SAT (si se pidió)", False),
+        ("     y que el UUID no se haya", False),
         ("     conciliado en otro mes ni venga repetido.", False),
         ("• Cruzado (pago quebrado): igual que Cruzado, pero varias líneas del TXT y/o varias facturas", False),
         ("     del mismo proveedor se cruzan como grupo (p. ej. 500 + 300 + 200 del TXT contra una factura", False),
@@ -500,8 +501,8 @@ def escribir_instrucciones(libro):
         ("     paga, sale 'Cruzado con observaciones': Verificar con Responsables de Envío de XML.", False),
         ("• Proveedor extranjero: el catálogo trae un ID fiscal de otro país; no hay CFDI que cruzar.", False),
         ("• RFC inválido en catálogo: el RFC parece mexicano pero está mal escrito; corregir el catálogo.", False),
-        ("• Rechazar: la factura no es válida (sin timbre, receptor, periodo, forma o método de pago", False),
-        ("     incorrecto...). Hay que pedir otra.", False),
+        ("• Rechazar: la factura no es válida (sin timbre, cancelada en el SAT, receptor, periodo, forma o", False),
+        ("     método de pago incorrecto...). Hay que pedir otra.", False),
         ("", False),
         ("Colores: verde = OK · amarillo = redondeo aceptado · rojo = revisar. "
          "En la hoja Tasas, las celdas amarillas (tasas y tolerancias) se pueden cambiar.", False),
@@ -519,7 +520,7 @@ def generar_reporte(rutas, anio, mes, resultado, sobrantes, errores_xml, n_xml, 
                 "CodigoImpuesto", "Importe", "Ver cálculo", "Revisión importe", "Variación importe",
                 "Revisión impuestos", "Variación impuestos"] + COLS_DESGLOSE + [
                 "RegimenEmisor", "NombreRegimen", "CodigosSAP", "RegimenSAP",
-                "DiscrepanciaSAP", "FechaXML", "MetodoPago", "FormaPago", "UUID", "ArchivoXML",
+                "DiscrepanciaSAP", "FechaXML", "MetodoPago", "FormaPago", "UUID", "EstadoSAT", "ArchivoXML",
                 "CentroCosto", "Cuenta", "MotivoRechazo", "Observaciones"]
     detalle = detalle.reindex(columns=columnas)
     detalle["DiscrepanciaSAP"] = detalle["DiscrepanciaSAP"].map(lambda v: "Sí" if v is True else "No")

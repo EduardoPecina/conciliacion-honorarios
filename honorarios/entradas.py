@@ -238,6 +238,7 @@ def leer_cfdi(ruta, carpeta):
         "RetIVA": ret_iva,
         "Total": total,
         "TotalTexto": raiz.get("Total", ""),
+        "SelloFinal": (raiz.get("Sello") or "")[-8:],    # para consultar el estatus en el SAT
         "DifTotalXML": total - total_calc,
         "ImporteConIVA": subtotal - descuento + iva,
         "SumaConceptos": sum((importe_xml(c, "Importe") for c in conceptos), Decimal("0")),

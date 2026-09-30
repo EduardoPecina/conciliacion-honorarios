@@ -76,13 +76,23 @@ REGIMENES = {
 ISR_SAP = {"RS": "RESICO", "RH": "No RESICO", "RM": "No RESICO", "RE": "Extranjero"}
 
 # Validaciones que una línea DEBE pasar para quedar "Cruzado" (clave -> nombre para el usuario).
-# "sap" solo se exige si en esa corrida se eligió validar contra SAP.
+# "sap" y "estado_sat" solo se exigen si en esa corrida se eligió hacerlas.
 VALIDACIONES = {
     "cfdi": "reglas del CFDI",
     "impuestos": "recálculo de impuestos",
     "sap": "códigos de retención en SAP",
+    "estado_sat": "estatus del CFDI en el SAT",
     "historial": "historial de UUID conciliados",
 }
+
+# Estatus del CFDI en el SAT (Vigente / Cancelado) con el servicio web oficial de consulta.
+# No es el portal con captcha: es el servicio que el SAT publica para consultas automatizadas y no pide
+# contraseña ni e.firma. Por factura solo se envía la expresión del código QR: UUID, RFC emisor,
+# RFC receptor, total y los últimos 8 caracteres del sello.
+URL_ESTADO_SAT = "https://consultaqr.facturaelectronica.sat.gob.mx/ConsultaCFDIService.svc"
+CONSULTAS_SAT_SIMULTANEAS = 4            # consultas en paralelo; no subirlo mucho para no saturar al SAT
+TIEMPO_ESPERA_SAT = 30                   # segundos máximos por consulta
+ESTADO_SAT_POR_DEFECTO = "n"             # respuesta por defecto a "¿Verificar en el SAT?" ("s" o "n")
 
 # Observaciones que no quitan el "Cruzado" (son informativas, no hay nada que revisar)
 INFORMATIVAS = ("Pago quebrado", "Factura PPD")
