@@ -1,5 +1,16 @@
 # Historial de cambios
 
+## [1.0.1] - 2026-09-30
+
+### Corregido
+- Un texto que empieza con "=" (nombre del emisor en un XML, folio del TXT, nombre de archivo...)
+  se escribía en el Excel como fórmula y Excel lo ejecutaba. Ahora siempre se escribe como texto.
+- El encabezado del TXT no se reconocía si el archivo empezaba con renglones vacíos.
+
+### Documentación
+- README: estatus "Proveedor extranjero" e instrucciones para clonar el repositorio como `_Programa`.
+- Licencia propietaria (`LICENSE`).
+
 ## [1.0.0] - 2026-09-30
 
 Primera versión en control de versiones.

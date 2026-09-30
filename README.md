@@ -47,7 +47,12 @@ Honorarios/
 
 Requiere Python 3.10 o superior.
 
+El repositorio debe quedar en una carpeta llamada **`_Programa`** dentro de `Honorarios/`, porque el programa busca `_Configuracion` y las carpetas de los años un nivel arriba de ella:
+
 ```
+cd ruta\a\Honorarios
+git clone <url-del-repositorio> _Programa
+cd _Programa
 pip install -r requirements.txt
 ```
 
@@ -79,6 +84,7 @@ El reporte queda en `<Año>/<Mes>/Salida/Conciliacion_AAAA-MM_fecha_hora.xlsx`. 
 | **Rechazar** | La factura está mal hecha: se pide refacturar | Médico |
 | **Diferencia de importe** | Hay XML del proveedor, pero ningún importe coincide | Revisor |
 | **Sin XML** | No llegó la factura | Responsables de envío de XML |
+| **Proveedor extranjero** | El proveedor tiene ID fiscal de otro país: no emite CFDI, se revisa a mano con su factura del extranjero (y la retención RE en SAP) | Revisor |
 | **Proveedor sin RFC / RFC inválido / ID no está en catálogo / Línea sin IDProveedor** | Falla el catálogo o el TXT | Administración del catálogo |
 
 ## Reglas de negocio
