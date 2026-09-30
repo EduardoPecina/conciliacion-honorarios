@@ -78,6 +78,38 @@ Después de leer las facturas, el programa **siempre** consulta su estatus en el
 
 El reporte queda en `<Año>/<Mes>/Salida/Conciliacion_AAAA-MM_fecha_hora.xlsx`. Cada corrida genera un archivo nuevo; nunca se sobrescribe uno anterior.
 
+## Portal web (en prueba)
+
+La misma conciliación, desde el navegador y sin carpetas: se elige el mes, se arrastran el TXT y los XML (o un `.zip`), se da clic en **Procesar** y se descarga el Excel. El resultado muestra cuántas líneas hay en cada estatus, el resumen del SAT y la lista **"Qué hacer"** con quién debe actuar.
+
+El historial de UUID **no** se registra al procesar: solo cuando alguien da clic en **"Confirmar y registrar en el historial"**. Así, una corrida de prueba no deja rastro.
+
+Para probarlo en tu computadora:
+
+```
+pip install -r requirements-portal.txt
+```
+
+y doble clic en **`EJECUTAR_PORTAL.bat`** (abre http://localhost:8501; deja la ventana negra abierta mientras lo usas). O desde una terminal: `python -m streamlit run portal/app.py`.
+
+| Página | Qué hace |
+|---|---|
+| Conciliar | Subir archivos → Procesar → resumen → Descargar Excel → Confirmar |
+| Catálogo de proveedores | Consulta y búsqueda (por ahora se edita en el Excel de `_Configuracion`) |
+| Historial de UUID | UUID ya conciliados, por periodo |
+
+La validación contra SAP GUI solo existe en `EJECUTAR.bat`, porque SAP está abierto en la computadora de quien lo usa, no en un servidor.
+
+### Arquitectura: una regla
+
+```
+honorarios/   el motor: reglas, cruce, SAT, Excel  <- TODAS las reglas de negocio van aquí
+portal/       el portal web: solo archivos, botones y pantallas
+_Programa.py  el programa de consola (.bat)
+```
+
+**El portal no tiene reglas de negocio.** Solo recibe archivos, llama a `honorarios/servicio.py` (la misma conciliación que usa el `.bat`) y muestra el resultado. Así el portal y el `.bat` siempre dan el mismo resultado.
+
 ## Estatus de cada línea
 
 | Estatus | Significa | Quién actúa |
@@ -187,7 +219,9 @@ Todo lo ajustable está en **`honorarios/config.py`**: datos del receptor, toler
 | `honorarios/reporte.py` | Excel de salida con fórmulas |
 | `honorarios/sap.py` | Consulta opcional a SAP GUI |
 | `honorarios/estado_sat.py` | Consulta del estatus del CFDI en el SAT |
-| `honorarios/principal.py` | Flujo principal |
+| `honorarios/servicio.py` | La conciliación completa sin preguntas en pantalla (la usan el `.bat` y el portal) |
+| `honorarios/principal.py` | Programa de consola: preguntas y SAP GUI |
+| `portal/` | Portal web (Streamlit): `app.py`, `paginas/` y `archivos.py` (guarda lo que se sube) |
 | `tests/` | Pruebas automáticas con datos inventados |
 
 ## Pruebas
@@ -208,7 +242,8 @@ python tests/datos_prueba.py C:\ruta\destino
 
 - El repositorio es **privado**, con acceso para el equipo de Sistemas, según lo autorizado por Ciberseguridad.
 - El `.gitignore` bloquea `.xml`, `.txt`, `.xlsx`, `.csv` y demás archivos de datos. **Nunca subas facturas, TXT, catálogos ni reportes reales.**
-- Antes de cada commit revisa `git status`: solo deben aparecer archivos `.py`, `.md`, `.bat`, `LICENSE` o `.txt` de configuración del repo.
+- Antes de cada commit revisa `git status`: solo deben aparecer archivos `.py`, `.md`, `.bat`, `.toml`, `LICENSE` o `.txt` de configuración del repo.
+- El portal (`.streamlit/config.toml`) no envía estadísticas de uso a Streamlit. Lo que se sube se guarda en una carpeta temporal que se borra al terminar; el Excel queda en `<Año>/<Mes>/Salida`, como con el `.bat`.
 - La única conexión a internet es al servicio oficial del SAT (`consultaqr.facturaelectronica.sat.gob.mx`), en cada corrida, y envía únicamente los datos del código QR de cada factura (ver [Estatus en el SAT](#estatus-en-el-sat)); nada del TXT ni del catálogo sale de la computadora. La otra integración es la consulta opcional, de solo lectura, a SAP GUI.
 
 ## Licencia

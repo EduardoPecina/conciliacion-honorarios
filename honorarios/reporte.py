@@ -34,6 +34,21 @@ ORDEN_ESTATUS = ["Cruzado", "Cruzado (pago quebrado)",
                  "Cruzado con observaciones", "Detenida", "Rechazar", "Diferencia de importe", "Sin XML",
                  "Proveedor extranjero", "RFC inválido en catálogo",
                  "Proveedor sin RFC en catálogo", "ID no está en catálogo", "Línea sin IDProveedor"]
+# Quién tiene que actuar en cada estatus (misma tabla del README). La usa el portal para la lista "Qué hacer".
+RESPONSABLE_POR_ESTATUS = {
+    "Cruzado": "Nadie: se puede pagar",
+    "Cruzado (pago quebrado)": "Nadie: se puede pagar",
+    "Cruzado con observaciones": "Revisor (ver Observaciones)",
+    "Detenida": "Sistemas / Customer Services",
+    "Rechazar": "Médico: refacturar",
+    "Diferencia de importe": "Revisor",
+    "Sin XML": "Responsables de envío de XML",
+    "Proveedor extranjero": "Revisor (factura del extranjero)",
+    "RFC inválido en catálogo": "Administración del catálogo",
+    "Proveedor sin RFC en catálogo": "Administración del catálogo",
+    "ID no está en catálogo": "Administración del catálogo",
+    "Línea sin IDProveedor": "Administración del catálogo",
+}
 COLORES = {"Cruzado": "C6EFCE", "Cruzado (pago quebrado)": "C6EFCE",
            "Cruzado con observaciones": "FFEB9C",
            "Diferencia de importe": "FFEB9C", "Proveedor extranjero": "DDEBF7"}

@@ -1,0 +1,13 @@
+# Configuración del portal (Streamlit la lee de la carpeta desde donde se ejecuta: la del repositorio).
+[server]
+headless = true              # no intenta abrir un navegador en el servidor
+maxUploadSize = 500          # MB por archivo subido (un .zip con todos los XML del mes)
+
+[browser]
+gatherUsageStats = false     # no enviar estadísticas de uso a Streamlit: nada sale de la red salvo la consulta al SAT
+
+[client]
+toolbarMode = "minimal"      # oculta el botón "Deploy" (publicar en la nube de Streamlit) y opciones de desarrollador
+
+[theme]
+primaryColor = "#305496"     # mismo azul de los encabezados del Excel
