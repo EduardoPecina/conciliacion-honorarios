@@ -1,5 +1,13 @@
 # Historial de cambios
 
+## [1.4.1] - 2026-09-30
+
+### Cambiado
+- Preguntas más claras: en lugar de `Año [2026]:` dice `Año (Enter = 2026, año actual):`, el mes muestra su
+  nombre (`Enter = 9, septiembre`) y las preguntas sí/no dicen `(s = sí, n = no; Enter = no)`.
+- Al capturar el periodo se confirma: "Periodo a conciliar: septiembre 2026".
+- Un año que no tenga 4 dígitos (p. ej. "26") se rechaza con un mensaje claro.
+
 ## [1.4.0] - 2026-09-30
 
 ### Cambiado

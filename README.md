@@ -71,7 +71,7 @@ python _Programa.py
 
 El programa pregunta:
 
-1. **Año y mes** del periodo (Enter = mes actual).
+1. **Año y mes** del periodo. Cada pregunta dice qué valor se usa si solo presionas Enter (por ejemplo, `Año (Enter = 2026, año actual)`); al terminar, el programa confirma el periodo: "Periodo a conciliar: septiembre 2026".
 2. **¿Validar contra SAP?** Responde `s` solo si SAP está abierto con tu sesión iniciada. Mientras consulta, no toques el mouse ni el teclado.
 
 Después de leer las facturas, el programa **siempre** consulta su estatus en el SAT (requiere internet; ver [Estatus en el SAT](#estatus-en-el-sat)).

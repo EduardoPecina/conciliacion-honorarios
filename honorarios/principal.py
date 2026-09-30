@@ -13,7 +13,8 @@ from .sap import consultar_sap
 # PRINCIPAL
 # ------------------------------------------------------------------
 def si(pregunta, defecto):
-    respuesta = input(f"{pregunta} (s/n) [{defecto}]: ").strip().lower() or defecto
+    texto_defecto = "sí" if defecto == "s" else "no"
+    respuesta = input(f"{pregunta} (s = sí, n = no; Enter = {texto_defecto}): ").strip().lower() or defecto
     return respuesta in ("s", "si", "sí", "y", "yes")
 
 
