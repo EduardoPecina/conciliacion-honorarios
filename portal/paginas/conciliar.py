@@ -7,7 +7,7 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as componentes
 
-from honorarios.config import MESES, RAIZ
+from honorarios.config import MESES, REPORTES
 from honorarios.entradas import NOMBRES_MES, rutas_en
 from honorarios.estado_sat import alerta_efos, describir
 from honorarios.reporte import ORDEN_ESTATUS, RESPONSABLE_POR_ESTATUS
@@ -48,7 +48,7 @@ xmls = st.file_uploader("2. Facturas XML (arrastra todos los archivos a la vez, 
 if xmls:
     st.caption(f"{len(xmls):,} archivo(s) cargado(s)")
 
-salida = RAIZ / str(anio) / MESES[mes - 1] / "Salida"      # el Excel se guarda donde lo deja el .bat
+salida = REPORTES / str(anio) / MESES[mes - 1]              # la carpeta del mes se crea sola al procesar
 with st.container(border=True):
     st.markdown("**Antes de procesar** (la validación contra SAP es obligatoria)\n\n"
                 "✅ SAP abierto en el sistema productivo  \n"
