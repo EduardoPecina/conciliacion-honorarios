@@ -1,5 +1,12 @@
 # Historial de cambios
 
+## [1.1.1] - 2026-09-30
+
+### Corregido
+- Si el TXT no traía encabezado y la primera línea tenía la fecha en otro formato (p. ej. "1.09.2026"),
+  esa línea se tomaba por encabezado y su pago desaparecía del reporte sin avisar. Ahora solo se
+  considera encabezado un renglón cuya primera columna no trae dígitos.
+
 ## [1.1.0] - 2026-09-30
 
 ### Cambiado
