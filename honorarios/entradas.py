@@ -23,15 +23,22 @@ from .utilidades import (
 # ------------------------------------------------------------------
 # 1. RUTAS
 # ------------------------------------------------------------------
+NOMBRES_MES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre",
+               "octubre", "noviembre", "diciembre"]
+
+
 def pedir_periodo():
     hoy = datetime.now()
     print("=" * 60)
     print("  CONCILIACIÓN DE HONORARIOS")
     print("=" * 60)
-    anio = input(f"Año [{hoy.year}]: ").strip() or str(hoy.year)
-    mes = input(f"Mes (1-12) [{hoy.month}]: ").strip() or str(hoy.month)
-    if not anio.isdigit() or not mes.isdigit() or not 1 <= int(mes) <= 12:
+    print("Escribe el periodo a conciliar. Si solo presionas Enter, se usa el valor que indica \"Enter =\".\n")
+    anio = input(f"Año (Enter = {hoy.year}, año actual): ").strip() or str(hoy.year)
+    mes = (input(f"Mes, del 1 al 12 (Enter = {hoy.month}, {NOMBRES_MES[hoy.month - 1]}): ").strip()
+           or str(hoy.month))
+    if not anio.isdigit() or len(anio) != 4 or not mes.isdigit() or not 1 <= int(mes) <= 12:
         raise ErrorUsuario("El año o el mes no son válidos. Ejemplo: año 2026, mes 9.")
+    print(f"\nPeriodo a conciliar: {NOMBRES_MES[int(mes) - 1]} {anio}")
     return int(anio), int(mes)
 
 

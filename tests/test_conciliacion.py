@@ -377,6 +377,30 @@ class TestToleranciaImpuestos(unittest.TestCase):
         self.assertIn("Impuestos no cuadran", reglas.revisar_impuestos(self.fila("13.25")))
 
 
+class TestPreguntas(unittest.TestCase):
+    def preguntar(self, *respuestas):
+        from unittest import mock
+        with mock.patch("builtins.input", side_effect=list(respuestas)) as entrada, \
+                mock.patch("builtins.print"):
+            return entradas.pedir_periodo(), [c.args[0] for c in entrada.call_args_list]
+
+    def test_enter_usa_el_periodo_actual(self):
+        from datetime import datetime
+        hoy = datetime.now()
+        periodo, textos = self.preguntar("", "")
+        self.assertEqual(periodo, (hoy.year, hoy.month))
+        self.assertIn(f"Enter = {hoy.year}, año actual", textos[0])
+        self.assertIn(f"Enter = {hoy.month}, {entradas.NOMBRES_MES[hoy.month - 1]}", textos[1])
+
+    def test_periodo_escrito(self):
+        self.assertEqual(self.preguntar("2025", "12")[0], (2025, 12))
+
+    def test_periodo_invalido(self):
+        for anio, mes in (("26", "9"), ("2026", "13"), ("dos mil", "9")):
+            with self.subTest(anio=anio, mes=mes), self.assertRaises(utilidades.ErrorUsuario):
+                self.preguntar(anio, mes)
+
+
 class TestUtilidades(unittest.TestCase):
     def test_importe_txt(self):
         self.assertEqual(utilidades.importe_txt("1,160.00"), Decimal("1160.00"))
