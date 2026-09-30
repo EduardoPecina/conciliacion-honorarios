@@ -8,6 +8,7 @@ from .config import (
     FORMAS_PAGO_OK,
     ISR_SAP,
     METODOS_PAGO_OK,
+    MSG_FACTURA_CANCELADA,
     MSG_SAP_SIN_IH,
     MSG_UUID_REPETIDO,
     NOMBRE_SOCIEDAD,
@@ -116,7 +117,8 @@ def validar_xml(f, ctx):
         consulta = ctx["estados_sat"].get(f["UUID"])
         if consulta and consulta["Estado"]:
             if consulta["Estado"] == "Cancelado":
-                r.append("Factura CANCELADA en el SAT: no se puede pagar, pedir la factura que la sustituye")
+                r.append("Factura CANCELADA en el SAT: no se puede pagar")
+                o.append(MSG_FACTURA_CANCELADA)
             elif consulta["Estado"] == "No encontrado":
                 d.append("El SAT no encuentra este CFDI con el UUID, RFC y total del XML: puede ser un XML alterado "
                          "o apócrifo, o recién timbrado (puede tardar hasta 72 horas en aparecer); volver a consultar")

@@ -82,7 +82,7 @@ def escribir_resumen(hoja, detalle_cols, n_filas, n_xml):
     E, I, S = col("Estatus"), col("Importe"), col("DiscrepanciaSAP")
     R, V = col("Revisión impuestos"), col("Variación impuestos")
     RI, VI = col("Revisión importe"), col("Variación importe")
-    OB = col("Observaciones")
+    OB, ES = col("Observaciones"), col("EstadoSAT")
     rango = lambda c: f"Detalle!${c}$2:${c}${n_filas + 1}"
 
     hoja.append(["Estatus", "Líneas", "Importe TXT", "% del importe", "Cómo se calcula"])
@@ -106,6 +106,8 @@ def escribir_resumen(hoja, detalle_cols, n_filas, n_xml):
     extras = [
         ("Líneas con validaciones no realizadas", f"=COUNTIF({rango(OB)},\"*Validaciones no realizadas*\")",
          "SAP o el SAT (si se pidieron) o el historial de UUID no se pudieron consultar para esas líneas"),
+        ("Líneas con factura cancelada en el SAT", f"=COUNTIF({rango(ES)},\"*Cancelado*\")",
+         "Líneas del Detalle con EstadoSAT = Cancelado (solo si se consultó el SAT)"),
         ("Líneas con discrepancia SAP", f"=COUNTIF({rango(S)},\"Sí\")",
          "Líneas del Detalle con DiscrepanciaSAP = Sí"),
         ("Líneas con impuestos a revisar", f"=COUNTIF({rango(R)},\"Revisar\")",
@@ -538,6 +540,8 @@ def generar_reporte(rutas, anio, mes, resultado, sobrantes, errores_xml, n_xml, 
     extra = pd.DataFrame([
         {"Estatus": "Líneas con validaciones no realizadas",
          "Lineas": int(detalle["Observaciones"].fillna("").str.contains("Validaciones no realizadas").sum())},
+        {"Estatus": "Líneas con factura cancelada en el SAT",
+         "Lineas": int(detalle["EstadoSAT"].fillna("").str.contains("Cancelado").sum())},
         {"Estatus": "Líneas con discrepancia SAP", "Lineas": int((detalle["DiscrepanciaSAP"] == "Sí").sum())},
         {"Estatus": "XML leídos", "Lineas": n_xml},
         {"Estatus": "XML sin línea en TXT", "Lineas": len(sobrantes)},

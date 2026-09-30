@@ -92,10 +92,11 @@ VALIDACIONES = {
 URL_ESTADO_SAT = "https://consultaqr.facturaelectronica.sat.gob.mx/ConsultaCFDIService.svc"
 CONSULTAS_SAT_SIMULTANEAS = 4            # consultas en paralelo; no subirlo mucho para no saturar al SAT
 TIEMPO_ESPERA_SAT = 30                   # segundos máximos por consulta
-ESTADO_SAT_POR_DEFECTO = "n"             # respuesta por defecto a "¿Verificar en el SAT?" ("s" o "n")
+ESTADO_SAT_POR_DEFECTO = "s"             # respuesta por defecto a "¿Verificar en el SAT?" ("s" o "n")
+MSG_FACTURA_CANCELADA = "Verificar si el médico envió la factura que sustituye a esta, que está cancelada en el SAT"
 
 # Observaciones que no quitan el "Cruzado" (son informativas, no hay nada que revisar)
-INFORMATIVAS = ("Pago quebrado", "Factura PPD")
+INFORMATIVAS = ("Pago quebrado", "Factura PPD", "Sustituye a la factura cancelada")
 # Observaciones que mencionan SAP pero no son discrepancias con SAP
 NO_ES_DISCREPANCIA_SAP = ("Validaciones no realizadas", "No se pudo validar en SAP",
                           "ID fiscal extranjero")

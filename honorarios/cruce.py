@@ -12,6 +12,7 @@ from .config import (
     FECHA_TXT_DEBE_SER_DEL_PERIODO,
     FORMAS_PAGO,
     INFORMATIVAS,
+    MSG_FACTURA_CANCELADA,
     MSG_UUID_REPETIDO,
     NO_ES_DISCREPANCIA_SAP,
     REGIMENES,
@@ -192,6 +193,15 @@ def conciliar(lineas_txt, catalogo, facturas, anio, mes, sap=None, historial=Non
         pasadas[n] |= aprobadas
         obs[n].extend(notas)
 
+    def cancelada(i):
+        return estados_sat is not None and (estados_sat.get(facturas[i]["UUID"]) or {}).get("Estado") == "Cancelado"
+
+    def sustitutas(i, candidatas):
+        """Facturas vigentes del mismo RFC y por el mismo importe que la factura i (que está cancelada)."""
+        return [j for j in candidatas if j != i and not cancelada(j)
+                and facturas[j]["RFCEmisor"] == facturas[i]["RFCEmisor"]
+                and abs(facturas[j]["ImporteConIVA"] - facturas[i]["ImporteConIVA"]) <= TOLERANCIA]
+
     def calidad(i):
         """0 = factura válida, 1 = con motivo para detener, 2 = a rechazar. Ante importes iguales se
         prefiere la válida: p. ej. el proveedor canceló y reemitió por el mismo importe."""
@@ -231,9 +241,15 @@ def conciliar(lineas_txt, catalogo, facturas, anio, mes, sap=None, historial=Non
                 i = asignacion[n]
                 otras = [j for j in cerca(n, TOLERANCIA) if j != i and j not in tomadas
                          and facturas[j]["UUID"] != facturas[i]["UUID"]]     # copia del mismo UUID: otro aviso
+                # Una factura cancelada por el mismo importe no es facturación doble: es la que esta sustituye
+                sustituidas = [j for j in otras if cancelada(j)] if not cancelada(i) else []
+                otras = [j for j in otras if j not in sustituidas]
                 notas = ([f"{len(otras) + 1} facturas distintas (UUID diferente) del mismo RFC por el mismo "
                           "importe: posible facturación doble del proveedor"]
                          if otras else [])
+                if sustituidas:
+                    notas.append("Sustituye a la factura cancelada en el SAT "
+                                 + ", ".join(facturas[j]["ArchivoXML"] for j in sustituidas))
                 usadas.add(i)
                 poner_xml(n, [i], "Cruzado", notas)
                 lineas.remove(n)
@@ -439,6 +455,10 @@ def conciliar(lineas_txt, catalogo, facturas, anio, mes, sap=None, historial=Non
             motivos.append(f"Copia repetida de {', '.join(copia)} (ya cruzado): {MSG_UUID_REPETIDO}")
         else:
             motivos += [x for x in o_xml if x.startswith(MSG_UUID_REPETIDO)]
+        if cancelada(i):
+            nueva = [facturas[j]["ArchivoXML"] for j in sustitutas(i, sorted(usadas))]
+            motivos.append(f"Ya se cruzó la factura que la sustituye (mismo RFC e importe): {', '.join(nueva)}"
+                           if nueva else MSG_FACTURA_CANCELADA)
         s["MotivoRechazo"] = "; ".join(motivos)
         s["IDProveedorCatalogo"] = ", ".join(rfc_a_id.get(f["RFCEmisor"], ["No está en catálogo"]))
         sobrantes.append(s)

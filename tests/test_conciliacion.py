@@ -201,6 +201,17 @@ class TestCruceConEstadoSat(ConDatosDePrueba):
             por_id.setdefault(fila["IDProveedor"], []).append(fila)
         return por_id, sobrantes
 
+    def test_todo_vigente_no_cambia_ningun_resultado(self):
+        """Exactitud: si el SAT dice que todo está vigente, cada línea queda con el mismo estatus,
+        motivos y observaciones que sin consultar al SAT."""
+        por_id, _ = self.conciliar()
+        con_sat = {f["Linea"]: f for filas in por_id.values() for f in filas}
+        for sin_sat in self.resultado:
+            with self.subTest(linea=sin_sat["Linea"]):
+                fila = con_sat[sin_sat["Linea"]]
+                for campo in ("Estatus", "MotivoRechazo", "Observaciones", "UUID"):
+                    self.assertEqual(fila.get(campo), sin_sat.get(campo), campo)
+
     def test_estatus_segun_el_sat(self):
         por_rfc = {
             "MERU800101AB1": {"Estado": "Cancelado"},                                  # 100001
@@ -212,6 +223,7 @@ class TestCruceConEstadoSat(ConDatosDePrueba):
         estatus = {i: {f["Estatus"] for f in filas} for i, filas in por_id.items()}
         self.assertEqual(estatus["100001"], {"Rechazar"})
         self.assertIn("CANCELADA", por_id["100001"][0]["MotivoRechazo"])
+        self.assertIn("Verificar si el médico envió la factura que sustituye", por_id["100001"][0]["Observaciones"])
         self.assertEqual(estatus["100002"], {"Detenida"})
         self.assertEqual(estatus["100013"], {"Detenida"})
         self.assertIn("pidió cancelar", por_id["100013"][0]["MotivoRechazo"])
@@ -230,10 +242,18 @@ class TestCruceConEstadoSat(ConDatosDePrueba):
             lambda f: {"Estado": "Cancelado"} if f["UUID"] == cancelada["UUID"] else {}, [nueva])
         fila = por_id["100001"][0]
         self.assertEqual(fila["UUID"], nueva["UUID"])
-        self.assertTrue(fila["Estatus"].startswith("Cruzado"))
+        self.assertEqual(fila["Estatus"], "Cruzado")        # la cancelada no cuenta como facturación doble
+        self.assertIn("Sustituye a la factura cancelada", fila["Observaciones"])
         sobra = next(s for s in sobrantes if s["UUID"] == cancelada["UUID"])
         self.assertIn("CANCELADA", sobra["MotivoRechazo"])
+        self.assertIn("01_resico_nueva.xml", sobra["MotivoRechazo"])
         self.assertEqual(sobra["EstadoSAT"], "Cancelado")
+
+    def test_cancelada_sin_sustituta_en_xml_sin_txt(self):
+        """Factura cancelada que ninguna línea del TXT paga: se pide verificar si llegó la sustituta."""
+        _, sobrantes = self.conciliar(lambda f: {"Estado": "Cancelado"} if f["RFCEmisor"] == "ZZZZ800101ZZ1" else {})
+        sobra = next(s for s in sobrantes if s["ArchivoXML"] == "20_sin_linea_txt.xml")
+        self.assertIn("Verificar si el médico envió la factura que sustituye", sobra["MotivoRechazo"])
 
 class TestReglas(unittest.TestCase):
     """Reglas de negocio sobre un XML individual."""

@@ -101,7 +101,7 @@ El reporte queda en `<Año>/<Mes>/Salida/Conciliacion_AAAA-MM_fecha_hora.xlsx`. 
 - Método de pago distinto de **PUE** o **PPD**.
 - Forma de pago distinta de **03 Transferencia** o **99 Por definir**.
 - PPD con una forma de pago distinta de 99.
-- **Con consulta al SAT:** la factura está **cancelada**.
+- **Con consulta al SAT:** la factura está **cancelada**. En Observaciones se pide verificar si el médico envió la factura que la sustituye.
 - RFC del emisor con formato inválido, o factura sin conceptos.
 
 ### Motivos para detener (se corrige internamente antes de pagar)
@@ -141,9 +141,12 @@ El portal de verificación del SAT tiene captcha porque es para personas. El pro
 - Por cada factura solo se envía la expresión de su código QR: UUID, RFC emisor, RFC receptor, total y los últimos 8 caracteres del sello.
 - Se consultan 4 facturas a la vez (`CONSULTAS_SAT_SIMULTANEAS`); cada UUID una sola vez.
 - Si no hay internet, se sabe con la primera consulta y se sigue sin esa validación. Esas líneas salen "Cruzado con observaciones" con "Validaciones no realizadas: estatus del CFDI en el SAT".
-- Si el médico canceló una factura y mandó la que la sustituye por el mismo importe, se cruza la nueva y la cancelada aparece en "XML sin TXT".
+- Si el médico canceló una factura y mandó la que la sustituye por el mismo importe, se cruza la nueva (queda "Cruzado", con la nota "Sustituye a la factura cancelada…"; no se toma como facturación doble) y la cancelada aparece en "XML sin TXT" indicando cuál la sustituyó.
+- Si no llegó la sustituta, la línea sale "Rechazar" con la observación "Verificar si el médico envió la factura que sustituye a esta, que está cancelada en el SAT".
+- El Resumen trae el indicador "Líneas con factura cancelada en el SAT".
+- Si todas las facturas están vigentes, el resultado es exactamente el mismo que sin consultar al SAT (hay una prueba automática que lo verifica).
 - La columna **EstadoSAT** del Detalle dice Vigente, Vigente (cancelación en proceso), Cancelado, No encontrado o Sin respuesta.
-- La respuesta por defecto a la pregunta se cambia en `ESTADO_SAT_POR_DEFECTO` de `config.py`.
+- La respuesta por defecto a la pregunta es "s" (Enter = consultar); se cambia en `ESTADO_SAT_POR_DEFECTO` de `config.py`.
 
 ## Configuración
 
