@@ -26,8 +26,15 @@ SOBRE = ('<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envel
          'xmlns:tem="http://tempuri.org/"><soapenv:Header/><soapenv:Body><tem:Consulta>'
          '<tem:expresionImpresa>{}</tem:expresionImpresa></tem:Consulta></soapenv:Body></soapenv:Envelope>')
 CAMPOS_RESPUESTA = ("CodigoEstatus", "Estado", "EsCancelable", "EstatusCancelacion", "ValidacionEFOS")
-# ValidacionEFOS: 200 y 201 = el emisor NO está en la lista de EFOS (art. 69-B CFF, operaciones simuladas).
-# Cualquier otro código se trata como alerta: mejor revisar de más que pagar a un EFOS.
+# ValidacionEFOS: si el emisor está en la lista de EFOS ("Empresas que Facturan Operaciones Simuladas",
+# listado definitivo del artículo 69-B del CFF). Códigos según la "Documentación del Servicio de Consulta
+# de CFDI" del SAT (versión 1.4):
+#   100 = el RFC del emisor SÍ está en la lista de EFOS                      -> alerta
+#   200 = el RFC del emisor NO está en la lista                               -> sin alerta
+#   201 = ni el emisor ni los RFC "a cuenta de terceros" de la factura están  -> sin alerta
+# Cualquier otro código (uno que el SAT agregue después) también es alerta: mejor revisar de más que pagar a un
+# EFOS. La librería phpcfdi/sat-estado-cfdi, muy usada con este servicio, aplica el mismo criterio.
+EFOS_EN_LISTA = "100"
 EFOS_NO_LISTADO = {"200", "201"}
 ESTADOS = {"VIGENTE": "Vigente", "CANCELADO": "Cancelado", "NOENCONTRADO": "No encontrado"}
 REINTENTOS = 3
@@ -119,8 +126,10 @@ def describir_efos(consulta):
     if not consulta or not consulta.get("Estado"):
         return ""
     codigo = alerta_efos(consulta)
+    if codigo == EFOS_EN_LISTA:
+        return f"Revisar: en lista EFOS (código {codigo})"
     if codigo:
-        return f"Revisar (código {codigo})"
+        return f"Revisar: código {codigo} no documentado por el SAT"
     return "No listado" if consulta.get("ValidacionEFOS") else ""
 
 

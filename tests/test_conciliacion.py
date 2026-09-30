@@ -155,7 +155,9 @@ class TestEstadoSat(unittest.TestCase):
         self.assertEqual(estado_sat.alerta_efos(consulta("201")), "")
         self.assertEqual(estado_sat.alerta_efos(consulta("100")), "100")
         self.assertEqual(estado_sat.describir_efos(consulta("200")), "No listado")
-        self.assertEqual(estado_sat.describir_efos(consulta("100")), "Revisar (código 100)")
+        self.assertEqual(estado_sat.describir_efos(consulta("100")), "Revisar: en lista EFOS (código 100)")
+        self.assertEqual(estado_sat.alerta_efos(consulta("999")), "999")          # código nuevo: también alerta
+        self.assertIn("no documentado", estado_sat.describir_efos(consulta("999")))
 
     def test_consulta_cada_uuid_una_vez(self):
         respuestas = {"U-1": respuesta_sat("Vigente"), "U-2": respuesta_sat("Cancelado"),
@@ -258,7 +260,7 @@ class TestCruceConEstadoSat(ConDatosDePrueba):
         fila = por_id["100001"][0]
         self.assertEqual(fila["Estatus"], "Cruzado con observaciones")
         self.assertIn("Alerta EFOS", fila["Observaciones"])
-        self.assertEqual(fila["EFOS"], "Revisar (código 100)")
+        self.assertEqual(fila["EFOS"], "Revisar: en lista EFOS (código 100)")
         self.assertEqual(por_id["100007"][0]["Estatus"], "Cruzado")
         self.assertEqual(por_id["100007"][0]["EFOS"], "No listado")
 
