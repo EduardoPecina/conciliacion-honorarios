@@ -48,6 +48,14 @@ def a_float(df):
     return df
 
 
+def como_texto(celdas):
+    """Un texto que empieza con "=" (p. ej. el nombre del emisor de un XML) openpyxl lo guarda como
+    fórmula y Excel lo ejecutaría. Se fuerza a texto: el contenido se ve igual, pero no se ejecuta."""
+    for celda in celdas:
+        if celda.data_type == "f":
+            celda.data_type = "s"
+
+
 def formatear_hoja(hoja, colorear_estatus=False):
     hoja.freeze_panes = "A2"
     for celda in hoja[1]:
@@ -403,11 +411,13 @@ def escribir_por_proveedor(libro, L, detalle, fichas):
         resumen = hoja.max_row + 1
         hoja.append([id_prov, grupo["Nombre"].iloc[0], grupo["RFC"].iloc[0],
                      f"{len(grupo)} línea(s)"])
+        como_texto(hoja[hoja.max_row][:3])
         primera, ultima = resumen + 1, resumen + len(grupo)
         for fila in grupo.itertuples(index=False):
             k = fila.FilaExcel
             hoja.append([f"    Línea {fila.Linea}", fila.Folio, None, fila.Estatus])
             r = hoja.max_row
+            como_texto([hoja.cell(r, 2)])
             for i, nombre in enumerate(encab[4:10], start=5):
                 celda = hoja.cell(r, i, f"=Detalle!{L[numericas[nombre]]}{k}")
                 celda.number_format = FMT_PESOS
@@ -571,6 +581,8 @@ def generar_reporte(rutas, anio, mes, resultado, sobrantes, errores_xml, n_xml, 
         info.to_excel(w, sheet_name="Info", index=False)
         for hoja in w.book.worksheets:
             if hoja.title != "Resumen":
+                # Hasta aquí estas hojas solo tienen datos (las fórmulas del programa se agregan después)
+                como_texto(c for fila in hoja.iter_rows() for c in fila)
                 formatear_hoja(hoja, colorear_estatus=(hoja.title == "Detalle"))
         hoja_det = w.book["Detalle"]
         hoja_det.auto_filter.ref = hoja_det.dimensions

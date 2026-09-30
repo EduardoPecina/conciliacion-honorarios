@@ -133,12 +133,15 @@ def leer_catalogo(ruta):
 def leer_txt(ruta):
     lineas = leer_texto(ruta).splitlines()
     filas, errores, sin_id = [], [], []
+    primera = True
     for n, linea in enumerate(lineas, start=1):
         if not linea.strip():
             continue
         campos = [c.strip() for c in linea.split("\t")]
-        if n == 1 and not re.fullmatch(r"\d{2}\.\d{2}\.\d{4}", campos[0]):
-            continue                                   # es un encabezado, se omite
+        if primera:
+            primera = False
+            if not re.fullmatch(r"\d{2}\.\d{2}\.\d{4}", campos[0]):
+                continue                               # es un encabezado (aunque haya renglones vacíos antes)
         if len(campos) != len(COLUMNAS_TXT):
             errores.append(f"Línea {n}: trae {len(campos)} columnas y se esperaban {len(COLUMNAS_TXT)}")
             continue

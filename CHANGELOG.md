@@ -1,5 +1,16 @@
 # Historial de cambios
 
+## [1.0.1] - 2026-09-30
+
+### Corregido
+- Un texto que empieza con "=" (nombre del emisor en un XML, folio del TXT, nombre de archivo...)
+  se escribía en el Excel como fórmula y Excel lo ejecutaba. Ahora siempre se escribe como texto.
+- El encabezado del TXT no se reconocía si el archivo empezaba con renglones vacíos.
+
+### Documentación
+- README: estatus "Proveedor extranjero" e instrucciones para clonar el repositorio como `_Programa`.
+- Licencia propietaria (`LICENSE`).
+
 ## [1.0.0] - 2026-09-30
 
 Primera versión en control de versiones.
@@ -8,7 +19,7 @@ Primera versión en control de versiones.
 - Código dividido en módulos dentro de `honorarios/` (antes, un solo archivo de ~1,900 líneas).
   El comportamiento es idéntico a la versión anterior: se verificó comparando el Excel de salida
   celda por celda sobre los mismos datos de prueba.
-- `conciliar.py` queda como punto de entrada; se ejecuta igual que antes.
+- `_Programa.py` es el punto de entrada (nombre pedido por Sistemas).
 - `EJECUTAR.bat` para ejecutar con doble clic.
 - Pruebas automáticas con datos inventados en `tests/`.
 

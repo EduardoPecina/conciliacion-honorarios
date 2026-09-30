@@ -88,6 +88,31 @@ class TestReporte(ConDatosDePrueba):
         total = resumen.loc[resumen["Estatus"] == "TOTAL TXT", "Lineas"].iloc[0]
         self.assertEqual(int(total), 17)
 
+    def test_texto_con_igual_no_se_vuelve_formula(self):
+        """Un nombre de emisor o folio que empieza con '=' debe quedar como texto, no como fórmula."""
+        import copy
+        from openpyxl import load_workbook
+        malicioso = '=HYPERLINK("http://ejemplo.invalid","clic")'
+        resultado = copy.deepcopy(self.resultado)
+        for fila in resultado:
+            fila["Nombre"], fila["Folio"] = malicioso, malicioso
+        sobrantes = copy.deepcopy(self.sobrantes)
+        for s in sobrantes:
+            s["NombreEmisor"] = malicioso
+        destino, _ = reporte.generar_reporte(self.rutas, ANIO, MES, resultado, sobrantes, self.errores,
+                                             len(self.rutas["xmls"]), {})
+        libro = load_workbook(destino)
+        encontrados = 0
+        for hoja in ("Detalle", "XML sin TXT", "Por proveedor"):
+            for fila in libro[hoja].iter_rows():
+                for celda in fila:
+                    if celda.value == malicioso:
+                        encontrados += 1
+                        self.assertEqual(celda.data_type, "s", f"{hoja}!{celda.coordinate}")
+        self.assertGreater(encontrados, 0)
+        # Las fórmulas propias del programa siguen siendo fórmulas
+        self.assertEqual(libro["Resumen"]["B2"].data_type, "f")
+
 
 class TestReglas(unittest.TestCase):
     """Reglas de negocio sobre un XML individual."""
@@ -117,6 +142,18 @@ class TestReglas(unittest.TestCase):
     def test_factura_de_otro_mes_se_rechaza(self):
         rechazos = self.validar(fecha=f"{ANIO}-{MES - 1:02d}-28T10:00:00")[0]
         self.assertTrue(any("refacturación" in r for r in rechazos))
+
+
+class TestLecturaTxt(unittest.TestCase):
+    def test_encabezado_despues_de_lineas_vacias(self):
+        with tempfile.TemporaryDirectory() as d:
+            ruta = Path(d) / "pagos.txt"
+            datos = ["01.09.2026", "100001", "F1", "1000.00", "X", "E0", "1", "CC", "CTA", "PM", "REF"]
+            ruta.write_text("\n\n" + "\t".join(entradas.COLUMNAS_TXT) + "\n" + "\t".join(datos) + "\n",
+                            encoding="utf-8")
+            lineas = entradas.leer_txt(ruta)
+        self.assertEqual(len(lineas), 1)
+        self.assertEqual(lineas[0]["IDProveedor"], "100001")
 
 
 class TestUtilidades(unittest.TestCase):

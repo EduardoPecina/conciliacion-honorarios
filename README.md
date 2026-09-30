@@ -47,7 +47,12 @@ Honorarios/
 
 Requiere Python 3.10 o superior.
 
+El repositorio debe quedar en una carpeta llamada **`_Programa`** dentro de `Honorarios/`, porque el programa busca `_Configuracion` y las carpetas de los años un nivel arriba de ella:
+
 ```
+cd ruta\a\Honorarios
+git clone <url-del-repositorio> _Programa
+cd _Programa
 pip install -r requirements.txt
 ```
 
@@ -58,7 +63,7 @@ pip install -r requirements.txt
 **Doble clic en `EJECUTAR.bat`**, o desde una terminal:
 
 ```
-python conciliar.py
+python _Programa.py
 ```
 
 El programa pregunta:
@@ -79,6 +84,7 @@ El reporte queda en `<Año>/<Mes>/Salida/Conciliacion_AAAA-MM_fecha_hora.xlsx`. 
 | **Rechazar** | La factura está mal hecha: se pide refacturar | Médico |
 | **Diferencia de importe** | Hay XML del proveedor, pero ningún importe coincide | Revisor |
 | **Sin XML** | No llegó la factura | Responsables de envío de XML |
+| **Proveedor extranjero** | El proveedor tiene ID fiscal de otro país: no emite CFDI, se revisa a mano con su factura del extranjero (y la retención RE en SAP) | Revisor |
 | **Proveedor sin RFC / RFC inválido / ID no está en catálogo / Línea sin IDProveedor** | Falla el catálogo o el TXT | Administración del catálogo |
 
 ## Reglas de negocio
@@ -133,7 +139,7 @@ Todo lo ajustable está en **`honorarios/config.py`**: datos del receptor, toler
 
 | Archivo | Contenido |
 |---|---|
-| `conciliar.py` | Punto de entrada |
+| `_Programa.py` | Punto de entrada |
 | `honorarios/config.py` | Configuración y reglas ajustables |
 | `honorarios/utilidades.py` | Lectura de importes, normalización de IDs, RFC y nombres |
 | `honorarios/entradas.py` | Carpetas del periodo y lectura de catálogo, TXT y XML |
@@ -163,8 +169,12 @@ python tests/datos_prueba.py C:\ruta\destino
 
 - El repositorio es **privado**, con acceso para el equipo de Sistemas, según lo autorizado por Ciberseguridad.
 - El `.gitignore` bloquea `.xml`, `.txt`, `.xlsx`, `.csv` y demás archivos de datos. **Nunca subas facturas, TXT, catálogos ni reportes reales.**
-- Antes de cada commit revisa `git status`: solo deben aparecer archivos `.py`, `.md`, `.bat` o `.txt` de configuración del repo.
+- Antes de cada commit revisa `git status`: solo deben aparecer archivos `.py`, `.md`, `.bat`, `LICENSE` o `.txt` de configuración del repo.
 - El programa no se conecta a internet ni a servicios externos. La única integración es la consulta opcional, de solo lectura, a SAP GUI.
+
+## Licencia
+
+Software propietario de Servicios Integrales Nova de Monterrey, S.A. de C.V. Todos los derechos reservados; uso interno únicamente. Ver [LICENSE](LICENSE).
 
 ## Historial de cambios
 

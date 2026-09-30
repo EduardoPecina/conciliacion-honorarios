@@ -87,7 +87,7 @@ VALIDACIONES = {
 # Observaciones que no quitan el "Cruzado" (son informativas, no hay nada que revisar)
 INFORMATIVAS = ("Pago quebrado", "Factura PPD")
 # Observaciones que mencionan SAP pero no son discrepancias con SAP
-NO_ES_DISCREPANCIA_SAP = ("Lleva IVA: falta validar", "Validaciones no realizadas", "No se pudo validar en SAP",
+NO_ES_DISCREPANCIA_SAP = ("Validaciones no realizadas", "No se pudo validar en SAP",
                           "ID fiscal extranjero")
 
 # Carpeta "Honorarios" (la que contiene _Programa, _Configuracion y los años).
