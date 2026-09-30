@@ -94,11 +94,13 @@ Para probarlo en tu computadora:
 pip install -r requirements-portal.txt
 ```
 
-y doble clic en **`EJECUTAR_PORTAL.bat`**: el navegador se abre solo en http://localhost:8501 en cuanto el portal está listo (la primera vez puede tardar). Deja la ventana negra abierta mientras lo usas; si el portal se detiene, la ventana se queda abierta mostrando el error. O desde una terminal: `python -m streamlit run portal/app.py`.
+y doble clic en **`EJECUTAR_PORTAL.bat`**. **No aparece ninguna ventana negra:** el portal arranca en segundo plano y se abre en el navegador predeterminado de Windows (en una pestaña nueva si el navegador ya estaba abierto; si estaba cerrado, lo abre). La primera vez puede tardar unos segundos. Si el portal ya estaba abierto, el doble clic solo abre otra pestaña.
 
-Si el navegador dice **"localhost rechazó la conexión"** (`ERR_CONNECTION_REFUSED`), el portal no está corriendo: revisa la ventana negra. No es el firewall; `localhost` es la misma computadora.
+**Para cerrarlo:** botón **"Cerrar el portal"** en el menú de la izquierda. Si se cierran todas sus pestañas, el portal se apaga solo a los 15 minutos (así no queda uno olvidado bloqueando archivos de `_Programa`). Antes de actualizar el programa (`git pull`), ciérralo.
 
-Si la ventana negra dice **"Port 8501 is not available"**, ya hay otro portal abierto: usa ese (http://localhost:8501) o cierra su ventana negra y vuelve a abrirlo.
+Si el portal no puede iniciar, aparece una ventana de Windows con el motivo; el detalle completo queda en `portal/portal.log`. Para ver los mensajes en una consola (útil para diagnosticar), desde la carpeta `_Programa`: `python -m streamlit run portal/app.py`.
+
+Si el navegador dice **"localhost rechazó la conexión"** (`ERR_CONNECTION_REFUSED`), el portal no está corriendo: vuelve a dar doble clic en `EJECUTAR_PORTAL.bat`. No es el firewall; `localhost` es la misma computadora.
 
 Por ahora el portal solo acepta conexiones desde la misma computadora (`address = "localhost"` en `.streamlit/config.toml`): los compañeros de la red no pueden abrirlo. Para el servidor interno, Sistemas cambia esa línea.
 
