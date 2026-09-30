@@ -1,5 +1,12 @@
 # Historial de cambios
 
+## [1.5.1] - 2026-09-30
+
+### Corregido
+- `EJECUTAR_PORTAL.bat` abría el navegador antes de que el portal estuviera listo ("localhost rechazó la
+  conexión"). Ahora espera a que el portal escuche en el puerto 8501. Si el portal se detiene, la ventana
+  queda abierta con el error en lugar de cerrarse.
+
 ## [1.5.0] - 2026-09-30
 
 ### Agregado

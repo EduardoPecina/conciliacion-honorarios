@@ -90,7 +90,9 @@ Para probarlo en tu computadora:
 pip install -r requirements-portal.txt
 ```
 
-y doble clic en **`EJECUTAR_PORTAL.bat`** (abre http://localhost:8501; deja la ventana negra abierta mientras lo usas). O desde una terminal: `python -m streamlit run portal/app.py`.
+y doble clic en **`EJECUTAR_PORTAL.bat`**: el navegador se abre solo en http://localhost:8501 en cuanto el portal está listo (la primera vez puede tardar). Deja la ventana negra abierta mientras lo usas; si el portal se detiene, la ventana se queda abierta mostrando el error. O desde una terminal: `python -m streamlit run portal/app.py`.
+
+Si el navegador dice **"localhost rechazó la conexión"** (`ERR_CONNECTION_REFUSED`), el portal no está corriendo: revisa la ventana negra. No es el firewall; `localhost` es la misma computadora.
 
 | Página | Qué hace |
 |---|---|
