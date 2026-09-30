@@ -86,7 +86,7 @@ El reporte queda en `<Año>/<Mes>/Salida/Conciliacion_AAAA-MM_fecha_hora.xlsx`. 
 ### Motivos de rechazo (la factura se refactura)
 
 - No está timbrada o no es CFDI versión 4.0.
-- Receptor distinto de **SIN070530EI5 / SERVICIOS INTEGRALES NOVA DE MONTERREY / régimen 601** (y código postal, si se configura).
+- Receptor distinto de **SIN070530EI5 / SERVICIOS INTEGRALES NOVA DE MONTERREY / régimen 601**.
 - Uso de CFDI distinto de **G03 Gastos en general**.
 - Fecha de la factura fuera del mes que se concilia.
 - Tipo de comprobante distinto de **I (Ingreso)**.
