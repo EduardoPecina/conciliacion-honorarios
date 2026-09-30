@@ -72,7 +72,9 @@ python _Programa.py
 El programa pregunta:
 
 1. **Año y mes** del periodo. Cada pregunta dice qué valor se usa si solo presionas Enter (por ejemplo, `Año (Enter = 2026, año actual)`); al terminar, el programa confirma el periodo: "Periodo a conciliar: septiembre 2026".
-2. **Abrir SAP.** La validación contra SAP es **obligatoria** (a petición de Contabilidad): el programa pide abrir SAP e iniciar sesión y espera a que presiones Enter. Si hay consultas SAP guardadas de ese mes, pregunta si reusarlas. Mientras consulta, no toques el mouse ni el teclado.
+2. **Abrir SAP.** La validación contra SAP es **obligatoria** (a petición de Contabilidad): el programa pide abrir SAP e iniciar sesión y espera a que presiones Enter. Si hay consultas SAP guardadas de ese mes, pregunta si reusarlas.
+
+   **Requisitos:** SAP abierto en el sistema productivo con la sesión iniciada, acceso a la transacción **FK03** y el **scripting de SAP GUI habilitado** (ambos los otorga IT; la primera vez SAP puede preguntar si permites que un script se conecte: responde que sí). El programa usa la **primera ventana de SAP** que abriste y navega ahí a la FK03, así que guarda lo que tengas en esa ventana. Mientras consulta, **no uses SAP**; el resto de la computadora sí se puede usar (el programa controla SAP por dentro, no mueve el mouse ni teclea).
 
 Si SAP no está abierto (o el SAT no responde), el reporte se genera, pero **ninguna línea queda "Cruzado"** y el historial de UUID **no se registra**: hay que volver a correrlo con SAP abierto y conexión.
 

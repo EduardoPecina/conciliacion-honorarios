@@ -89,7 +89,7 @@ def conciliar_periodo(rutas, anio, mes, avisar=print, progreso_sat=progreso_en_c
 
     en_catalogo = set(catalogo["IDProveedor"])
     ids = sorted({l["IDProveedor"] for l in lineas if l["IDProveedor"] in en_catalogo})
-    avisar(f"Consultando {len(ids):,} proveedores en SAP (NO TOQUES EL MOUSE NI EL TECLADO)...")
+    avisar(f"Consultando {len(ids):,} proveedores en SAP (no uses SAP hasta que termine)...")
     sap, estados["Validación SAP"] = consultar_sap(ids, rutas["salida"], anio, mes, reusar_sap,
                                                    progreso=progreso_sap, avisar=aviso)
     avisar(f"  {estados['Validación SAP']}")

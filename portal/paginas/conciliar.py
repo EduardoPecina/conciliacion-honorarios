@@ -33,8 +33,15 @@ if xmls:
     st.caption(f"{len(xmls):,} archivo(s) cargado(s)")
 
 salida = RAIZ / str(anio) / MESES[mes - 1] / "Salida"      # el Excel se guarda donde lo deja el .bat
-st.info("**Antes de procesar, abre SAP e inicia sesión.** La validación contra SAP es obligatoria. "
-        "Mientras se consulta SAP, **no toques el mouse ni el teclado**.")
+with st.container(border=True):
+    st.markdown("**Antes de procesar** (la validación contra SAP es obligatoria)\n\n"
+                "✅ SAP abierto en el sistema productivo  \n"
+                "✅ Sesión de SAP iniciada  \n"
+                "✅ Acceso a la transacción **FK03** (lo otorga IT)  \n"
+                "✅ Scripting de SAP GUI habilitado (lo configura IT)")
+    st.caption("Durante la validación, el portal usa la **primera ventana de SAP** que abriste: guarda lo que "
+               "tengas ahí. No uses SAP hasta que termine; puedes seguir trabajando en otros programas. "
+               "Si tienes abiertas varias conexiones (por ejemplo, Productivo y Calidad), deja solo Productivo.")
 reusar_sap = True
 if ruta_cache_sap({"salida": salida}, anio, mes).exists():
     reusar_sap = st.checkbox("Reusar las consultas a SAP guardadas de este mes "

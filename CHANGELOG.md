@@ -1,5 +1,12 @@
 # Historial de cambios
 
+## [1.6.1] - 2026-09-30
+
+### Cambiado
+- Instrucciones de SAP más claras y menos alarmantes (portal y `.bat`): lista de requisitos (SAP abierto en
+  productivo, sesión iniciada, acceso a FK03, scripting de SAP GUI habilitado) y aviso de que se usa la primera
+  ventana de SAP. Solo hay que evitar usar SAP mientras se consulta; el resto de la computadora sí se puede usar.
+
 ## [1.6.0] - 2026-09-30
 
 ### Cambiado
