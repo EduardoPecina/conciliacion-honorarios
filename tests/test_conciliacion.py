@@ -264,6 +264,21 @@ class TestCruceConEstadoSat(ConDatosDePrueba):
         self.assertEqual(por_id["100007"][0]["Estatus"], "Cruzado")
         self.assertEqual(por_id["100007"][0]["EFOS"], "No listado")
 
+    def test_tolerancia_de_importe_50_centavos(self):
+        """TXT vs factura: hasta 0.50 cruza (con observación arriba de 0.05); más de 0.50 ya no cruza."""
+        catalogo = entradas.leer_catalogo(self.rutas["catalogo"])
+        facturas, _ = entradas.leer_xmls(self.rutas["xmls"], self.rutas["carpeta_xml"])
+        estados = {f["UUID"]: dict(VIGENTE) for f in facturas}
+        for diferencia, esperado in (("0.40", "Cruzado con observaciones"), ("0.50", "Cruzado con observaciones"),
+                                     ("0.51", "Diferencia de importe"), ("0.75", "Diferencia de importe")):
+            lineas = entradas.leer_txt(self.rutas["txt"])
+            linea = next(l for l in lineas if l["IDProveedor"] == "100001")      # factura por 32,188.00
+            linea["Importe"] += Decimal(diferencia)
+            resultado, _ = cruce.conciliar(lineas, catalogo, facturas, ANIO, MES, None, {}, estados)
+            fila = next(f for f in resultado if f["IDProveedor"] == "100001")
+            with self.subTest(diferencia=diferencia):
+                self.assertEqual(fila["Estatus"], esperado)
+
     def test_prefiere_la_factura_que_sustituye_a_la_cancelada(self):
         """El médico canceló y reemitió por el mismo importe: se cruza la nueva y la cancelada sobra."""
         facturas, _ = entradas.leer_xmls(self.rutas["xmls"], self.rutas["carpeta_xml"])
@@ -346,6 +361,20 @@ class TestLecturaTxt(unittest.TestCase):
             with self.assertRaises(utilidades.ErrorUsuario) as error:
                 entradas.leer_txt(ruta)
         self.assertIn("01-09-2026", str(error.exception))
+
+
+class TestToleranciaImpuestos(unittest.TestCase):
+    def fila(self, ret_isr):
+        return {"SubTotal": Decimal("1000.00"), "Descuento": Decimal("0"), "CodigoImpuesto": "E0",
+                "RegimenEmisor": "626", "IVA": Decimal("0"), "RetISR": Decimal(ret_isr), "RetIVA": Decimal("0")}
+
+    def test_variacion_de_impuestos_50_centavos(self):
+        """RESICO 1.25% de 1,000 = 12.50. Hasta 0.50 de variación se acepta; más, se detiene."""
+        self.assertEqual(reglas.revisar_impuestos(self.fila("12.50")), "")
+        self.assertEqual(reglas.revisar_impuestos(self.fila("12.90")), "")          # variación 0.40
+        self.assertEqual(reglas.revisar_impuestos(self.fila("13.00")), "")          # variación 0.50
+        self.assertIn("Impuestos no cuadran", reglas.revisar_impuestos(self.fila("13.01")))
+        self.assertIn("Impuestos no cuadran", reglas.revisar_impuestos(self.fila("13.25")))
 
 
 class TestUtilidades(unittest.TestCase):

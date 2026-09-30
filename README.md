@@ -159,6 +159,16 @@ El portal de verificación del SAT tiene captcha porque es para personas. El pro
 - La columna **EstadoSAT** del Detalle dice Vigente, Vigente (cancelación en proceso), Cancelado, No encontrado o Sin respuesta.
 - Es una regla obligatoria: se consulta en cada corrida, sin preguntar.
 
+## Tolerancias
+
+Acordadas con Contabilidad (en `config.py`; la hoja **Tasas** del Excel muestra los valores de la corrida):
+
+| Parámetro | Valor | Qué controla |
+|---|---|---|
+| `UMBRAL_OK` | 0.05 | Hasta aquí la diferencia se etiqueta "OK" (centavos de redondeo) |
+| `TOLERANCIA_IMPUESTOS` | 0.50 | Variación de impuestos aceptada como "Redondeo"; arriba sale "Revisar" y la línea se detiene. También es el margen para que el Total y los conceptos del XML cuadren con su subtotal |
+| `TOLERANCIA` | 0.50 | Diferencia máxima entre el TXT y la factura para cruzarlos. Entre 0.05 y 0.50 cruza con observación; más de 0.50 sale "Diferencia de importe" |
+
 ## Configuración
 
 Todo lo ajustable está en **`honorarios/config.py`**: datos del receptor, tolerancias, tasas, formas y métodos de pago aceptados, usos de CFDI y mensajes. Cambiar una regla de negocio normalmente es cambiar una línea de ese archivo. Ejemplo: para aceptar otra forma de pago, se agrega su clave en `FORMAS_PAGO_OK`.
