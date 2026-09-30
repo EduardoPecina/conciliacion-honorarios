@@ -107,6 +107,7 @@ NO_ES_DISCREPANCIA_SAP = ("Validaciones no realizadas", "No se pudo validar en S
 # Se puede cambiar con la variable de entorno HONORARIOS_RAIZ (lo usan las pruebas).
 RAIZ = Path(os.environ.get("HONORARIOS_RAIZ") or Path(__file__).resolve().parents[2])
 CONFIG = RAIZ / "_Configuracion"
+REPORTES = RAIZ / "Reportes"            # Excel que genera el portal: Reportes/<Año>/<MM Mes>/
 PATRON_RFC = re.compile(r"[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}")
 PARECE_RFC_MX = re.compile(r"[A-ZÑ&]{3,4}\d")          # empieza como RFC mexicano (3-4 letras y dígitos)
 RFC_GENERICO_EXTRANJERO = "XEXX010101000"

@@ -1,5 +1,23 @@
 # Historial de cambios
 
+## [1.9.0] - 2026-09-30
+
+### Agregado
+- **Instalador para las computadoras de Contabilidad** (`INSTALAR.bat` + `instalador/instalar.py`). Sirve para
+  instalar y para actualizar:
+  - Python 3.10+: si falta, lo instala solo para el usuario, sin permisos de administrador (winget o
+    python.org); si ya está, se lo salta.
+  - Librerías: `pip install -r requirements-portal.txt` (reintenta ante cortes de la red).
+  - Crea `Honorarios` en el Escritorio del usuario (se le pregunta a Windows, así funciona con OneDrive) con
+    `_Configuracion`, `Reportes`, `_Programa` y `LEEME.txt`, sin carpetas de meses.
+  - Acceso directo "Portal de Honorarios" con el logo de Nova, que abre el portal sin ventana negra.
+  - Al actualizar reemplaza solo `_Programa`; el catálogo, el historial y los reportes no se tocan. Si el
+    portal está abierto, pide cerrarlo.
+
+### Cambiado
+- El portal guarda los Excel en `Honorarios/Reportes/<Año>/<MM Mes>/` (antes, en `<Año>/<MM Mes>/Salida`, mezclado
+  con las carpetas de entrada del programa de consola).
+
 ## [1.8.1] - 2026-09-30
 
 ### Cambiado

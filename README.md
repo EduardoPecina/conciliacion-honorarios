@@ -30,14 +30,26 @@ TXT de pagos ──► Catálogo (ID → RFC) ──► XML de la factura
 
 ## Estructura de carpetas
 
-El programa vive en `_Programa` y ubica todo lo demás a partir de ahí, así que funciona igual en cualquier computadora:
+El programa vive en `_Programa` y ubica todo lo demás a partir de ahí, así que funciona igual en cualquier computadora.
+
+Con el **portal** (lo que usa Contabilidad), la estructura es simple; el `INSTALAR.bat` la crea:
+
+```
+Escritorio/
+├── Portal de Honorarios            ← acceso directo (abre el portal en el navegador)
+└── Honorarios/
+    ├── LEEME.txt
+    ├── _Configuracion/
+    │   ├── CatalogoProveedoresTM26.xlsx   (lo pone el usuario; tabla de Excel llamada "Catalogo")
+    │   └── HistorialUUID.csv              (se crea solo)
+    ├── Reportes/                          (Excel de cada conciliación: <Año>/<MM Mes>/, se crean solas)
+    └── _Programa/                         ← este repositorio
+```
+
+El **programa de consola** (`EJECUTAR.bat`) además usa carpetas por periodo con las entradas:
 
 ```
 Honorarios/
-├── _Programa/                      ← este repositorio
-├── _Configuracion/
-│   ├── CatalogoProveedoresTM26.xlsx   (tabla de Excel llamada "Catalogo")
-│   └── HistorialUUID.csv              (se crea solo)
 └── 2026/
     └── 09 Sep/
         ├── Entrada/
@@ -46,7 +58,24 @@ Honorarios/
         └── Salida/                    (aquí se guarda el reporte)
 ```
 
-## Instalación
+## Instalación en las computadoras de Contabilidad
+
+El portal corre en la computadora de cada persona (necesita su sesión de SAP GUI). Para instalarlo:
+
+1. **Quien mantiene el programa** descarga el ZIP de la rama `main` (GitHub → **Code → Download ZIP**) y lo comparte (correo, Teams, carpeta compartida). El repositorio es privado: Contabilidad no necesita cuenta de GitHub.
+2. **El usuario** descomprime el ZIP en cualquier lugar (por ejemplo, Descargas) y da doble clic en **`INSTALAR.bat`**:
+   - Si no tiene Python 3.10 o superior, lo instala **solo para su usuario, sin permisos de administrador** (con `winget` o, si no está, con el instalador oficial de python.org). Si ya lo tiene, se lo salta.
+   - Instala las librerías (pandas, openpyxl, streamlit, pywin32…); las que ya estén, se las salta.
+   - Crea `Honorarios` en su **Escritorio** (el de OneDrive si Windows lo tiene ahí; la ruta se le pregunta a Windows, no se escribe a mano), con `_Configuracion`, `Reportes`, `_Programa` y `LEEME.txt`.
+   - Crea el acceso directo **"Portal de Honorarios"** (con el logo de Nova) en el Escritorio y en `Honorarios`. Abre el portal sin ventana negra.
+3. **El usuario copia el Excel del catálogo** (`CatalogoProveedoresTM26.xlsx`), que le pasa quien mantiene el programa, a `Honorarios\_Configuracion`. **Ese catálogo lo mantiene cada usuario**: los médicos nuevos se dan de alta en su Excel.
+4. Doble clic en **"Portal de Honorarios"**.
+
+**Actualizar:** se comparte el ZIP de la versión nueva y se corre su `INSTALAR.bat` (con el portal cerrado). Reemplaza solo `_Programa`; el catálogo, el historial y los reportes no se tocan.
+
+> ⚠️ Cada computadora tiene su propio catálogo e historial de UUID. Si dos personas concilian en computadoras distintas, un pago doble entre ellas no se detecta. Pendiente: una `_Configuracion` compartida (carpeta de red o SharePoint) o la base de datos.
+
+## Instalación para desarrollo (con git)
 
 Requiere Python 3.10 o superior.
 
@@ -259,7 +288,7 @@ python tests/datos_prueba.py C:\ruta\destino
 - El repositorio es **privado**, con acceso para el equipo de Sistemas, según lo autorizado por Ciberseguridad.
 - El `.gitignore` bloquea `.xml`, `.txt`, `.xlsx`, `.csv` y demás archivos de datos. **Nunca subas facturas, TXT, catálogos ni reportes reales.**
 - Antes de cada commit revisa `git status`: solo deben aparecer archivos `.py`, `.md`, `.bat`, `.toml`, `LICENSE` o `.txt` de configuración del repo.
-- El portal (`.streamlit/config.toml`) no envía estadísticas de uso a Streamlit. Lo que se sube se guarda en una carpeta temporal que se borra al terminar; el Excel queda en `<Año>/<Mes>/Salida`, como con el `.bat`.
+- El portal (`.streamlit/config.toml`) no envía estadísticas de uso a Streamlit. Lo que se sube se guarda en una carpeta temporal que se borra al terminar; el Excel queda en `Honorarios/Reportes/<Año>/<MM Mes>/`.
 - La única conexión a internet es al servicio oficial del SAT (`consultaqr.facturaelectronica.sat.gob.mx`), en cada corrida, y envía únicamente los datos del código QR de cada factura (ver [Estatus en el SAT](#estatus-en-el-sat)); nada del TXT ni del catálogo sale de la computadora. La otra integración es la consulta obligatoria, de solo lectura, a SAP GUI con la sesión de quien concilia.
 
 ## Licencia
