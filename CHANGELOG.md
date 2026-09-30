@@ -8,7 +8,7 @@ Primera versión en control de versiones.
 - Código dividido en módulos dentro de `honorarios/` (antes, un solo archivo de ~1,900 líneas).
   El comportamiento es idéntico a la versión anterior: se verificó comparando el Excel de salida
   celda por celda sobre los mismos datos de prueba.
-- `conciliar.py` queda como punto de entrada; se ejecuta igual que antes.
+- `_Programa.py` es el punto de entrada (nombre pedido por Sistemas).
 - `EJECUTAR.bat` para ejecutar con doble clic.
 - Pruebas automáticas con datos inventados en `tests/`.
 
