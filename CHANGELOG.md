@@ -1,5 +1,19 @@
 # Historial de cambios
 
+## [1.5.0] - 2026-09-30
+
+### Agregado
+- **Portal web (en prueba)** con Streamlit (`portal/`, `EJECUTAR_PORTAL.bat`, `requirements-portal.txt`):
+  subir TXT y XML (o `.zip`), Procesar, resumen por estatus y del SAT, lista "Qué hacer", Descargar Excel y
+  "Confirmar y registrar en el historial". Páginas de consulta del catálogo y del historial.
+- `honorarios/servicio.py`: la conciliación completa sin preguntas en pantalla. La usan el `.bat` y el portal,
+  así que siempre dan el mismo resultado.
+
+### Cambiado
+- El `.bat` ahora usa `servicio.py` por dentro: mismas preguntas y mismo resultado.
+- `entradas.rutas_en()`: la revisión de carpetas funciona con cualquier carpeta, no solo `<Año>/<Mes>`.
+- La consulta al SAT reporta su avance con funciones (barra de progreso en el portal, texto en la consola).
+
 ## [1.4.1] - 2026-09-30
 
 ### Cambiado

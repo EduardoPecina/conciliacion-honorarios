@@ -144,8 +144,13 @@ def describir(consulta):
     return consulta["Estado"]
 
 
-def consultar_estados(facturas, enviar=enviar):
-    """Consulta cada UUID una sola vez. Devuelve ({UUID: consulta}, texto para la hoja Info)."""
+def progreso_en_consola(hechas, total):
+    print(f"  SAT {hechas}/{total}   ", end="\n" if hechas == total else "\r")
+
+
+def consultar_estados(facturas, enviar=enviar, progreso=progreso_en_consola, avisar=print):
+    """Consulta cada UUID una sola vez. Devuelve ({UUID: consulta}, texto para la hoja Info).
+    progreso(hechas, total) y avisar(texto) permiten mostrar el avance en la consola o en el portal."""
     unicas = {}
     for f in facturas:
         if f["UUID"]:
@@ -158,19 +163,19 @@ def consultar_estados(facturas, enviar=enviar):
     resultado = {pendientes[0]["UUID"]: consultar_uno(pendientes[0], enviar)}
     if resultado[pendientes[0]["UUID"]]["SinConexion"]:
         error = resultado[pendientes[0]["UUID"]]["Error"]
-        print(f"  No se pudo conectar al SAT: {error}.\n  ATENCIÓN: ninguna línea quedará 'Cruzado'; "
-              "vuelve a correr el programa con conexión antes de pagar.")
+        avisar(f"No se pudo conectar al SAT: {error}. ATENCIÓN: ninguna línea quedará 'Cruzado'; "
+               "vuelve a procesar con conexión antes de pagar.")
         for f in pendientes[1:]:
-            resultado[f["UUID"]] = {"Estado": "", "EstatusCancelacion": "", "EsCancelable": "",
+            resultado[f["UUID"]] = {"Estado": "", "EstatusCancelacion": "", "EsCancelable": "", "ValidacionEFOS": "",
                                     "Error": f"no se pudo conectar al SAT ({error})", "SinConexion": True}
         return resultado, f"No se pudo conectar al SAT: {error}"
 
     with ThreadPoolExecutor(CONSULTAS_SAT_SIMULTANEAS) as pool:
         futuros = {pool.submit(consultar_uno, f, enviar): f["UUID"] for f in pendientes[1:]}
+        progreso(1, len(pendientes))
         for k, futuro in enumerate(as_completed(futuros), start=2):
-            print(f"  SAT {k}/{len(pendientes)}   ", end="\r")
             resultado[futuros[futuro]] = futuro.result()
-    print()
+            progreso(k, len(pendientes))
 
     conteo = {}
     for consulta in resultado.values():
