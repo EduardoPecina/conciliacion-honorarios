@@ -118,7 +118,7 @@ class TestReporte(ConDatosDePrueba):
         self.assertEqual(libro["Resumen"]["B2"].data_type, "f")
 
 
-def respuesta_sat(estado, codigo="S - Comprobante obtenido satisfactoriamente.", cancelacion=""):
+def respuesta_sat(estado, codigo="S - Comprobante obtenido satisfactoriamente.", cancelacion="", efos="200"):
     """Respuesta SOAP con la forma de la del servicio ConsultaCFDIService del SAT."""
     return ('<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body>'
             '<ConsultaResponse xmlns="http://tempuri.org/"><ConsultaResult '
@@ -126,7 +126,7 @@ def respuesta_sat(estado, codigo="S - Comprobante obtenido satisfactoriamente.",
             'xmlns:i="http://www.w3.org/2001/XMLSchema-instance">'
             f'<a:CodigoEstatus>{codigo}</a:CodigoEstatus><a:EsCancelable>Cancelable con aceptación</a:EsCancelable>'
             f'<a:Estado>{estado}</a:Estado><a:EstatusCancelacion>{cancelacion}</a:EstatusCancelacion>'
-            '<a:ValidacionEFOS>200</a:ValidacionEFOS></ConsultaResult></ConsultaResponse></s:Body></s:Envelope>')
+            f'<a:ValidacionEFOS>{efos}</a:ValidacionEFOS></ConsultaResult></ConsultaResponse></s:Body></s:Envelope>')
 
 
 class TestEstadoSat(unittest.TestCase):
@@ -147,6 +147,17 @@ class TestEstadoSat(unittest.TestCase):
         datos = estado_sat.leer_respuesta(respuesta_sat("Vigente", cancelacion="En proceso"))
         self.assertEqual(datos["Estado"], "Vigente")
         self.assertEqual(datos["EstatusCancelacion"], "En proceso")
+        self.assertEqual(datos["ValidacionEFOS"], "200")
+
+    def test_alerta_efos(self):
+        consulta = lambda codigo: estado_sat.consultar_uno(self.FACTURA, lambda e: respuesta_sat("Vigente", efos=codigo))
+        self.assertEqual(estado_sat.alerta_efos(consulta("200")), "")
+        self.assertEqual(estado_sat.alerta_efos(consulta("201")), "")
+        self.assertEqual(estado_sat.alerta_efos(consulta("100")), "100")
+        self.assertEqual(estado_sat.describir_efos(consulta("200")), "No listado")
+        self.assertEqual(estado_sat.describir_efos(consulta("100")), "Revisar: en lista EFOS (código 100)")
+        self.assertEqual(estado_sat.alerta_efos(consulta("999")), "999")          # código nuevo: también alerta
+        self.assertIn("no documentado", estado_sat.describir_efos(consulta("999")))
 
     def test_consulta_cada_uuid_una_vez(self):
         respuestas = {"U-1": respuesta_sat("Vigente"), "U-2": respuesta_sat("Cancelado"),
@@ -243,6 +254,16 @@ class TestCruceConEstadoSat(ConDatosDePrueba):
         self.assertEqual(por_id["100007"][0]["EstadoSAT"], "Vigente")
         self.assertEqual(por_id["100013"][0]["EstadoSAT"], "Vigente (cancelación en proceso)")
 
+    def test_alerta_efos_deja_la_linea_con_observaciones(self):
+        por_id, _ = self.conciliar(lambda f: {"ValidacionEFOS": "100"} if f["RFCEmisor"] == "MERU800101AB1"
+                                   else {"ValidacionEFOS": "200"})
+        fila = por_id["100001"][0]
+        self.assertEqual(fila["Estatus"], "Cruzado con observaciones")
+        self.assertIn("Alerta EFOS", fila["Observaciones"])
+        self.assertEqual(fila["EFOS"], "Revisar: en lista EFOS (código 100)")
+        self.assertEqual(por_id["100007"][0]["Estatus"], "Cruzado")
+        self.assertEqual(por_id["100007"][0]["EFOS"], "No listado")
+
     def test_prefiere_la_factura_que_sustituye_a_la_cancelada(self):
         """El médico canceló y reemitió por el mismo importe: se cruza la nueva y la cancelada sobra."""
         facturas, _ = entradas.leer_xmls(self.rutas["xmls"], self.rutas["carpeta_xml"])
@@ -286,6 +307,10 @@ class TestReglas(unittest.TestCase):
         for (metodo, forma), valido in casos.items():
             with self.subTest(metodo=metodo, forma=forma):
                 self.assertEqual(self.validar(metodo=metodo, forma=forma)[0] == [], valido)
+
+    def test_codigo_postal_del_receptor(self):
+        self.assertEqual(self.validar(cp="66450")[0], [])
+        self.assertTrue(any("Código postal del receptor 64000" in r for r in self.validar(cp="64000")[0]))
 
     def test_receptor_distinto_se_rechaza(self):
         self.assertTrue(any("Facturado a" in r for r in self.validar(receptor="XAXX010101000")[0]))

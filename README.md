@@ -97,7 +97,7 @@ El reporte queda en `<Año>/<Mes>/Salida/Conciliacion_AAAA-MM_fecha_hora.xlsx`. 
 ### Motivos de rechazo (la factura se refactura)
 
 - No está timbrada o no es CFDI versión 4.0.
-- Receptor distinto de **SIN070530EI5 / SERVICIOS INTEGRALES NOVA DE MONTERREY / régimen 601**.
+- Receptor distinto de **SIN070530EI5 / SERVICIOS INTEGRALES NOVA DE MONTERREY / régimen 601 / código postal 66450**.
 - Uso de CFDI distinto de **G03 Gastos en general**.
 - Fecha de la factura fuera del mes que se concilia.
 - Tipo de comprobante distinto de **I (Ingreso)**.
@@ -147,6 +147,14 @@ El portal de verificación del SAT tiene captcha porque es para personas. El pro
 - Si el médico canceló una factura y mandó la que la sustituye por el mismo importe, se cruza la nueva (queda "Cruzado", con la nota "Sustituye a la factura cancelada…"; no se toma como facturación doble) y la cancelada aparece en "XML sin TXT" indicando cuál la sustituyó.
 - Si no llegó la sustituta, la línea sale "Rechazar" con la observación "Verificar si el médico envió la factura que sustituye a esta, que está cancelada en el SAT".
 - El Resumen trae el indicador "Líneas con factura cancelada en el SAT".
+- **Alerta EFOS (artículo 69-B):** la misma respuesta del SAT trae el campo `ValidacionEFOS`, que indica si el emisor está en la lista de EFOS (Empresas que Facturan Operaciones Simuladas, listado definitivo del artículo 69-B del CFF). Si hay alerta, la línea sale "Cruzado con observaciones" con "Alerta EFOS…: revisar antes de pagar". El Resumen trae el indicador "Líneas con alerta EFOS (69-B)".
+
+  | Código `ValidacionEFOS` | Significado (Documentación del Servicio de Consulta de CFDI del SAT, v1.4) | Columna **EFOS** | Resultado |
+  |---|---|---|---|
+  | 100 | El RFC del emisor **sí** está en la lista de EFOS | Revisar: en lista EFOS (código 100) | Alerta |
+  | 200 | El RFC del emisor **no** está en la lista | No listado | Sin alerta |
+  | 201 | Ni el emisor ni los RFC "a cuenta de terceros" de la factura están en la lista | No listado | Sin alerta |
+  | Otro | Código no documentado (p. ej. uno que el SAT agregue después) | Revisar: código … no documentado por el SAT | Alerta (se prefiere revisar de más) |
 - Si todas las facturas están vigentes, el resultado es exactamente el mismo que sin consultar al SAT (hay una prueba automática que lo verifica).
 - La columna **EstadoSAT** del Detalle dice Vigente, Vigente (cancelación en proceso), Cancelado, No encontrado o Sin respuesta.
 - Es una regla obligatoria: se consulta en cada corrida, sin preguntar.

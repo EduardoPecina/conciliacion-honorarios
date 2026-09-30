@@ -20,7 +20,7 @@ from .config import (
     UMBRAL_OK,
     VALIDACIONES,
 )
-from .estado_sat import describir as describir_estado_sat
+from .estado_sat import describir as describir_estado_sat, describir_efos
 from .utilidades import clasificar_rfc
 from .reglas import redondear, revisar_impuestos, validar_sap, validar_xml
 
@@ -174,6 +174,7 @@ def conciliar(lineas_txt, catalogo, facturas, anio, mes, sap=None, historial=Non
         fila["UUID"] = ", ".join(f["UUID"] for f in fs)
         fila["EstadoSAT"] = ", ".join(sorted({describir_estado_sat(estados_sat.get(f["UUID"])) if f["UUID"]
                                               else "Sin UUID" for f in fs}))
+        fila["EFOS"] = ", ".join(sorted({describir_efos(estados_sat.get(f["UUID"])) for f in fs} - {""}))
         fila["FechaXML"] = ", ".join(sorted({f["FechaXML"] for f in fs}))
         fila["RegimenEmisor"] = ", ".join(sorted({f["RegimenEmisor"] for f in fs}))
         if con_importes:
@@ -449,6 +450,7 @@ def conciliar(lineas_txt, catalogo, facturas, anio, mes, sap=None, historial=Non
                                "ImporteConIVA")}
         s["NombreRegimen"] = REGIMENES.get(f["RegimenEmisor"], "Desconocido")
         s["EstadoSAT"] = describir_estado_sat(estados_sat.get(f["UUID"])) if f["UUID"] else "Sin UUID"
+        s["EFOS"] = describir_efos(estados_sat.get(f["UUID"]))
         r, o_xml, d, _ = validacion[i]
         motivos = r + d
         copia = sorted(facturas[j]["ArchivoXML"] for j in usadas

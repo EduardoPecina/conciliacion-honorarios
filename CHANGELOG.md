@@ -1,5 +1,18 @@
 # Historial de cambios
 
+## [1.3.0] - 2026-09-30
+
+### Agregado
+- Alerta EFOS (artículo 69-B del CFF): con la misma consulta al SAT se revisa si el emisor podría estar en la
+  lista de operaciones simuladas. Si es así, la línea queda "Cruzado con observaciones" con "Alerta EFOS".
+  Nueva columna `EFOS` en Detalle y en XML sin TXT, indicador en el Resumen y conteo en la hoja Info.
+  Códigos del campo `ValidacionEFOS` según la documentación del SAT (v1.4): 100 = el emisor está en la lista
+  (alerta); 200 = no está; 201 = ni el emisor ni los terceros están. Un código no documentado también es alerta.
+
+### Cambiado
+- Se valida el código postal del receptor: `CP_SOCIEDAD = "66450"`. Una factura con otro
+  `DomicilioFiscalReceptor` se rechaza.
+
 ## [1.2.0] - 2026-09-30
 
 ### Agregado

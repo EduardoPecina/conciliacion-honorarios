@@ -82,7 +82,7 @@ def escribir_resumen(hoja, detalle_cols, n_filas, n_xml):
     E, I, S = col("Estatus"), col("Importe"), col("DiscrepanciaSAP")
     R, V = col("Revisión impuestos"), col("Variación impuestos")
     RI, VI = col("Revisión importe"), col("Variación importe")
-    OB, ES = col("Observaciones"), col("EstadoSAT")
+    OB, ES, EF = col("Observaciones"), col("EstadoSAT"), col("EFOS")
     rango = lambda c: f"Detalle!${c}$2:${c}${n_filas + 1}"
 
     hoja.append(["Estatus", "Líneas", "Importe TXT", "% del importe", "Cómo se calcula"])
@@ -108,6 +108,8 @@ def escribir_resumen(hoja, detalle_cols, n_filas, n_xml):
          "El SAT, SAP (si se pidió) o el historial de UUID no se pudieron consultar para esas líneas"),
         ("Líneas con factura cancelada en el SAT", f"=COUNTIF({rango(ES)},\"*Cancelado*\")",
          "Líneas del Detalle con EstadoSAT = Cancelado"),
+        ("Líneas con alerta EFOS (69-B)", f"=COUNTIF({rango(EF)},\"Revisar*\")",
+         "El SAT indica que el emisor podría estar en la lista de operaciones simuladas (columna EFOS)"),
         ("Líneas con discrepancia SAP", f"=COUNTIF({rango(S)},\"Sí\")",
          "Líneas del Detalle con DiscrepanciaSAP = Sí"),
         ("Líneas con impuestos a revisar", f"=COUNTIF({rango(R)},\"Revisar\")",
@@ -496,7 +498,7 @@ def escribir_instrucciones(libro):
         ("• Cruzado (pago quebrado): igual que Cruzado, pero varias líneas del TXT y/o varias facturas", False),
         ("     del mismo proveedor se cruzan como grupo (p. ej. 500 + 300 + 200 del TXT contra una factura", False),
         ("     de 1,000, o 600 + 400 contra dos facturas de 500).", False),
-        ("• Cruzado con observaciones: cruzó, pero hay algo que revisar (ver Observaciones). Incluye las", False),
+        ("• Cruzado con observaciones: cruzó, pero hay algo que revisar (ver Observaciones), p. ej. alerta EFOS. Incluye las", False),
         ("     líneas en las que alguna validación NO se pudo hacer (SAP pedido pero cerrado, historial ilegible...).", False),
         ("• Detenida: no se debe pagar hasta corregir (impuestos, SAP, pago doble de un UUID...).", False),
         ("     Si el mismo XML viene copiado dos veces en la carpeta pero solo una línea lo", False),
@@ -522,7 +524,7 @@ def generar_reporte(rutas, anio, mes, resultado, sobrantes, errores_xml, n_xml, 
                 "CodigoImpuesto", "Importe", "Ver cálculo", "Revisión importe", "Variación importe",
                 "Revisión impuestos", "Variación impuestos"] + COLS_DESGLOSE + [
                 "RegimenEmisor", "NombreRegimen", "CodigosSAP", "RegimenSAP",
-                "DiscrepanciaSAP", "FechaXML", "MetodoPago", "FormaPago", "UUID", "EstadoSAT", "ArchivoXML",
+                "DiscrepanciaSAP", "FechaXML", "MetodoPago", "FormaPago", "UUID", "EstadoSAT", "EFOS", "ArchivoXML",
                 "CentroCosto", "Cuenta", "MotivoRechazo", "Observaciones"]
     detalle = detalle.reindex(columns=columnas)
     detalle["DiscrepanciaSAP"] = detalle["DiscrepanciaSAP"].map(lambda v: "Sí" if v is True else "No")
@@ -542,6 +544,8 @@ def generar_reporte(rutas, anio, mes, resultado, sobrantes, errores_xml, n_xml, 
          "Lineas": int(detalle["Observaciones"].fillna("").str.contains("Validaciones no realizadas").sum())},
         {"Estatus": "Líneas con factura cancelada en el SAT",
          "Lineas": int(detalle["EstadoSAT"].fillna("").str.contains("Cancelado").sum())},
+        {"Estatus": "Líneas con alerta EFOS (69-B)",
+         "Lineas": int(detalle["EFOS"].fillna("").str.startswith("Revisar").sum())},
         {"Estatus": "Líneas con discrepancia SAP", "Lineas": int((detalle["DiscrepanciaSAP"] == "Sí").sum())},
         {"Estatus": "XML leídos", "Lineas": n_xml},
         {"Estatus": "XML sin línea en TXT", "Lineas": len(sobrantes)},

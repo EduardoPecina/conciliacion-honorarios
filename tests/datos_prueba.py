@@ -67,7 +67,8 @@ CASOS_ESPERADOS = {
 
 
 def xml_cfdi(rfc, subtotal, regimen="626", con_iva=False, fecha=f"{ANIO}-{MES:02d}-07T09:00:00",
-             metodo="PUE", forma="03", receptor=RFC_RECEPTOR, uuid="00000000-0000-0000-0000-000000000000"):
+             metodo="PUE", forma="03", receptor=RFC_RECEPTOR, uuid="00000000-0000-0000-0000-000000000000",
+             cp="66450"):
     """CFDI 4.0 de honorarios con impuestos calculados como los calcularía el emisor."""
     sub = D(subtotal)
     iva = r2(sub * D("0.16")) if con_iva else D("0")
@@ -88,7 +89,7 @@ def xml_cfdi(rfc, subtotal, regimen="626", con_iva=False, fecha=f"{ANIO}-{MES:02
     return f'''<?xml version="1.0" encoding="utf-8"?>
 <cfdi:Comprobante Version="4.0" Fecha="{fecha}" FormaPago="{forma}" MetodoPago="{metodo}" SubTotal="{sub}" Moneda="MXN" Total="{total}" TipoDeComprobante="I" Exportacion="01" LugarExpedicion="64000" xmlns:cfdi="http://www.sat.gob.mx/cfd/4">
   <cfdi:Emisor Rfc="{rfc}" Nombre="EMISOR DE PRUEBA" RegimenFiscal="{regimen}" />
-  <cfdi:Receptor Rfc="{receptor}" Nombre="{NOMBRE_RECEPTOR}" DomicilioFiscalReceptor="66450" RegimenFiscalReceptor="601" UsoCFDI="G03" />
+  <cfdi:Receptor Rfc="{receptor}" Nombre="{NOMBRE_RECEPTOR}" DomicilioFiscalReceptor="{cp}" RegimenFiscalReceptor="601" UsoCFDI="G03" />
   <cfdi:Conceptos>
     <cfdi:Concepto ClaveProdServ="85121600" Cantidad="1" ClaveUnidad="E48" Descripcion="Honorarios" ValorUnitario="{sub}" Importe="{sub}" ObjetoImp="02">
       <cfdi:Impuestos>
