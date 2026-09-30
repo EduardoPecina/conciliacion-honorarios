@@ -1,5 +1,17 @@
 # Historial de cambios
 
+## [1.6.0] - 2026-09-30
+
+### Cambiado
+- **La validación contra SAP es obligatoria** (a petición de Contabilidad). Antes era opcional (el `.bat`
+  preguntaba "¿Validar contra SAP?" con "no" por defecto). Si SAP no se pudo consultar, ninguna línea queda
+  "Cruzado": sale "Cruzado con observaciones" con "Validaciones no realizadas: códigos de retención en SAP".
+- El `.bat` ya no pregunta si validar SAP: pide abrir SAP e iniciar sesión y espera Enter.
+- El portal también consulta SAP con la sesión de SAP GUI de la computadora donde corre (aviso antes de
+  procesar, barra de avance, opción de reusar las consultas guardadas del mes, métricas de SAP).
+- El historial de UUID **no se registra** si en la corrida no se pudo consultar SAP o el SAT (en el portal,
+  el botón "Confirmar" queda bloqueado).
+
 ## [1.5.1] - 2026-09-30
 
 ### Corregido

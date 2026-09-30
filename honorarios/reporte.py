@@ -120,7 +120,7 @@ def escribir_resumen(hoja, detalle_cols, n_filas, n_xml):
     hoja.append(["Otros indicadores", "Cantidad", None, None, "Cómo se calcula"])
     extras = [
         ("Líneas con validaciones no realizadas", f"=COUNTIF({rango(OB)},\"*Validaciones no realizadas*\")",
-         "El SAT, SAP (si se pidió) o el historial de UUID no se pudieron consultar para esas líneas"),
+         "El SAT, SAP o el historial de UUID no se pudieron consultar para esas líneas"),
         ("Líneas con factura cancelada en el SAT", f"=COUNTIF({rango(ES)},\"*Cancelado*\")",
          "Líneas del Detalle con EstadoSAT = Cancelado"),
         ("Líneas con alerta EFOS (69-B)", f"=COUNTIF({rango(EF)},\"Revisar*\")",
@@ -507,7 +507,7 @@ def escribir_instrucciones(libro):
         ("• Cruzado: pasó TODAS las validaciones. No hay nada que revisar.", False),
         ("     Se validó: importe contra TXT, timbre, versión 4.0, datos del receptor (RFC, régimen, uso CFDI),", False),
         ("     periodo, tipo I, método y forma de pago (PUE con 03 o 99 / PPD con 99), moneda, total del XML, impuestos,", False),
-        ("     códigos de retención en SAP (si se pidió), que la factura siga vigente en el SAT", False),
+        ("     códigos de retención en SAP, que la factura siga vigente en el SAT", False),
         ("     y que el UUID no se haya", False),
         ("     conciliado en otro mes ni venga repetido.", False),
         ("• Cruzado (pago quebrado): igual que Cruzado, pero varias líneas del TXT y/o varias facturas", False),

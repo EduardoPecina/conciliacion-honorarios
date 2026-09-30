@@ -1,4 +1,5 @@
-"""Consulta opcional de códigos de retención en SAP GUI (transacción FK03 -> BP, tabla LFBW)."""
+"""Consulta de códigos de retención en SAP GUI (transacción FK03 -> BP, tabla LFBW). Es obligatoria:
+se hace en cada corrida con la sesión de SAP abierta en la computadora de quien concilia."""
 
 from datetime import datetime
 
@@ -32,7 +33,9 @@ def buscar_controles(nodo, condicion, encontrados=None, nivel=0):
 
 
 def conectar_sap():
+    import pythoncom
     import win32com.client
+    pythoncom.CoInitialize()     # necesario fuera del hilo principal (el portal corre en otro hilo)
     return win32com.client.GetObject("SAPGUI").GetScriptingEngine.Children(0).Children(0)
 
 
@@ -101,9 +104,14 @@ def codigos_retencion(session, id_proveedor):
         return [], f"Falló en el paso '{paso}': {detalle}"
 
 
-def consultar_sap(ids, carpeta_salida, anio, mes, reusar=True):
+def progreso_en_consola(hechas, total, id_proveedor):
+    print(f"  SAP {hechas}/{total}: proveedor {id_proveedor}   ", end="\n" if hechas == total else "\r")
+
+
+def consultar_sap(ids, carpeta_salida, anio, mes, reusar=True, progreso=progreso_en_consola, avisar=print):
     """Consulta cada proveedor una sola vez y guarda el resultado para no repetir.
-    Con reusar=False se ignora lo guardado (útil si se corrigió algo en SAP)."""
+    Con reusar=False se ignora lo guardado (útil si se corrigió algo en SAP).
+    Devuelve ({ID: (códigos, error)}, texto) o (None, texto) si no se pudo consultar nada."""
     cache_ruta = carpeta_salida / f"CodigosSAP_{anio}-{mes:02d}.xlsx"
     resultado = {}
     if reusar and cache_ruta.exists():
@@ -119,29 +127,29 @@ def consultar_sap(ids, carpeta_salida, anio, mes, reusar=True):
         try:
             session = conectar_sap()
         except Exception:
-            print("  SAP no está abierto o el scripting no está habilitado. Se omite la validación SAP.")
+            avisar("SAP no está abierto (o el scripting de SAP GUI no está habilitado): ninguna línea quedará "
+                   "'Cruzado'. Abre SAP, inicia sesión y vuelve a procesar.")
             if not resultado:
                 return None, "No se pudo conectar a SAP"
             return resultado, (f"No se pudo conectar a SAP: se usaron {len(resultado)} consultas guardadas; "
                                f"{len(faltan)} proveedores sin validar")
         fallas_seguidas = 0
         for k, id_prov in enumerate(faltan, start=1):
-            print(f"  SAP {k}/{len(faltan)}: proveedor {id_prov}   ", end="\r")
             resultado[id_prov] = codigos_retencion(session, id_prov)
+            progreso(k, len(faltan), id_prov)
             fallas_seguidas = fallas_seguidas + 1 if resultado[id_prov][1] else 0
             if fallas_seguidas == 3:
-                print(f"\n  3 proveedores seguidos fallaron. Último error: {resultado[id_prov][1]}")
-                print("  Se detiene la consulta a SAP para no seguir fallando.")
+                avisar(f"3 proveedores seguidos fallaron en SAP (último error: {resultado[id_prov][1]}). "
+                       "Se detiene la consulta a SAP para no seguir fallando.")
                 no_consultados = len(faltan) - k
                 break
-        print()
 
     try:
         pd.DataFrame([{"IDProveedor": i, "Codigos": ",".join(c), "Error": e,
                        "Consulta": datetime.now().strftime("%d/%m/%Y %H:%M")}
                       for i, (c, e) in resultado.items()]).to_excel(cache_ruta, index=False)
     except PermissionError:
-        print(f"  No se pudo guardar {cache_ruta.name} (¿está abierto?).")
+        avisar(f"No se pudo guardar {cache_ruta.name} (¿está abierto?).")
     texto = f"{len(resultado)} proveedores consultados (guardado en {cache_ruta.name})"
     if no_consultados:
         texto += f"; {no_consultados} sin consultar por fallas"

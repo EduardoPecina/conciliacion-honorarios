@@ -24,6 +24,10 @@ from portal.archivos import preparar_carpeta  # noqa: E402
 ANIO, MES = datos_prueba.ANIO, datos_prueba.MES
 
 
+def sap_simulado(ids, carpeta_salida, anio, mes, reusar=True, progreso=None, avisar=None):
+    return datos_prueba.sap_simulado(), "consultado (simulado)"
+
+
 def sat_todo_vigente(facturas, progreso=None, avisar=None):
     estados = {f["UUID"]: dict(test_conciliacion.VIGENTE) for f in facturas if f["UUID"]}
     return estados, f"{len(estados)} UUID consultados (simulado)"
@@ -39,7 +43,8 @@ class TestServicio(unittest.TestCase):
         ruta_historial.unlink(missing_ok=True)
         avisos = []
         conciliacion = servicio.conciliar_periodo(obtener_rutas(ANIO, MES), ANIO, MES, avisar=avisos.append,
-                                                  progreso_sat=lambda h, t: None, consultar_sat=sat_todo_vigente)
+                                                  progreso_sat=lambda h, t: None, consultar_sat=sat_todo_vigente,
+                                                  consultar_sap=sap_simulado)
         estatus = {}
         for fila in conciliacion.resultado:
             estatus.setdefault(fila["IDProveedor"], set()).add(fila["Estatus"])
@@ -50,10 +55,24 @@ class TestServicio(unittest.TestCase):
         self.assertTrue(any("Cruzando" in a for a in avisos))
         self.assertFalse(ruta_historial.exists(), "conciliar no debe registrar el historial por sí solo")
 
+        self.assertTrue(conciliacion.se_puede_registrar)
         self.assertIn("UUID registrados", servicio.registrar_historial(conciliacion))
         registrados, _ = historial.cargar_historial()
         self.assertTrue(registrados)
         ruta_historial.unlink()
+
+
+    def test_sin_sap_no_se_registra_el_historial(self):
+        ruta_historial = CONFIG / ARCHIVO_HISTORIAL
+        ruta_historial.unlink(missing_ok=True)
+        sin_sap = lambda *a, **k: (None, "No se pudo conectar a SAP")
+        conciliacion = servicio.conciliar_periodo(obtener_rutas(ANIO, MES), ANIO, MES, avisar=lambda t: None,
+                                                  progreso_sat=lambda h, t: None, consultar_sat=sat_todo_vigente,
+                                                  consultar_sap=sin_sap)
+        self.assertEqual(conciliacion.sin_consultar, ["SAP"])
+        self.assertFalse(conciliacion.se_puede_registrar)
+        self.assertIn("no se pudo consultar SAP", servicio.registrar_historial(conciliacion))
+        self.assertFalse(ruta_historial.exists())
 
 
 class TestArchivosSubidos(unittest.TestCase):

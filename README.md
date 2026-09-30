@@ -13,7 +13,7 @@ Antes, cada factura se revisaba a mano contra el pago correspondiente. El progra
 1. **Cruza** cada línea del TXT con su factura: `IDProveedor → RFC (catálogo) → XML`, incluyendo pagos quebrados (varias líneas contra una factura, o una línea contra varias facturas).
 2. **Valida** cada factura: receptor, periodo, método y forma de pago, timbre, impuestos recalculados, historial de UUID ya pagados.
 3. **Consulta al SAT** si cada factura sigue vigente o si el médico la canceló después de enviarla (en cada corrida).
-4. **Opcionalmente consulta SAP** (transacción FK03/BP) para confirmar que las retenciones configuradas del proveedor coinciden con la factura.
+4. **Consulta SAP** (transacción FK03/BP, obligatorio) para confirmar que las retenciones configuradas del proveedor coinciden con la factura.
 5. **Genera un Excel** donde cada número se puede rastrear hasta su fórmula.
 
 ```
@@ -23,7 +23,7 @@ TXT de pagos ──► Catálogo (ID → RFC) ──► XML de la factura
                           │
                  SAT (vigente / cancelada)
                           │
-                   (opcional) SAP
+                   SAP (retenciones)
                           │
                    Reporte en Excel
 ```
@@ -72,7 +72,9 @@ python _Programa.py
 El programa pregunta:
 
 1. **Año y mes** del periodo. Cada pregunta dice qué valor se usa si solo presionas Enter (por ejemplo, `Año (Enter = 2026, año actual)`); al terminar, el programa confirma el periodo: "Periodo a conciliar: septiembre 2026".
-2. **¿Validar contra SAP?** Responde `s` solo si SAP está abierto con tu sesión iniciada. Mientras consulta, no toques el mouse ni el teclado.
+2. **Abrir SAP.** La validación contra SAP es **obligatoria** (a petición de Contabilidad): el programa pide abrir SAP e iniciar sesión y espera a que presiones Enter. Si hay consultas SAP guardadas de ese mes, pregunta si reusarlas. Mientras consulta, no toques el mouse ni el teclado.
+
+Si SAP no está abierto (o el SAT no responde), el reporte se genera, pero **ninguna línea queda "Cruzado"** y el historial de UUID **no se registra**: hay que volver a correrlo con SAP abierto y conexión.
 
 Después de leer las facturas, el programa **siempre** consulta su estatus en el SAT (requiere internet; ver [Estatus en el SAT](#estatus-en-el-sat)).
 
@@ -104,7 +106,7 @@ Por ahora el portal solo acepta conexiones desde la misma computadora (`address 
 | Catálogo de proveedores | Consulta y búsqueda (por ahora se edita en el Excel de `_Configuracion`) |
 | Historial de UUID | UUID ya conciliados, por periodo |
 
-La validación contra SAP GUI solo existe en `EJECUTAR.bat`, porque SAP está abierto en la computadora de quien lo usa, no en un servidor.
+El portal corre en la computadora de cada usuario y usa **su** sesión de SAP GUI, igual que el `.bat`: antes de dar clic en **Procesar**, abre SAP e inicia sesión. Sin SAP (o sin respuesta del SAT) el botón "Confirmar" queda bloqueado.
 
 ### Arquitectura: una regla
 
@@ -223,10 +225,10 @@ Todo lo ajustable está en **`honorarios/config.py`**: datos del receptor, toler
 | `honorarios/reglas.py` | Validaciones por factura (CFDI, pago, SAP, impuestos) |
 | `honorarios/cruce.py` | Cruce uno a uno y pagos quebrados; estatus final |
 | `honorarios/reporte.py` | Excel de salida con fórmulas |
-| `honorarios/sap.py` | Consulta opcional a SAP GUI |
+| `honorarios/sap.py` | Consulta obligatoria a SAP GUI (códigos de retención) |
 | `honorarios/estado_sat.py` | Consulta del estatus del CFDI en el SAT |
 | `honorarios/servicio.py` | La conciliación completa sin preguntas en pantalla (la usan el `.bat` y el portal) |
-| `honorarios/principal.py` | Programa de consola: preguntas y SAP GUI |
+| `honorarios/principal.py` | Programa de consola: preguntas (periodo, abrir SAP) |
 | `portal/` | Portal web (Streamlit): `app.py`, `paginas/` y `archivos.py` (guarda lo que se sube) |
 | `tests/` | Pruebas automáticas con datos inventados |
 
@@ -250,7 +252,7 @@ python tests/datos_prueba.py C:\ruta\destino
 - El `.gitignore` bloquea `.xml`, `.txt`, `.xlsx`, `.csv` y demás archivos de datos. **Nunca subas facturas, TXT, catálogos ni reportes reales.**
 - Antes de cada commit revisa `git status`: solo deben aparecer archivos `.py`, `.md`, `.bat`, `.toml`, `LICENSE` o `.txt` de configuración del repo.
 - El portal (`.streamlit/config.toml`) no envía estadísticas de uso a Streamlit. Lo que se sube se guarda en una carpeta temporal que se borra al terminar; el Excel queda en `<Año>/<Mes>/Salida`, como con el `.bat`.
-- La única conexión a internet es al servicio oficial del SAT (`consultaqr.facturaelectronica.sat.gob.mx`), en cada corrida, y envía únicamente los datos del código QR de cada factura (ver [Estatus en el SAT](#estatus-en-el-sat)); nada del TXT ni del catálogo sale de la computadora. La otra integración es la consulta opcional, de solo lectura, a SAP GUI.
+- La única conexión a internet es al servicio oficial del SAT (`consultaqr.facturaelectronica.sat.gob.mx`), en cada corrida, y envía únicamente los datos del código QR de cada factura (ver [Estatus en el SAT](#estatus-en-el-sat)); nada del TXT ni del catálogo sale de la computadora. La otra integración es la consulta obligatoria, de solo lectura, a SAP GUI con la sesión de quien concilia.
 
 ## Licencia
 

@@ -76,7 +76,8 @@ REGIMENES = {
 ISR_SAP = {"RS": "RESICO", "RH": "No RESICO", "RM": "No RESICO", "RE": "Extranjero"}
 
 # Validaciones que una línea DEBE pasar para quedar "Cruzado" (clave -> nombre para el usuario).
-# "sap" solo se exige si en esa corrida se eligió validar contra SAP; las demás, siempre.
+# Todas son obligatorias (SAP y SAT incluidos, a petición de Contabilidad): si alguna no se pudo hacer,
+# la línea queda "Cruzado con observaciones" con "Validaciones no realizadas: ...".
 VALIDACIONES = {
     "cfdi": "reglas del CFDI",
     "impuestos": "recálculo de impuestos",

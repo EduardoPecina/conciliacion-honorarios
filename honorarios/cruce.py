@@ -397,7 +397,7 @@ def conciliar(lineas_txt, catalogo, facturas, anio, mes, sap=None, historial=Non
         if "_grupo" not in fila:
             continue
         if sap is None:
-            continue                                   # no se pidió validar SAP en esta corrida
+            continue                                   # SAP no se pudo consultar: validación no realizada
         consulta = sap.get(fila["IDProveedor"])
         if consulta is None:
             continue                                   # no se consultó: queda como validación no realizada
@@ -414,12 +414,11 @@ def conciliar(lineas_txt, catalogo, facturas, anio, mes, sap=None, historial=Non
 
     # Estatus final. "Cruzado" solo si no hay rechazos, ni motivos para detener, ni observaciones
     # que requieran revisión, y además se aprobaron TODAS las validaciones de la lista.
-    no_pedidas = {"sap"} if sap is None else set()
     for n, (fila, o, r, d) in enumerate(zip(filas, obs, rech, deten)):
         cruzada = fila["Estatus"].startswith("Cruzado")
         if cruzada:
             faltan = [nombre for clave, nombre in VALIDACIONES.items()
-                      if clave not in pasadas[n] and clave not in no_pedidas]
+                      if clave not in pasadas[n]]
             if faltan and not r:                     # si ya se rechaza, el faltante no aporta
                 o.append("Validaciones no realizadas: " + ", ".join(faltan))
         fila["DiscrepanciaSAP"] = any("SAP" in x and not x.startswith(NO_ES_DISCREPANCIA_SAP) for x in o + d)

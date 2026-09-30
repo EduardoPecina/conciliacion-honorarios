@@ -11,7 +11,7 @@ from honorarios.config import MESES, RAIZ
 from honorarios.entradas import NOMBRES_MES, rutas_en
 from honorarios.estado_sat import alerta_efos, describir
 from honorarios.reporte import ORDEN_ESTATUS, RESPONSABLE_POR_ESTATUS
-from honorarios.servicio import conciliar_periodo, registrar_historial
+from honorarios.servicio import conciliar_periodo, registrar_historial, ruta_cache_sap
 from honorarios.utilidades import ErrorUsuario
 from portal.archivos import preparar_carpeta
 
@@ -32,6 +32,14 @@ xmls = st.file_uploader("2. Facturas XML (arrastra todos los archivos a la vez, 
 if xmls:
     st.caption(f"{len(xmls):,} archivo(s) cargado(s)")
 
+salida = RAIZ / str(anio) / MESES[mes - 1] / "Salida"      # el Excel se guarda donde lo deja el .bat
+st.info("**Antes de procesar, abre SAP e inicia sesión.** La validación contra SAP es obligatoria. "
+        "Mientras se consulta SAP, **no toques el mouse ni el teclado**.")
+reusar_sap = True
+if ruta_cache_sap({"salida": salida}, anio, mes).exists():
+    reusar_sap = st.checkbox("Reusar las consultas a SAP guardadas de este mes "
+                             "(desmárcalo si corregiste algo en SAP)", value=True)
+
 procesar = st.button("Procesar", type="primary", disabled=not (txt and xmls), use_container_width=True)
 
 # ------------------------------------------------------------------ 2. Proceso
@@ -39,18 +47,20 @@ if procesar:
     st.session_state.pop("conciliacion", None)
     with st.status("Procesando...", expanded=True) as estado:
         barra = st.progress(0.0, text="Consulta al SAT")
+        barra_sap = st.progress(0.0, text="Consulta a SAP")
         try:
             with tempfile.TemporaryDirectory() as tmp:
                 n = preparar_carpeta(tmp, (txt.name, txt.getvalue()), [(x.name, x.getvalue()) for x in xmls])
                 st.write(f"{n:,} XML listos")
                 rutas = rutas_en(Path(tmp))
-                # El Excel se guarda como en el programa de consola: <Año>/<MM Mes>/Salida
-                rutas["salida"] = RAIZ / str(anio) / MESES[mes - 1] / "Salida"
-                rutas["salida"].mkdir(parents=True, exist_ok=True)
+                rutas["salida"] = salida
+                salida.mkdir(parents=True, exist_ok=True)
                 conciliacion = conciliar_periodo(
-                    rutas, anio, mes, avisar=st.write,
+                    rutas, anio, mes, avisar=st.write, reusar_sap=reusar_sap,
                     progreso_sat=lambda hechas, total: barra.progress(hechas / total,
-                                                                      text=f"Consulta al SAT: {hechas}/{total}"))
+                                                                      text=f"Consulta al SAT: {hechas}/{total}"),
+                    progreso_sap=lambda hechas, total, id_prov: barra_sap.progress(
+                        hechas / total, text=f"Consulta a SAP: {hechas}/{total} (proveedor {id_prov})"))
             st.session_state["conciliacion"] = conciliacion
             st.session_state["excel"] = Path(conciliacion.destino).read_bytes()
             estado.update(label="Listo", state="complete", expanded=False)
@@ -92,6 +102,12 @@ c[2].metric("SAT: no encontradas", int(sat.get("No encontrado", 0)))
 c[3].metric("SAT: sin respuesta", int(sat.get("Sin respuesta", 0)))
 c[4].metric("Alerta EFOS (69-B)", sum(1 for x in consultas if alerta_efos(x)))
 
+observaciones = detalle.get("Observaciones", pd.Series(dtype=str)).fillna("")
+c = st.columns(5)
+c[0].metric("SAP: líneas con discrepancia", int(detalle.get("DiscrepanciaSAP", pd.Series(dtype=bool)).fillna(False).sum()))
+c[1].metric("SAP: líneas sin validar", int(observaciones.str.contains("códigos de retención en SAP").sum()))
+st.caption(f"SAP: {conciliacion.estados.get('Validación SAP', '')}")
+
 st.subheader("Qué hacer")
 pendientes = [{"Estatus": e, "Líneas": int(por_estatus.at[e, "count"]),
                "Importe": float(por_estatus.at[e, "sum"]), "Quién actúa": RESPONSABLE_POR_ESTATUS[e]}
@@ -114,5 +130,8 @@ st.subheader("Confirmar conciliación")
 st.write(f"Registra en el historial los UUID que cruzaron en {periodo}. Así, si una de estas facturas vuelve "
          "a aparecer en otro mes, el programa la detiene como posible pago doble. "
          "Si ya se había confirmado este periodo, se reemplaza.")
-if st.button("Confirmar y registrar en el historial", disabled=not conciliacion.historial_legible):
+if conciliacion.sin_consultar:
+    st.warning(f"No se puede confirmar: en esta corrida no se pudo consultar {' ni '.join(conciliacion.sin_consultar)}. "
+               "Vuelve a procesar con SAP abierto y conexión a internet.")
+if st.button("Confirmar y registrar en el historial", disabled=not conciliacion.se_puede_registrar):
     st.success(registrar_historial(conciliacion))

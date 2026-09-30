@@ -66,6 +66,18 @@ CASOS_ESPERADOS = {
 }
 
 
+# Códigos de retención que cada proveedor tendría en SAP (tabla LFBW): RS = ISR RESICO, RH = ISR 10%,
+# IH = retención de IVA 2/3. Se usan para simular la consulta obligatoria a SAP en las pruebas.
+CODIGOS_SAP = {id_: ["RS"] for id_, *_ in PROVEEDORES}
+CODIGOS_SAP["100002"] = ["IH", "RH"]           # F2 con IVA, régimen 612
+CODIGOS_SAP["100013"] = ["RH"]                 # E0 no RESICO (612)
+
+
+def sap_simulado():
+    """Resultado de la consulta a SAP como lo devuelve sap.consultar_sap: {ID: (códigos, error)}."""
+    return {id_: (codigos, "") for id_, codigos in CODIGOS_SAP.items()}
+
+
 def xml_cfdi(rfc, subtotal, regimen="626", con_iva=False, fecha=f"{ANIO}-{MES:02d}-07T09:00:00",
              metodo="PUE", forma="03", receptor=RFC_RECEPTOR, uuid="00000000-0000-0000-0000-000000000000",
              cp="66450"):

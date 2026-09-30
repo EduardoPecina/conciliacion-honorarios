@@ -37,7 +37,8 @@ def correr_conciliacion():
     facturas, errores = entradas.leer_xmls(rutas["xmls"], rutas["carpeta_xml"])
     hist, _ = historial.cargar_historial()
     estados_sat = {f["UUID"]: dict(VIGENTE) for f in facturas if f["UUID"]}
-    resultado, sobrantes = cruce.conciliar(lineas, catalogo, facturas, ANIO, MES, None, hist, estados_sat)
+    resultado, sobrantes = cruce.conciliar(lineas, catalogo, facturas, ANIO, MES, datos_prueba.sap_simulado(),
+                                           hist, estados_sat)
     return rutas, resultado, sobrantes, errores
 
 
@@ -207,7 +208,8 @@ class TestCruceConEstadoSat(ConDatosDePrueba):
         facturas, _ = entradas.leer_xmls(self.rutas["xmls"], self.rutas["carpeta_xml"])
         facturas += list(facturas_extra)
         estados = {f["UUID"]: dict(VIGENTE, **estado_de(f)) for f in facturas}
-        resultado, sobrantes = cruce.conciliar(lineas, catalogo, facturas, ANIO, MES, None, {}, estados)
+        resultado, sobrantes = cruce.conciliar(lineas, catalogo, facturas, ANIO, MES, datos_prueba.sap_simulado(),
+                                               {}, estados)
         por_id = {}
         for fila in resultado:
             por_id.setdefault(fila["IDProveedor"], []).append(fila)
@@ -221,7 +223,8 @@ class TestCruceConEstadoSat(ConDatosDePrueba):
         lineas = entradas.leer_txt(self.rutas["txt"])
         catalogo = entradas.leer_catalogo(self.rutas["catalogo"])
         facturas, _ = entradas.leer_xmls(self.rutas["xmls"], self.rutas["carpeta_xml"])
-        sin_consulta, _ = cruce.conciliar(lineas, catalogo, facturas, ANIO, MES, None, {}, None)
+        sin_consulta, _ = cruce.conciliar(lineas, catalogo, facturas, ANIO, MES, datos_prueba.sap_simulado(), {},
+                                          None)
         for resultado in ([f for filas in por_id.values() for f in filas], sin_consulta):
             for fila in resultado:
                 esperado = datos_prueba.CASOS_ESPERADOS[fila["IDProveedor"]]
@@ -230,6 +233,24 @@ class TestCruceConEstadoSat(ConDatosDePrueba):
                         self.assertEqual(fila["Estatus"], "Cruzado con observaciones")
                         self.assertIn("Validaciones no realizadas: estatus del CFDI en el SAT",
                                       fila["Observaciones"])
+                    else:
+                        self.assertEqual(fila["Estatus"], esperado)
+
+    def test_sin_sap_nada_queda_cruzado(self):
+        """SAP es obligatorio (Contabilidad): si no se pudo consultar, lo que cruzó queda
+        "Cruzado con observaciones" y los demás estatus no cambian."""
+        lineas = entradas.leer_txt(self.rutas["txt"])
+        catalogo = entradas.leer_catalogo(self.rutas["catalogo"])
+        facturas, _ = entradas.leer_xmls(self.rutas["xmls"], self.rutas["carpeta_xml"])
+        estados = {f["UUID"]: dict(VIGENTE) for f in facturas}
+        for sap in (None, {}):                               # no se pudo conectar / proveedor sin consultar
+            resultado, _ = cruce.conciliar(lineas, catalogo, facturas, ANIO, MES, sap, {}, estados)
+            for fila in resultado:
+                esperado = datos_prueba.CASOS_ESPERADOS[fila["IDProveedor"]]
+                with self.subTest(sap=sap, proveedor=fila["IDProveedor"]):
+                    if esperado.startswith("Cruzado"):
+                        self.assertEqual(fila["Estatus"], "Cruzado con observaciones")
+                        self.assertIn("códigos de retención en SAP", fila["Observaciones"])
                     else:
                         self.assertEqual(fila["Estatus"], esperado)
 
@@ -274,7 +295,8 @@ class TestCruceConEstadoSat(ConDatosDePrueba):
             lineas = entradas.leer_txt(self.rutas["txt"])
             linea = next(l for l in lineas if l["IDProveedor"] == "100001")      # factura por 32,188.00
             linea["Importe"] += Decimal(diferencia)
-            resultado, _ = cruce.conciliar(lineas, catalogo, facturas, ANIO, MES, None, {}, estados)
+            resultado, _ = cruce.conciliar(lineas, catalogo, facturas, ANIO, MES, datos_prueba.sap_simulado(),
+                                           {}, estados)
             fila = next(f for f in resultado if f["IDProveedor"] == "100001")
             with self.subTest(diferencia=diferencia):
                 self.assertEqual(fila["Estatus"], esperado)
