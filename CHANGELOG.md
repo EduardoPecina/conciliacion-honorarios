@@ -1,5 +1,13 @@
 # Historial de cambios
 
+## [1.4.0] - 2026-09-30
+
+### Cambiado
+- Tolerancias ajustadas a petición de Contabilidad: `TOLERANCIA` (importe TXT vs factura) y
+  `TOLERANCIA_IMPUESTOS` (impuestos, total y conceptos del XML) bajan de 1.00 a **0.50**.
+  `UMBRAL_OK` sigue en 0.05: la etiqueta "Redondeo" cubre de 0.05 a 0.50.
+- Los textos del Excel que decían "1.00" ahora toman el valor de la configuración.
+
 ## [1.3.0] - 2026-09-30
 
 ### Agregado

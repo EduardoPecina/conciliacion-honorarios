@@ -22,11 +22,11 @@ VERSIONES_CFDI_OK = {"4.0"}
 
 ARCHIVO_CATALOGO = "CatalogoProveedoresTM26.xlsx"
 NOMBRE_TABLA_CATALOGO = "Catalogo"
-TOLERANCIA = Decimal("1.00")             # diferencia máxima de importe aceptada (cruce TXT vs XML)
-TOLERANCIA_IMPUESTOS = Decimal("1.00")   # variación de impuestos aceptada como redondeo
+TOLERANCIA = Decimal("0.50")             # diferencia máxima de importe aceptada (cruce TXT vs XML)
+TOLERANCIA_IMPUESTOS = Decimal("0.50")   # variación de impuestos aceptada como redondeo
 UMBRAL_OK = Decimal("0.05")              # hasta aquí la variación se etiqueta OK; arriba, "Redondeo"
 
-# True: una diferencia de importe entre 0.05 y 1.00 deja la línea "Cruzado con observaciones".
+# True: una diferencia de importe entre UMBRAL_OK y TOLERANCIA (0.05 a 0.50) deja la línea "Cruzado con observaciones".
 DIFERENCIA_IMPORTE_ES_OBSERVACION = True
 # UUID repetido en la carpeta XML (la misma factura copiada dos veces):
 #   False -> si solo UNA línea del TXT la paga, queda "Cruzado con observaciones" (no hay pago doble);

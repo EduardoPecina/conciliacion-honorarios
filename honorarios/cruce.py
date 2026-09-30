@@ -322,10 +322,10 @@ def conciliar(lineas_txt, catalogo, facturas, anio, mes, sap=None, historial=Non
                                        "corresponde a qué factura, revisar el reparto"])
 
     # Orden de los cruces: primero la evidencia más fuerte (exacto) y los grupos más chicos.
-    #   1. Uno a uno exacto (hasta 0.05)
-    #   2. Pago quebrado exacto (N líneas contra M facturas, hasta 0.05)
-    #   3. Uno a uno con tolerancia (hasta 1.00)
-    #   4. Pago quebrado con tolerancia (hasta 1.00): queda con observación por la diferencia
+    #   1. Uno a uno exacto (hasta UMBRAL_OK, 0.05)
+    #   2. Pago quebrado exacto (N líneas contra M facturas, hasta UMBRAL_OK)
+    #   3. Uno a uno con tolerancia (hasta TOLERANCIA, 0.50)
+    #   4. Pago quebrado con tolerancia (hasta TOLERANCIA): queda con observación por la diferencia
     #   5. Total del proveedor
     uno_a_uno(UMBRAL_OK)
     agrupados(UMBRAL_OK)

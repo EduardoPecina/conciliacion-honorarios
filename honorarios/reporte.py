@@ -362,7 +362,7 @@ def escribir_calculos(libro, L, detalle):
         hoja[f"B{var}"] = f"=ROUND(ABS(D{b+3})+ABS(D{b+4})+ABS(D{b+5}),2)"
         hoja[f"B{var}"].number_format = FMT_PESOS
         hoja[f"E{var}"] = ("Suma de las diferencias de IVA, Ret. ISR y Ret. IVA (sin importar el signo). "
-                           "Hasta 1.00 se acepta como redondeo")
+                           f"Hasta {TOLERANCIA_IMPUESTOS} se acepta como redondeo")
         for c in "AB":
             hoja[f"{c}{var}"].font = Font(bold=True)
 
@@ -480,9 +480,9 @@ def escribir_instrucciones(libro):
         ("       subtotal, IVA, retenciones, y lo que 'debería ser' según las tasas.", False),
         ("     • 'Variación importe' = factura (subtotal − descuento + IVA) menos importe del TXT, en pesos.", False),
         ("       Positivo: la factura es mayor que el TXT. Negativo: el TXT es mayor.", False),
-        ("     • 'Revisión importe': OK (hasta 0.05) · Redondeo (hasta 1.00, se acepta).", False),
-        ("     • 'Revisión impuestos': OK (hasta 0.05) · Redondeo (hasta 1.00, se acepta) · "
-         "Revisar (más de 1.00).", False),
+        (f"     • 'Revisión importe': OK (hasta {UMBRAL_OK}) · Redondeo (hasta {TOLERANCIA}, se acepta).", False),
+        (f"     • 'Revisión impuestos': OK (hasta {UMBRAL_OK}) · Redondeo (hasta {TOLERANCIA_IMPUESTOS}, se acepta) · "
+         f"Revisar (más de {TOLERANCIA_IMPUESTOS}).", False),
         ("     • El vínculo 'Ver cálculo' lleva a la ficha de esa línea.", False),
         ("4. Cálculos: la ficha de cada línea, paso a paso y explicada en palabras.", False),
         ("5. Tasas: los porcentajes que usan las fórmulas (IVA 16%, ISR 10%, RESICO 1.25%...).", False),
