@@ -1,5 +1,18 @@
 # Historial de cambios
 
+## [1.10.0] - 2026-09-30
+
+### Agregado
+- **Desinstalador** (`DESINSTALAR.bat` + `instalador/desinstalar.py`) y acceso directo "Desinstalar Portal de
+  Honorarios" en la carpeta `Honorarios`:
+  - Confirma la desinstalación y pregunta si conservar el catálogo, el historial de UUID y los reportes
+    (recomendado); si se eligen borrar, pide una segunda confirmación.
+  - Borra solo lo que puso el instalador (`_Programa`, `LEEME.txt`, accesos directos); nunca archivos ajenos.
+    No desinstala Python ni las librerías.
+  - Se ejecuta desde una copia en la carpeta temporal de Windows para poder borrar `_Programa`. Si el portal
+    está abierto o Windows no deja borrar algo, lo avisa.
+- `LEEME.txt` explica cómo desinstalar.
+
 ## [1.9.0] - 2026-09-30
 
 ### Agregado

@@ -67,11 +67,18 @@ El portal corre en la computadora de cada persona (necesita su sesión de SAP GU
    - Si no tiene Python 3.10 o superior, lo instala **solo para su usuario, sin permisos de administrador** (con `winget` o, si no está, con el instalador oficial de python.org). Si ya lo tiene, se lo salta.
    - Instala las librerías (pandas, openpyxl, streamlit, pywin32…); las que ya estén, se las salta.
    - Crea `Honorarios` en su **Escritorio** (el de OneDrive si Windows lo tiene ahí; la ruta se le pregunta a Windows, no se escribe a mano), con `_Configuracion`, `Reportes`, `_Programa` y `LEEME.txt`.
-   - Crea el acceso directo **"Portal de Honorarios"** (con el logo de Nova) en el Escritorio y en `Honorarios`. Abre el portal sin ventana negra.
+   - Crea el acceso directo **"Portal de Honorarios"** (con el logo de Nova) en el Escritorio y en `Honorarios`, que abre el portal sin ventana negra, y **"Desinstalar Portal de Honorarios"** en `Honorarios`.
 3. **El usuario copia el Excel del catálogo** (`CatalogoProveedoresTM26.xlsx`), que le pasa quien mantiene el programa, a `Honorarios\_Configuracion`. **Ese catálogo lo mantiene cada usuario**: los médicos nuevos se dan de alta en su Excel.
 4. Doble clic en **"Portal de Honorarios"**.
 
-**Actualizar:** se comparte el ZIP de la versión nueva y se corre su `INSTALAR.bat` (con el portal cerrado). Reemplaza solo `_Programa`; el catálogo, el historial y los reportes no se tocan.
+**Actualizar (por ejemplo, para corregir un bug):** se comparte el ZIP de la versión nueva y se corre su `INSTALAR.bat` (con el portal cerrado). Reemplaza `_Programa` completo; el catálogo, el historial y los reportes no se tocan. No hace falta desinstalar antes.
+
+**Desinstalar:** doble clic en **"Desinstalar Portal de Honorarios"** (dentro de `Honorarios`; también `_Programa\DESINSTALAR.bat`), con el portal cerrado:
+1. Confirma la desinstalación.
+2. Pregunta si **conservar** el catálogo, el historial de UUID y los reportes (**Sí**, recomendado: al reinstalar el portal los vuelve a usar). Si se elige borrarlos, pide una segunda confirmación.
+3. Borra solo lo que puso el instalador (`_Programa`, `LEEME.txt` y los accesos directos); nunca borra archivos ajenos que el usuario haya guardado en `Honorarios`. Python y las librerías se quedan.
+
+El desinstalador se copia a la carpeta temporal de Windows y se ejecuta desde ahí, porque tiene que borrar `_Programa`, que es donde vive.
 
 > ⚠️ Cada computadora tiene su propio catálogo e historial de UUID. Si dos personas concilian en computadoras distintas, un pago doble entre ellas no se detecta. Pendiente: una `_Configuracion` compartida (carpeta de red o SharePoint) o la base de datos.
 
