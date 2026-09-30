@@ -37,3 +37,6 @@ venv/
 Thumbs.db
 desktop.ini
 ~$*
+
+# Bitácora del portal (se crea al abrirlo)
+portal/portal.log

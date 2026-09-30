@@ -1,6 +1,7 @@
-"""Portal de Honorarios (Streamlit). Uso, desde la carpeta del repositorio:
+"""Portal de Honorarios (Streamlit). Uso: doble clic en EJECUTAR_PORTAL.bat (sin ventana negra; abre el navegador).
+Para ver los mensajes en una consola, desde la carpeta del repositorio:
 
-    python -m streamlit run portal/app.py        (o doble clic en EJECUTAR_PORTAL.bat)
+    python -m streamlit run portal/app.py
 
 REGLA: el portal NO tiene reglas de negocio. Solo recibe archivos, llama al motor (honorarios/) y muestra
 el resultado. Cualquier regla nueva va en honorarios/, así el portal y el .bat siempre dan lo mismo."""
@@ -16,6 +17,7 @@ if str(RAIZ_REPO) not in sys.path:
 
 from honorarios import __version__  # noqa: E402
 from honorarios.config import SOCIEDAD_SAP  # noqa: E402
+from portal.apagado import cerrar_portal, vigilar_inactividad  # noqa: E402
 from portal.estilo import ruta_logo  # noqa: E402
 
 st.set_page_config(page_title="Portal de Honorarios", page_icon="🩺", layout="wide")
@@ -29,5 +31,19 @@ navegacion = st.navigation([
     st.Page(paginas / "catalogo.py", title=f"Catálogo de Proveedores {SOCIEDAD_SAP}", icon="📇"),
     st.Page(paginas / "historial.py", title="Historial de UUID", icon="🗂️"),
 ])
+
+
+@st.cache_resource
+def _vigilante():
+    """Una sola vez por portal: se apaga solo si nadie lo usa (ver portal/apagado.py)."""
+    vigilar_inactividad()
+    return True
+
+
+_vigilante()
 st.sidebar.caption(f"Conciliación de Honorarios · versión {__version__}")
+if st.sidebar.button("Cerrar el portal", help="Apaga el portal. Para volver a abrirlo: EJECUTAR_PORTAL.bat"):
+    st.sidebar.success("Portal cerrado. Ya puedes cerrar esta pestaña.")
+    cerrar_portal()
+    st.stop()
 navegacion.run()

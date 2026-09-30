@@ -112,6 +112,32 @@ class TestArchivosSubidos(unittest.TestCase):
             preparar_carpeta(d, ("pagos.txt", b"linea"), [("notas.pdf", b"x")])
 
 
+class TestLanzador(unittest.TestCase):
+    """portal/iniciar.py (EJECUTAR_PORTAL.bat): abre el navegador sin ventana negra."""
+
+    def test_portal_ya_abierto_solo_abre_otra_pestana(self):
+        from unittest import mock
+        from portal import iniciar
+        with mock.patch.object(iniciar, "portal_abierto", return_value=True), \
+                mock.patch("webbrowser.open") as navegador, mock.patch("subprocess.Popen") as arrancar:
+            self.assertEqual(iniciar.iniciar(), 0)
+        navegador.assert_called_once_with(iniciar.URL)
+        arrancar.assert_not_called()                          # no se arranca un segundo portal
+
+    def test_si_el_portal_falla_avisa_con_ventana(self):
+        from unittest import mock
+        from portal import iniciar
+        fallido = mock.Mock(**{"poll.return_value": 1})       # el proceso terminó antes de estar listo
+        with tempfile.TemporaryDirectory() as d, \
+                mock.patch.object(iniciar, "BITACORA", Path(d) / "portal.log"), \
+                mock.patch.object(iniciar, "portal_abierto", return_value=False), \
+                mock.patch("subprocess.Popen", return_value=fallido), \
+                mock.patch("webbrowser.open") as navegador, mock.patch.object(iniciar, "avisar") as avisar:
+            self.assertEqual(iniciar.iniciar(), 1)
+        navegador.assert_not_called()
+        self.assertIn("No se pudo iniciar", avisar.call_args.args[0])
+
+
 try:
     from streamlit.testing.v1 import AppTest
 except ImportError:                                       # el portal es opcional: sin Streamlit no se prueba

@@ -1,5 +1,19 @@
 # Historial de cambios
 
+## [1.8.0] - 2026-09-30
+
+### Cambiado
+- `EJECUTAR_PORTAL.bat` ya no muestra la ventana negra: `portal/iniciar.py` (con `pythonw`) arranca el portal en
+  segundo plano y abre el navegador predeterminado de Windows (pestaña nueva, o lo abre si estaba cerrado). Antes
+  el navegador podía no abrirse porque el `.bat` dependía de PowerShell, que las políticas de la empresa pueden
+  limitar.
+- Doble clic con el portal ya abierto: solo abre otra pestaña (no arranca un segundo portal).
+
+### Agregado
+- Botón **"Cerrar el portal"** en el menú, y apagado automático a los 15 minutos sin pestañas abiertas
+  (`portal/apagado.py`).
+- Si el portal no puede iniciar, una ventana de Windows muestra el motivo; el detalle queda en `portal/portal.log`.
+
 ## [1.7.0] - 2026-09-30
 
 ### Agregado
