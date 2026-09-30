@@ -43,13 +43,20 @@ def pedir_periodo():
 
 
 def obtener_rutas(anio, mes):
+    """Rutas del periodo dentro de la estructura Honorarios/<Año>/<MM Mes>/ (programa de consola)."""
     base = RAIZ / str(anio) / MESES[mes - 1]
+    if not base.exists():
+        raise ErrorUsuario(f"No existe la carpeta del periodo:\n  {base}")
+    return rutas_en(base)
+
+
+def rutas_en(base):
+    """Rutas de trabajo dentro de una carpeta con Entrada/ (un .txt y XML/) y Salida/.
+    La usan el programa de consola (carpeta del periodo) y el portal (carpeta temporal con lo que se subió)."""
     entrada, salida = base / "Entrada", base / "Salida"
     carpeta_xml = entrada / "XML"
     catalogo = CONFIG / ARCHIVO_CATALOGO
 
-    if not base.exists():
-        raise ErrorUsuario(f"No existe la carpeta del periodo:\n  {base}")
     if not catalogo.exists():
         raise ErrorUsuario(f"No se encontró el catálogo. Debe estar en:\n  {catalogo}")
     if not carpeta_xml.exists():
