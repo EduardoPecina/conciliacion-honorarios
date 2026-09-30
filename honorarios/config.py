@@ -15,7 +15,7 @@ SOCIEDAD_SAP = "TM26"
 
 # Datos del receptor en CFDI 4.0. Si se dejan vacíos, esa validación no se hace (se avisa al iniciar).
 NOMBRE_SOCIEDAD = "SERVICIOS INTEGRALES NOVA DE MONTERREY"   # Razón social de la Constancia, sin "S.A. de C.V."
-CP_SOCIEDAD = ""                         # Código postal del domicilio fiscal, ej. "64000"
+CP_SOCIEDAD = "66450"                    # Código postal del domicilio fiscal (DomicilioFiscalReceptor)
 REGIMEN_RECEPTOR = "601"                 # General de Ley Personas Morales
 USOS_CFDI_OK = {"G03"}                   # Gastos en general
 VERSIONES_CFDI_OK = {"4.0"}

@@ -26,7 +26,7 @@ from .config import (
     UUID_REPETIDO_SIEMPRE_DETIENE,
     VERSIONES_CFDI_OK,
 )
-from .estado_sat import en_proceso_de_cancelacion
+from .estado_sat import alerta_efos, en_proceso_de_cancelacion
 from .utilidades import a_decimal, normalizar_nombre
 
 
@@ -126,6 +126,10 @@ def validar_xml(f, ctx):
                 d.append(f"El emisor pidió cancelar esta factura y el SAT espera que {RFC_SOCIEDAD} acepte o rechace "
                          "la cancelación en el portal del SAT (si no responde en 3 días hábiles, se cancela sola): "
                          "aclarar con el médico antes de pagar")
+            codigo_efos = alerta_efos(consulta)
+            if codigo_efos:
+                o.append(f"Alerta EFOS: el SAT indica que el emisor {f['RFCEmisor']} podría estar en la lista del "
+                         f"artículo 69-B (operaciones simuladas), código {codigo_efos}: revisar antes de pagar")
             ok.add("estado_sat")
         else:
             o.append("No se pudo consultar el estatus en el SAT: "

@@ -97,7 +97,7 @@ El reporte queda en `<Año>/<Mes>/Salida/Conciliacion_AAAA-MM_fecha_hora.xlsx`. 
 ### Motivos de rechazo (la factura se refactura)
 
 - No está timbrada o no es CFDI versión 4.0.
-- Receptor distinto de **SIN070530EI5 / SERVICIOS INTEGRALES NOVA DE MONTERREY / régimen 601**.
+- Receptor distinto de **SIN070530EI5 / SERVICIOS INTEGRALES NOVA DE MONTERREY / régimen 601 / código postal 66450**.
 - Uso de CFDI distinto de **G03 Gastos en general**.
 - Fecha de la factura fuera del mes que se concilia.
 - Tipo de comprobante distinto de **I (Ingreso)**.
@@ -147,6 +147,7 @@ El portal de verificación del SAT tiene captcha porque es para personas. El pro
 - Si el médico canceló una factura y mandó la que la sustituye por el mismo importe, se cruza la nueva (queda "Cruzado", con la nota "Sustituye a la factura cancelada…"; no se toma como facturación doble) y la cancelada aparece en "XML sin TXT" indicando cuál la sustituyó.
 - Si no llegó la sustituta, la línea sale "Rechazar" con la observación "Verificar si el médico envió la factura que sustituye a esta, que está cancelada en el SAT".
 - El Resumen trae el indicador "Líneas con factura cancelada en el SAT".
+- **Alerta EFOS (artículo 69-B):** la misma respuesta del SAT indica si el emisor podría estar en la lista de contribuyentes que facturan operaciones simuladas. Si es así, la línea sale "Cruzado con observaciones" con "Alerta EFOS…: revisar antes de pagar". La columna **EFOS** dice "No listado" o "Revisar (código …)", y el Resumen trae el indicador "Líneas con alerta EFOS (69-B)".
 - Si todas las facturas están vigentes, el resultado es exactamente el mismo que sin consultar al SAT (hay una prueba automática que lo verifica).
 - La columna **EstadoSAT** del Detalle dice Vigente, Vigente (cancelación en proceso), Cancelado, No encontrado o Sin respuesta.
 - Es una regla obligatoria: se consulta en cada corrida, sin preguntar.

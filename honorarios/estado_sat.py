@@ -25,7 +25,10 @@ SOAP_ACTION = "http://tempuri.org/IConsultaCFDIService/Consulta"
 SOBRE = ('<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" '
          'xmlns:tem="http://tempuri.org/"><soapenv:Header/><soapenv:Body><tem:Consulta>'
          '<tem:expresionImpresa>{}</tem:expresionImpresa></tem:Consulta></soapenv:Body></soapenv:Envelope>')
-CAMPOS_RESPUESTA = ("CodigoEstatus", "Estado", "EsCancelable", "EstatusCancelacion")
+CAMPOS_RESPUESTA = ("CodigoEstatus", "Estado", "EsCancelable", "EstatusCancelacion", "ValidacionEFOS")
+# ValidacionEFOS: 200 y 201 = el emisor NO está en la lista de EFOS (art. 69-B CFF, operaciones simuladas).
+# Cualquier otro código se trata como alerta: mejor revisar de más que pagar a un EFOS.
+EFOS_NO_LISTADO = {"200", "201"}
 ESTADOS = {"VIGENTE": "Vigente", "CANCELADO": "Cancelado", "NOENCONTRADO": "No encontrado"}
 REINTENTOS = 3
 PAUSA_REINTENTO = 2              # segundos; se duplica en cada reintento
@@ -90,18 +93,35 @@ def consultar_uno(f, enviar=enviar):
         estado = ESTADOS.get(normalizar_nombre(datos.get("Estado", "")))
         if estado:
             return {"Estado": estado, "EstatusCancelacion": datos.get("EstatusCancelacion", ""),
-                    "EsCancelable": datos.get("EsCancelable", ""), "Error": "", "SinConexion": False}
+                    "EsCancelable": datos.get("EsCancelable", ""), "ValidacionEFOS": datos.get("ValidacionEFOS", ""),
+                    "Error": "", "SinConexion": False}
         # Respuesta válida pero sin estado (p. ej. "N - 601: La expresión impresa proporcionada no es
         # válida"): reintentar no la cambia.
         error = f"el SAT respondió '{datos.get('CodigoEstatus') or 'sin estatus'}'"
-        return {"Estado": "", "EstatusCancelacion": "", "EsCancelable": "", "Error": error, "SinConexion": False}
-    return {"Estado": "", "EstatusCancelacion": "", "EsCancelable": "", "Error": error,
+        return {"Estado": "", "EstatusCancelacion": "", "EsCancelable": "", "ValidacionEFOS": "", "Error": error, "SinConexion": False}
+    return {"Estado": "", "EstatusCancelacion": "", "EsCancelable": "", "ValidacionEFOS": "", "Error": error,
             "SinConexion": sin_conexion}
 
 
 def en_proceso_de_cancelacion(consulta):
     """El emisor pidió cancelar y el SAT espera que el receptor acepte o rechace."""
     return normalizar_nombre(consulta.get("EstatusCancelacion", "")) == "ENPROCESO"
+
+
+def alerta_efos(consulta):
+    """Código de ValidacionEFOS que indica que el emisor podría estar en la lista 69-B, o "" si no hay alerta."""
+    codigo = (consulta or {}).get("ValidacionEFOS", "").strip()
+    return codigo if codigo and codigo not in EFOS_NO_LISTADO else ""
+
+
+def describir_efos(consulta):
+    """Texto corto para la columna EFOS del Excel."""
+    if not consulta or not consulta.get("Estado"):
+        return ""
+    codigo = alerta_efos(consulta)
+    if codigo:
+        return f"Revisar (código {codigo})"
+    return "No listado" if consulta.get("ValidacionEFOS") else ""
 
 
 def describir(consulta):
@@ -148,4 +168,5 @@ def consultar_estados(facturas, enviar=enviar):
         clave = describir(consulta)
         conteo[clave] = conteo.get(clave, 0) + 1
     texto = ", ".join(f"{n:,} {estado.lower()}" for estado, n in sorted(conteo.items()))
-    return resultado, f"{len(resultado):,} UUID consultados: {texto}"
+    efos = sum(1 for consulta in resultado.values() if alerta_efos(consulta))
+    return resultado, f"{len(resultado):,} UUID consultados: {texto}; {efos:,} con alerta EFOS (69-B)"
