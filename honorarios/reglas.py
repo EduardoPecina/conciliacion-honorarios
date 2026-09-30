@@ -112,9 +112,9 @@ def validar_xml(f, ctx):
                  "impuesto desglosado: XML mal emitido")
     ok.add("cfdi")
 
-    # Estatus en el SAT (solo si en esta corrida se pidió consultarlo)
-    if ctx.get("estados_sat") is not None and f["UUID"]:
-        consulta = ctx["estados_sat"].get(f["UUID"])
+    # Estatus en el SAT (obligatorio). Sin UUID ya se rechaza arriba por no estar timbrada.
+    if f["UUID"]:
+        consulta = (ctx.get("estados_sat") or {}).get(f["UUID"])
         if consulta and consulta["Estado"]:
             if consulta["Estado"] == "Cancelado":
                 r.append("Factura CANCELADA en el SAT: no se puede pagar")

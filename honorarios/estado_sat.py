@@ -107,7 +107,7 @@ def en_proceso_de_cancelacion(consulta):
 def describir(consulta):
     """Texto corto para la columna EstadoSAT del Excel."""
     if not consulta:
-        return ""
+        return "No se consultó"
     if not consulta["Estado"]:
         return "Sin respuesta"
     if consulta["Estado"] == "Vigente" and en_proceso_de_cancelacion(consulta):
@@ -129,7 +129,8 @@ def consultar_estados(facturas, enviar=enviar):
     resultado = {pendientes[0]["UUID"]: consultar_uno(pendientes[0], enviar)}
     if resultado[pendientes[0]["UUID"]]["SinConexion"]:
         error = resultado[pendientes[0]["UUID"]]["Error"]
-        print(f"  No se pudo conectar al SAT: {error}. Se omite la verificación.")
+        print(f"  No se pudo conectar al SAT: {error}.\n  ATENCIÓN: ninguna línea quedará 'Cruzado'; "
+              "vuelve a correr el programa con conexión antes de pagar.")
         for f in pendientes[1:]:
             resultado[f["UUID"]] = {"Estado": "", "EstatusCancelacion": "", "EsCancelable": "",
                                     "Error": f"no se pudo conectar al SAT ({error})", "SinConexion": True}

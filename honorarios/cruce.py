@@ -96,6 +96,10 @@ def buscar_grupo(lineas, xmls, tolerancia, preferencia=lambda idxs: 0):
 
 
 def conciliar(lineas_txt, catalogo, facturas, anio, mes, sap=None, historial=None, estados_sat=None):
+    """estados_sat: resultado de la consulta al SAT ({UUID: consulta}). Es obligatoria: si no se pudo hacer
+    (None o UUID sin respuesta), la validación queda como no realizada y nada sale "Cruzado"."""
+    if estados_sat is None:
+        estados_sat = {}
     por_id = catalogo.set_index("IDProveedor").to_dict("index")
     uuids_vistos = {}
     for f in facturas:
@@ -168,9 +172,8 @@ def conciliar(lineas_txt, catalogo, facturas, anio, mes, sap=None, historial=Non
         fila["_grupo"] = tuple(sorted(idxs))
         fila["ArchivoXML"] = ", ".join(f["ArchivoXML"] for f in fs)
         fila["UUID"] = ", ".join(f["UUID"] for f in fs)
-        if estados_sat is not None:
-            fila["EstadoSAT"] = ", ".join(sorted({describir_estado_sat(estados_sat.get(f["UUID"])) or "Sin UUID"
-                                                  for f in fs}))
+        fila["EstadoSAT"] = ", ".join(sorted({describir_estado_sat(estados_sat.get(f["UUID"])) if f["UUID"]
+                                              else "Sin UUID" for f in fs}))
         fila["FechaXML"] = ", ".join(sorted({f["FechaXML"] for f in fs}))
         fila["RegimenEmisor"] = ", ".join(sorted({f["RegimenEmisor"] for f in fs}))
         if con_importes:
@@ -194,7 +197,7 @@ def conciliar(lineas_txt, catalogo, facturas, anio, mes, sap=None, historial=Non
         obs[n].extend(notas)
 
     def cancelada(i):
-        return estados_sat is not None and (estados_sat.get(facturas[i]["UUID"]) or {}).get("Estado") == "Cancelado"
+        return (estados_sat.get(facturas[i]["UUID"]) or {}).get("Estado") == "Cancelado"
 
     def sustitutas(i, candidatas):
         """Facturas vigentes del mismo RFC y por el mismo importe que la factura i (que está cancelada)."""
@@ -410,7 +413,7 @@ def conciliar(lineas_txt, catalogo, facturas, anio, mes, sap=None, historial=Non
 
     # Estatus final. "Cruzado" solo si no hay rechazos, ni motivos para detener, ni observaciones
     # que requieran revisión, y además se aprobaron TODAS las validaciones de la lista.
-    no_pedidas = {clave for clave, datos in (("sap", sap), ("estado_sat", estados_sat)) if datos is None}
+    no_pedidas = {"sap"} if sap is None else set()
     for n, (fila, o, r, d) in enumerate(zip(filas, obs, rech, deten)):
         cruzada = fila["Estatus"].startswith("Cruzado")
         if cruzada:
@@ -445,8 +448,7 @@ def conciliar(lineas_txt, catalogo, facturas, anio, mes, sap=None, historial=Non
                                "SubTotal", "Descuento", "IVA", "RetISR", "RetIVA", "Total",
                                "ImporteConIVA")}
         s["NombreRegimen"] = REGIMENES.get(f["RegimenEmisor"], "Desconocido")
-        if estados_sat is not None:
-            s["EstadoSAT"] = describir_estado_sat(estados_sat.get(f["UUID"]))
+        s["EstadoSAT"] = describir_estado_sat(estados_sat.get(f["UUID"])) if f["UUID"] else "Sin UUID"
         r, o_xml, d, _ = validacion[i]
         motivos = r + d
         copia = sorted(facturas[j]["ArchivoXML"] for j in usadas

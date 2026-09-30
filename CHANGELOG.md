@@ -3,16 +3,16 @@
 ## [1.2.0] - 2026-09-30
 
 ### Agregado
-- Verificación opcional del estatus de cada factura en el SAT (Vigente / Cancelado / No encontrado) con el
-  servicio web oficial `ConsultaCFDIService`, que no tiene captcha. El programa pregunta al iniciar
-  (por defecto "s", ver `ESTADO_SAT_POR_DEFECTO`).
+- Regla obligatoria: en cada corrida se verifica el estatus de cada factura en el SAT (Vigente / Cancelado /
+  No encontrado) con el servicio web oficial `ConsultaCFDIService`, que no tiene captcha. No se pregunta.
   - Cancelada: "Rechazar", con la observación "Verificar si el médico envió la factura que sustituye a esta,
     que está cancelada en el SAT".
   - Si el médico reemitió por el mismo importe, se cruza la nueva ("Cruzado", sin marcarla como facturación
     doble) y la cancelada queda en XML sin TXT indicando cuál la sustituyó.
   - Nuevo indicador en el Resumen: "Líneas con factura cancelada en el SAT".
   - No encontrada, o con cancelación en proceso: "Detenida".
-  - Sin respuesta del SAT: "Cruzado con observaciones" con "Validaciones no realizadas".
+  - Sin respuesta del SAT: ninguna línea queda "Cruzado"; salen "Cruzado con observaciones" con
+    "Validaciones no realizadas: estatus del CFDI en el SAT".
   - Nueva columna `EstadoSAT` en Detalle y en XML sin TXT; resumen de la consulta en la hoja Info.
 
 ## [1.1.1] - 2026-09-30

@@ -1,6 +1,6 @@
 """Flujo principal del programa: pregunta el periodo, lee entradas, cruza y genera el reporte."""
 
-from .config import CP_SOCIEDAD, ESTADO_SAT_POR_DEFECTO, NOMBRE_SOCIEDAD
+from .config import CP_SOCIEDAD, NOMBRE_SOCIEDAD
 from .entradas import leer_catalogo, leer_txt, leer_xmls, obtener_rutas, pedir_periodo
 from .historial import cargar_historial, guardar_historial
 from .cruce import conciliar
@@ -47,12 +47,9 @@ def main():
     historial, estados["Historial de UUID"] = cargar_historial()
     print(f"Historial de UUID: {estados['Historial de UUID']}")
 
-    estados_sat, estados["Estatus en el SAT"] = None, "No se consultó"
-    if si("¿Verificar en el SAT que las facturas sigan vigentes (no canceladas)? Requiere internet",
-          ESTADO_SAT_POR_DEFECTO):
-        print(f"Consultando en el SAT {len({f['UUID'] for f in facturas if f['UUID']}):,} facturas...")
-        estados_sat, estados["Estatus en el SAT"] = consultar_estados(facturas)
-        print(f"  {estados['Estatus en el SAT']}")
+    print(f"Consultando en el SAT {len({f['UUID'] for f in facturas if f['UUID']}):,} facturas (requiere internet)...")
+    estados_sat, estados["Estatus en el SAT"] = consultar_estados(facturas)
+    print(f"  {estados['Estatus en el SAT']}")
 
     sap, estados["Validación SAP"] = None, "No se consultó"
     if si("¿Validar contra SAP? SAP debe estar abierto", "n"):

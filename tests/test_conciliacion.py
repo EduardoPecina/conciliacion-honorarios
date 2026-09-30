@@ -26,14 +26,18 @@ from honorarios.config import RAIZ  # noqa: E402
 ANIO, MES = datos_prueba.ANIO, datos_prueba.MES
 
 
+VIGENTE = {"Estado": "Vigente", "EstatusCancelacion": "", "EsCancelable": "", "Error": "", "SinConexion": False}
+
+
 def correr_conciliacion():
-    """Ejecuta el flujo completo sin preguntas en pantalla y sin SAP."""
+    """Ejecuta el flujo completo sin preguntas en pantalla y sin SAP. El SAT se simula: todo vigente."""
     rutas = entradas.obtener_rutas(ANIO, MES)
     catalogo = entradas.leer_catalogo(rutas["catalogo"])
     lineas = entradas.leer_txt(rutas["txt"])
     facturas, errores = entradas.leer_xmls(rutas["xmls"], rutas["carpeta_xml"])
     hist, _ = historial.cargar_historial()
-    resultado, sobrantes = cruce.conciliar(lineas, catalogo, facturas, ANIO, MES, None, hist)
+    estados_sat = {f["UUID"]: dict(VIGENTE) for f in facturas if f["UUID"]}
+    resultado, sobrantes = cruce.conciliar(lineas, catalogo, facturas, ANIO, MES, None, hist, estados_sat)
     return rutas, resultado, sobrantes, errores
 
 
@@ -185,32 +189,38 @@ class TestEstadoSat(unittest.TestCase):
 class TestCruceConEstadoSat(ConDatosDePrueba):
     """Efecto del estatus del SAT en el cruce, con los datos de prueba."""
 
-    VIGENTE = {"Estado": "Vigente", "EstatusCancelacion": "", "EsCancelable": "", "Error": "",
-               "SinConexion": False}
-
     def conciliar(self, estado_de=lambda f: {}, facturas_extra=()):
         """estado_de(factura) -> campos de la consulta al SAT que cambian respecto de 'Vigente'."""
         lineas = entradas.leer_txt(self.rutas["txt"])
         catalogo = entradas.leer_catalogo(self.rutas["catalogo"])
         facturas, _ = entradas.leer_xmls(self.rutas["xmls"], self.rutas["carpeta_xml"])
         facturas += list(facturas_extra)
-        estados = {f["UUID"]: dict(self.VIGENTE, **estado_de(f)) for f in facturas}
+        estados = {f["UUID"]: dict(VIGENTE, **estado_de(f)) for f in facturas}
         resultado, sobrantes = cruce.conciliar(lineas, catalogo, facturas, ANIO, MES, None, {}, estados)
         por_id = {}
         for fila in resultado:
             por_id.setdefault(fila["IDProveedor"], []).append(fila)
         return por_id, sobrantes
 
-    def test_todo_vigente_no_cambia_ningun_resultado(self):
-        """Exactitud: si el SAT dice que todo está vigente, cada línea queda con el mismo estatus,
-        motivos y observaciones que sin consultar al SAT."""
-        por_id, _ = self.conciliar()
-        con_sat = {f["Linea"]: f for filas in por_id.values() for f in filas}
-        for sin_sat in self.resultado:
-            with self.subTest(linea=sin_sat["Linea"]):
-                fila = con_sat[sin_sat["Linea"]]
-                for campo in ("Estatus", "MotivoRechazo", "Observaciones", "UUID"):
-                    self.assertEqual(fila.get(campo), sin_sat.get(campo), campo)
+    def test_sin_conexion_al_sat_nada_queda_cruzado(self):
+        """Regla obligatoria: si el SAT no responde, lo que cruzó queda "Cruzado con observaciones"
+        (validación no realizada) y los demás estatus no cambian."""
+        sin_respuesta = {"Estado": "", "Error": "sin respuesta del SAT", "SinConexion": True}
+        por_id, _ = self.conciliar(lambda f: sin_respuesta)
+        lineas = entradas.leer_txt(self.rutas["txt"])
+        catalogo = entradas.leer_catalogo(self.rutas["catalogo"])
+        facturas, _ = entradas.leer_xmls(self.rutas["xmls"], self.rutas["carpeta_xml"])
+        sin_consulta, _ = cruce.conciliar(lineas, catalogo, facturas, ANIO, MES, None, {}, None)
+        for resultado in ([f for filas in por_id.values() for f in filas], sin_consulta):
+            for fila in resultado:
+                esperado = datos_prueba.CASOS_ESPERADOS[fila["IDProveedor"]]
+                with self.subTest(proveedor=fila["IDProveedor"]):
+                    if esperado.startswith("Cruzado"):
+                        self.assertEqual(fila["Estatus"], "Cruzado con observaciones")
+                        self.assertIn("Validaciones no realizadas: estatus del CFDI en el SAT",
+                                      fila["Observaciones"])
+                    else:
+                        self.assertEqual(fila["Estatus"], esperado)
 
     def test_estatus_segun_el_sat(self):
         por_rfc = {

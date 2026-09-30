@@ -12,7 +12,7 @@ Antes, cada factura se revisaba a mano contra el pago correspondiente. El progra
 
 1. **Cruza** cada línea del TXT con su factura: `IDProveedor → RFC (catálogo) → XML`, incluyendo pagos quebrados (varias líneas contra una factura, o una línea contra varias facturas).
 2. **Valida** cada factura: receptor, periodo, método y forma de pago, timbre, impuestos recalculados, historial de UUID ya pagados.
-3. **Opcionalmente consulta al SAT** si cada factura sigue vigente o si el médico la canceló después de enviarla.
+3. **Consulta al SAT** si cada factura sigue vigente o si el médico la canceló después de enviarla (en cada corrida).
 4. **Opcionalmente consulta SAP** (transacción FK03/BP) para confirmar que las retenciones configuradas del proveedor coinciden con la factura.
 5. **Genera un Excel** donde cada número se puede rastrear hasta su fórmula.
 
@@ -20,6 +20,8 @@ Antes, cada factura se revisaba a mano contra el pago correspondiente. El progra
 TXT de pagos ──► Catálogo (ID → RFC) ──► XML de la factura
      │                                        │
      └──────────── reglas de negocio ◄────────┘
+                          │
+                 SAT (vigente / cancelada)
                           │
                    (opcional) SAP
                           │
@@ -70,8 +72,9 @@ python _Programa.py
 El programa pregunta:
 
 1. **Año y mes** del periodo (Enter = mes actual).
-2. **¿Verificar en el SAT que las facturas sigan vigentes?** Requiere internet. Ver [Estatus en el SAT](#estatus-en-el-sat).
-3. **¿Validar contra SAP?** Responde `s` solo si SAP está abierto con tu sesión iniciada. Mientras consulta, no toques el mouse ni el teclado.
+2. **¿Validar contra SAP?** Responde `s` solo si SAP está abierto con tu sesión iniciada. Mientras consulta, no toques el mouse ni el teclado.
+
+Después de leer las facturas, el programa **siempre** consulta su estatus en el SAT (requiere internet; ver [Estatus en el SAT](#estatus-en-el-sat)).
 
 El reporte queda en `<Año>/<Mes>/Salida/Conciliacion_AAAA-MM_fecha_hora.xlsx`. Cada corrida genera un archivo nuevo; nunca se sobrescribe uno anterior.
 
@@ -140,13 +143,13 @@ El portal de verificación del SAT tiene captcha porque es para personas. El pro
 
 - Por cada factura solo se envía la expresión de su código QR: UUID, RFC emisor, RFC receptor, total y los últimos 8 caracteres del sello.
 - Se consultan 4 facturas a la vez (`CONSULTAS_SAT_SIMULTANEAS`); cada UUID una sola vez.
-- Si no hay internet, se sabe con la primera consulta y se sigue sin esa validación. Esas líneas salen "Cruzado con observaciones" con "Validaciones no realizadas: estatus del CFDI en el SAT".
+- Si no hay internet, se sabe con la primera consulta y el programa termina el reporte, pero **ninguna línea queda "Cruzado"**: las que cruzaron salen "Cruzado con observaciones" con "Validaciones no realizadas: estatus del CFDI en el SAT". Hay que volver a correrlo con conexión antes de pagar.
 - Si el médico canceló una factura y mandó la que la sustituye por el mismo importe, se cruza la nueva (queda "Cruzado", con la nota "Sustituye a la factura cancelada…"; no se toma como facturación doble) y la cancelada aparece en "XML sin TXT" indicando cuál la sustituyó.
 - Si no llegó la sustituta, la línea sale "Rechazar" con la observación "Verificar si el médico envió la factura que sustituye a esta, que está cancelada en el SAT".
 - El Resumen trae el indicador "Líneas con factura cancelada en el SAT".
 - Si todas las facturas están vigentes, el resultado es exactamente el mismo que sin consultar al SAT (hay una prueba automática que lo verifica).
 - La columna **EstadoSAT** del Detalle dice Vigente, Vigente (cancelación en proceso), Cancelado, No encontrado o Sin respuesta.
-- La respuesta por defecto a la pregunta es "s" (Enter = consultar); se cambia en `ESTADO_SAT_POR_DEFECTO` de `config.py`.
+- Es una regla obligatoria: se consulta en cada corrida, sin preguntar.
 
 ## Configuración
 
@@ -165,7 +168,7 @@ Todo lo ajustable está en **`honorarios/config.py`**: datos del receptor, toler
 | `honorarios/cruce.py` | Cruce uno a uno y pagos quebrados; estatus final |
 | `honorarios/reporte.py` | Excel de salida con fórmulas |
 | `honorarios/sap.py` | Consulta opcional a SAP GUI |
-| `honorarios/estado_sat.py` | Consulta opcional del estatus del CFDI en el SAT |
+| `honorarios/estado_sat.py` | Consulta del estatus del CFDI en el SAT |
 | `honorarios/principal.py` | Flujo principal |
 | `tests/` | Pruebas automáticas con datos inventados |
 
@@ -188,7 +191,7 @@ python tests/datos_prueba.py C:\ruta\destino
 - El repositorio es **privado**, con acceso para el equipo de Sistemas, según lo autorizado por Ciberseguridad.
 - El `.gitignore` bloquea `.xml`, `.txt`, `.xlsx`, `.csv` y demás archivos de datos. **Nunca subas facturas, TXT, catálogos ni reportes reales.**
 - Antes de cada commit revisa `git status`: solo deben aparecer archivos `.py`, `.md`, `.bat`, `LICENSE` o `.txt` de configuración del repo.
-- Sin la consulta al SAT, el programa no se conecta a internet. Con ella, solo se conecta al servicio oficial del SAT (`consultaqr.facturaelectronica.sat.gob.mx`) y envía únicamente los datos del código QR de cada factura (ver [Estatus en el SAT](#estatus-en-el-sat)); nada del TXT ni del catálogo sale de la computadora. La otra integración es la consulta opcional, de solo lectura, a SAP GUI.
+- La única conexión a internet es al servicio oficial del SAT (`consultaqr.facturaelectronica.sat.gob.mx`), en cada corrida, y envía únicamente los datos del código QR de cada factura (ver [Estatus en el SAT](#estatus-en-el-sat)); nada del TXT ni del catálogo sale de la computadora. La otra integración es la consulta opcional, de solo lectura, a SAP GUI.
 
 ## Licencia
 
