@@ -1,0 +1,38 @@
+# ============================================================
+# DATOS: nunca se suben al repositorio
+# (facturas, TXT de pagos, catálogos, reportes, historial)
+# ============================================================
+*.xml
+*.XML
+*.txt
+*.xlsx
+*.xlsm
+*.xls
+*.csv
+*.sqlite
+*.zip
+*.pdf
+CodigosSAP_*
+HistorialUUID*
+Honorarios_prueba/
+
+# Excepciones: archivos del propio repositorio
+!requirements.txt
+
+# ============================================================
+# Python
+# ============================================================
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.tmp
+
+# ============================================================
+# Editores y sistema
+# ============================================================
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+~$*
