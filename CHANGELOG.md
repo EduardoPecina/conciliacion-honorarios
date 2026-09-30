@@ -6,6 +6,11 @@
 - `EJECUTAR_PORTAL.bat` abría el navegador antes de que el portal estuviera listo ("localhost rechazó la
   conexión"). Ahora espera a que el portal escuche en el puerto 8501. Si el portal se detiene, la ventana
   queda abierta con el error en lugar de cerrarse.
+- El portal usa siempre el puerto 8501: si ya hay otro portal abierto, avisa en lugar de irse en silencio al 8502.
+
+### Seguridad
+- El portal solo acepta conexiones desde la misma computadora (`server.address = "localhost"`). Antes, mientras
+  corría en una PC, cualquiera en la red podía abrirlo con la "Network URL".
 
 ## [1.5.0] - 2026-09-30
 

@@ -94,6 +94,10 @@ y doble clic en **`EJECUTAR_PORTAL.bat`**: el navegador se abre solo en http://l
 
 Si el navegador dice **"localhost rechazó la conexión"** (`ERR_CONNECTION_REFUSED`), el portal no está corriendo: revisa la ventana negra. No es el firewall; `localhost` es la misma computadora.
 
+Si la ventana negra dice **"Port 8501 is not available"**, ya hay otro portal abierto: usa ese (http://localhost:8501) o cierra su ventana negra y vuelve a abrirlo.
+
+Por ahora el portal solo acepta conexiones desde la misma computadora (`address = "localhost"` en `.streamlit/config.toml`): los compañeros de la red no pueden abrirlo. Para el servidor interno, Sistemas cambia esa línea.
+
 | Página | Qué hace |
 |---|---|
 | Conciliar | Subir archivos → Procesar → resumen → Descargar Excel → Confirmar |

@@ -1,6 +1,9 @@
 # Configuración del portal (Streamlit la lee de la carpeta desde donde se ejecuta: la del repositorio).
 [server]
 headless = true              # no intenta abrir un navegador en el servidor
+port = 8501                  # fijo: si ya está ocupado (otro portal abierto), avisa en lugar de irse al 8502
+address = "localhost"        # solo esta computadora puede abrir el portal. En el servidor interno se cambia
+                             # por la dirección de red para que Contabilidad entre (lo define Sistemas)
 maxUploadSize = 500          # MB por archivo subido (un .zip con todos los XML del mes)
 
 [browser]
