@@ -128,8 +128,10 @@ def leer_txt(ruta):
         campos = [c.strip() for c in linea.split("\t")]
         if primera:
             primera = False
-            if not re.fullmatch(r"\d{2}\.\d{2}\.\d{4}", campos[0]):
-                continue                               # es un encabezado (aunque haya renglones vacíos antes)
+            # Encabezado (aunque haya renglones vacíos antes): la primera columna no trae dígitos.
+            # Una fecha mal escrita ("1.09.2026") NO es encabezado: sigue y marca error de formato.
+            if not re.search(r"\d", campos[0]):
+                continue
         if len(campos) != len(COLUMNAS_TXT):
             errores.append(f"Línea {n}: trae {len(campos)} columnas y se esperaban {len(COLUMNAS_TXT)}")
             continue

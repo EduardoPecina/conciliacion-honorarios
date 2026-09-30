@@ -155,6 +155,22 @@ class TestLecturaTxt(unittest.TestCase):
         self.assertEqual(len(lineas), 1)
         self.assertEqual(lineas[0]["IDProveedor"], "100001")
 
+    def test_primera_linea_sin_encabezado_no_se_descarta(self):
+        """Sin encabezado, una primera línea con fecha distinta de DD.MM.AAAA antes se tomaba por
+        encabezado y su importe desaparecía del reporte sin avisar."""
+        with tempfile.TemporaryDirectory() as d:
+            ruta = Path(d) / "pagos.txt"
+            datos = ["1.09.2026", "100001", "F1", "1000.00", "X", "E0", "1", "CC", "CTA", "PM", "REF"]
+            ruta.write_text("\t".join(datos) + "\n", encoding="utf-8")
+            lineas = entradas.leer_txt(ruta)
+            self.assertEqual([l["Importe"] for l in lineas], [Decimal("1000.00")])
+
+            datos[0] = "01-09-2026"
+            ruta.write_text("\t".join(datos) + "\n", encoding="utf-8")
+            with self.assertRaises(utilidades.ErrorUsuario) as error:
+                entradas.leer_txt(ruta)
+        self.assertIn("01-09-2026", str(error.exception))
+
 
 class TestUtilidades(unittest.TestCase):
     def test_importe_txt(self):
