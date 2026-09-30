@@ -28,7 +28,7 @@ def r2(v):
     return v.quantize(C, rounding=ROUND_HALF_UP)
 
 
-# (ID, nombre, RFC, activo)
+# (ID, nombre, RFC, activo). La columna Activo del catálogo es histórica y el programa la ignora.
 PROVEEDORES = [
     ("100001", "MEDICO RESICO UNO", "MERU800101AB1", 1),
     ("100002", "NUTRIOLOGA IVA DOS", "NUID800202AB2", 1),
@@ -36,7 +36,7 @@ PROVEEDORES = [
     ("100004", "MEDICO DOS FACTURAS", "MEDF800404AB4", 1),
     ("100005", "MEDICO SIN FACTURA", "MESF800505AB5", 1),
     ("100006", "MEDICO DIFERENCIA", "MEDI800606AB6", 1),
-    ("100007", "MEDICO BLOQUEADO", "MEBL800707AB7", 0),
+    ("100007", "MEDICO BLOQUEADO", "MEBL800707AB7", "Baja por revisar"),   # valor no reconocido: se ignora
     ("100008", "MEDICO AGOSTO", "MEAG800808AB8", 1),
     ("100009", "MEDICO EFECTIVO", "MEEF800909AB9", 1),
     ("100010", "MEDICO PPD", "MEPP801010AC1", 1),
@@ -54,7 +54,7 @@ CASOS_ESPERADOS = {
     "100004": "Cruzado (pago quebrado)",        # 1 línea contra 2 facturas
     "100005": "Sin XML",
     "100006": "Diferencia de importe",
-    "100007": "Detenida",                       # proveedor bloqueado en catálogo
+    "100007": "Cruzado",                        # Activo=0 en catálogo: se ignora, no detiene
     "100008": "Rechazar",                       # factura fuera del periodo
     "100009": "Rechazar",                       # forma de pago 01 efectivo
     "100010": "Cruzado",                        # PPD + 99 (con nota informativa)
@@ -162,7 +162,7 @@ def crear(destino):
         linea_txt("100004", "M1", "1500"),                    # una línea, dos facturas
         linea_txt("100005", "S1", "40180"),                   # sin XML
         linea_txt("100006", "D1", "30156"),                   # XML por 30,000: diferencia
-        linea_txt("100007", "B1", "4000"),                    # proveedor bloqueado
+        linea_txt("100007", "B1", "4000"),                    # Activo=0 en catálogo (se ignora)
         linea_txt("100008", "F1", "1000"),                    # factura de agosto
         linea_txt("100009", "E1", "2000"),                    # efectivo
         linea_txt("100010", "P1", "3000"),                    # PPD + 99

@@ -129,8 +129,6 @@ def conciliar(lineas_txt, catalogo, facturas, anio, mes, sap=None, historial=Non
             fila.update(Estatus="ID no está en catálogo", RFC="", Nombre="")
         else:
             fila["RFC"], fila["Nombre"] = prov["RFC"], prov["Nombre"]
-            if prov.get("Activo") == "0":
-                d.append("Proveedor bloqueado (inactivo) en el catálogo")
             tipo = prov.get("TipoRFC") or clasificar_rfc(prov["RFC"])
             if tipo == "Vacío":
                 fila["Estatus"] = "Proveedor sin RFC en catálogo"

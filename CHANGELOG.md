@@ -1,5 +1,12 @@
 # Historial de cambios
 
+## [1.1.0] - 2026-09-30
+
+### Cambiado
+- Se retira la regla "Proveedor bloqueado en el catálogo" (a petición de Contabilidad): la columna
+  `Activo` del catálogo es histórica y trae registros que no reflejan el estado real del proveedor.
+  El programa ya no la lee: no detiene líneas por ella ni rechaza el catálogo por valores raros en esa columna.
+
 ## [1.0.1] - 2026-09-30
 
 ### Corregido
