@@ -9,7 +9,8 @@
 - Portal: mientras se procesa, la página queda bloqueada con un aviso para no detener la conciliación al cambiar
   de página o de control. Se libera sola al terminar.
 - Portal: logo de Nova (`portal/recursos/logo.png`), arriba del título "Conciliación de Honorarios" y en la
-  parte superior del menú. Para cambiarlo basta con reemplazar ese archivo.
+  parte superior del menú (recortado al recuadro naranja, sin el margen claro que se notaba en el menú gris).
+  Para cambiarlo basta con reemplazar ese archivo.
 
 ### Cambiado
 - Portal: "Conciliar" pasa a "Conciliador Automático"; "Catálogo de proveedores" a "Catálogo de Proveedores
