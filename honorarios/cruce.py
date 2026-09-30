@@ -12,6 +12,7 @@ from .config import (
     FECHA_TXT_DEBE_SER_DEL_PERIODO,
     FORMAS_PAGO,
     INFORMATIVAS,
+    MSG_FACTURA_CANCELADA,
     MSG_UUID_REPETIDO,
     NO_ES_DISCREPANCIA_SAP,
     REGIMENES,
@@ -19,6 +20,7 @@ from .config import (
     UMBRAL_OK,
     VALIDACIONES,
 )
+from .estado_sat import describir as describir_estado_sat
 from .utilidades import clasificar_rfc
 from .reglas import redondear, revisar_impuestos, validar_sap, validar_xml
 
@@ -93,14 +95,18 @@ def buscar_grupo(lineas, xmls, tolerancia, preferencia=lambda idxs: 0):
     return None
 
 
-def conciliar(lineas_txt, catalogo, facturas, anio, mes, sap=None, historial=None):
+def conciliar(lineas_txt, catalogo, facturas, anio, mes, sap=None, historial=None, estados_sat=None):
+    """estados_sat: resultado de la consulta al SAT ({UUID: consulta}). Es obligatoria: si no se pudo hacer
+    (None o UUID sin respuesta), la validación queda como no realizada y nada sale "Cruzado"."""
+    if estados_sat is None:
+        estados_sat = {}
     por_id = catalogo.set_index("IDProveedor").to_dict("index")
     uuids_vistos = {}
     for f in facturas:
         if f["UUID"]:
             uuids_vistos[f["UUID"]] = uuids_vistos.get(f["UUID"], 0) + 1
     ctx = {"uuids": uuids_vistos, "anio": anio, "mes": mes, "periodo": f"{anio}-{mes:02d}",
-           "historial": historial}
+           "historial": historial, "estados_sat": estados_sat}
     validacion = [validar_xml(f, ctx) for f in facturas]      # se calcula una vez por factura
 
     xml_por_rfc = {}
@@ -166,6 +172,8 @@ def conciliar(lineas_txt, catalogo, facturas, anio, mes, sap=None, historial=Non
         fila["_grupo"] = tuple(sorted(idxs))
         fila["ArchivoXML"] = ", ".join(f["ArchivoXML"] for f in fs)
         fila["UUID"] = ", ".join(f["UUID"] for f in fs)
+        fila["EstadoSAT"] = ", ".join(sorted({describir_estado_sat(estados_sat.get(f["UUID"])) if f["UUID"]
+                                              else "Sin UUID" for f in fs}))
         fila["FechaXML"] = ", ".join(sorted({f["FechaXML"] for f in fs}))
         fila["RegimenEmisor"] = ", ".join(sorted({f["RegimenEmisor"] for f in fs}))
         if con_importes:
@@ -187,6 +195,15 @@ def conciliar(lineas_txt, catalogo, facturas, anio, mes, sap=None, historial=Non
             aprobadas = set(ok) if aprobadas is None else aprobadas & ok   # debe aprobar en TODAS las facturas
         pasadas[n] |= aprobadas
         obs[n].extend(notas)
+
+    def cancelada(i):
+        return (estados_sat.get(facturas[i]["UUID"]) or {}).get("Estado") == "Cancelado"
+
+    def sustitutas(i, candidatas):
+        """Facturas vigentes del mismo RFC y por el mismo importe que la factura i (que está cancelada)."""
+        return [j for j in candidatas if j != i and not cancelada(j)
+                and facturas[j]["RFCEmisor"] == facturas[i]["RFCEmisor"]
+                and abs(facturas[j]["ImporteConIVA"] - facturas[i]["ImporteConIVA"]) <= TOLERANCIA]
 
     def calidad(i):
         """0 = factura válida, 1 = con motivo para detener, 2 = a rechazar. Ante importes iguales se
@@ -227,9 +244,15 @@ def conciliar(lineas_txt, catalogo, facturas, anio, mes, sap=None, historial=Non
                 i = asignacion[n]
                 otras = [j for j in cerca(n, TOLERANCIA) if j != i and j not in tomadas
                          and facturas[j]["UUID"] != facturas[i]["UUID"]]     # copia del mismo UUID: otro aviso
+                # Una factura cancelada por el mismo importe no es facturación doble: es la que esta sustituye
+                sustituidas = [j for j in otras if cancelada(j)] if not cancelada(i) else []
+                otras = [j for j in otras if j not in sustituidas]
                 notas = ([f"{len(otras) + 1} facturas distintas (UUID diferente) del mismo RFC por el mismo "
                           "importe: posible facturación doble del proveedor"]
                          if otras else [])
+                if sustituidas:
+                    notas.append("Sustituye a la factura cancelada en el SAT "
+                                 + ", ".join(facturas[j]["ArchivoXML"] for j in sustituidas))
                 usadas.add(i)
                 poner_xml(n, [i], "Cruzado", notas)
                 lineas.remove(n)
@@ -390,11 +413,12 @@ def conciliar(lineas_txt, catalogo, facturas, anio, mes, sap=None, historial=Non
 
     # Estatus final. "Cruzado" solo si no hay rechazos, ni motivos para detener, ni observaciones
     # que requieran revisión, y además se aprobaron TODAS las validaciones de la lista.
+    no_pedidas = {"sap"} if sap is None else set()
     for n, (fila, o, r, d) in enumerate(zip(filas, obs, rech, deten)):
         cruzada = fila["Estatus"].startswith("Cruzado")
         if cruzada:
             faltan = [nombre for clave, nombre in VALIDACIONES.items()
-                      if clave not in pasadas[n] and not (clave == "sap" and sap is None)]
+                      if clave not in pasadas[n] and clave not in no_pedidas]
             if faltan and not r:                     # si ya se rechaza, el faltante no aporta
                 o.append("Validaciones no realizadas: " + ", ".join(faltan))
         fila["DiscrepanciaSAP"] = any("SAP" in x and not x.startswith(NO_ES_DISCREPANCIA_SAP) for x in o + d)
@@ -424,6 +448,7 @@ def conciliar(lineas_txt, catalogo, facturas, anio, mes, sap=None, historial=Non
                                "SubTotal", "Descuento", "IVA", "RetISR", "RetIVA", "Total",
                                "ImporteConIVA")}
         s["NombreRegimen"] = REGIMENES.get(f["RegimenEmisor"], "Desconocido")
+        s["EstadoSAT"] = describir_estado_sat(estados_sat.get(f["UUID"])) if f["UUID"] else "Sin UUID"
         r, o_xml, d, _ = validacion[i]
         motivos = r + d
         copia = sorted(facturas[j]["ArchivoXML"] for j in usadas
@@ -432,6 +457,10 @@ def conciliar(lineas_txt, catalogo, facturas, anio, mes, sap=None, historial=Non
             motivos.append(f"Copia repetida de {', '.join(copia)} (ya cruzado): {MSG_UUID_REPETIDO}")
         else:
             motivos += [x for x in o_xml if x.startswith(MSG_UUID_REPETIDO)]
+        if cancelada(i):
+            nueva = [facturas[j]["ArchivoXML"] for j in sustitutas(i, sorted(usadas))]
+            motivos.append(f"Ya se cruzó la factura que la sustituye (mismo RFC e importe): {', '.join(nueva)}"
+                           if nueva else MSG_FACTURA_CANCELADA)
         s["MotivoRechazo"] = "; ".join(motivos)
         s["IDProveedorCatalogo"] = ", ".join(rfc_a_id.get(f["RFCEmisor"], ["No está en catálogo"]))
         sobrantes.append(s)
