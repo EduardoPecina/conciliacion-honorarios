@@ -77,6 +77,14 @@ El portal corre en la computadora de cada persona (necesita su sesión de SAP GU
 
 > ⚠️ Cada computadora tiene su propio catálogo e historial de UUID. Si dos personas concilian en computadoras distintas, un pago doble entre ellas no se detecta. Pendiente: una `_Configuracion` compartida (carpeta de red o SharePoint) o la base de datos.
 
+## Publicar una corrección (quien mantiene el programa)
+
+1. Corrige en una rama (en tu PC o máquina virtual) y corre las pruebas: `python -m unittest discover -s tests`. Prueba también el portal con datos reales.
+2. Sube la versión en `honorarios/__init__.py` y anota el cambio en `CHANGELOG.md`. Ese número aparece abajo del menú del portal: así se sabe qué versión tiene cada usuario.
+3. Pull Request → merge a `main`.
+4. Descarga el ZIP de `main` (GitHub → **Code → Download ZIP**) y compártelo.
+5. Cada usuario cierra el portal (botón "Cerrar el portal") y corre el `INSTALAR.bat` del ZIP. Al abrir el portal debe ver la versión nueva en el menú.
+
 ## Instalación para desarrollo (con git)
 
 Requiere Python 3.10 o superior.
@@ -127,7 +135,7 @@ pip install -r requirements-portal.txt
 
 y doble clic en **`EJECUTAR_PORTAL.bat`**. **No aparece ninguna ventana negra:** el portal arranca en segundo plano y se abre en el navegador predeterminado de Windows (en una pestaña nueva si el navegador ya estaba abierto; si estaba cerrado, lo abre). La primera vez puede tardar unos segundos. Si el portal ya estaba abierto, el doble clic solo abre otra pestaña.
 
-**Para cerrarlo:** botón **"Cerrar el portal"** en el menú de la izquierda. Si se cierran todas sus pestañas, el portal se apaga solo a los 15 minutos (así no queda uno olvidado bloqueando archivos de `_Programa`). Antes de actualizar el programa (`git pull`), ciérralo.
+**Para cerrarlo:** botón **"Cerrar el portal"** en el menú de la izquierda. Detiene **todo** lo del portal, como un Ctrl + C: este portal, cualquier portal viejo que se haya quedado abierto y el lanzador. Los reconoce porque son Python corriendo `portal\app.py` o `portal\iniciar.py` de esta instalación; **cualquier otro Python (por ejemplo, el de VS Code) no se toca**. Después muestra la página "El portal se cerró" (en lugar del "Connection error… restart it in your terminal" de Streamlit). Si se cierran todas sus pestañas sin usar el botón, el portal se apaga solo a los 15 minutos. Antes de actualizar el programa, ciérralo.
 
 Si el portal no puede iniciar, aparece una ventana de Windows con el motivo; el detalle completo queda en `portal/portal.log`. Para ver los mensajes en una consola (útil para diagnosticar), desde la carpeta `_Programa`: `python -m streamlit run portal/app.py`.
 

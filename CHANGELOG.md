@@ -1,5 +1,19 @@
 # Historial de cambios
 
+## [1.11.0] - 2026-10-01
+
+### Cambiado
+- **"Cerrar el portal" detiene todo lo del portal**, como un Ctrl + C: este portal, portales viejos que se hayan
+  quedado abiertos y el lanzador (antes solo apagaba el portal en uso y podían quedar procesos de Python
+  corriendo). Reconoce los procesos por su línea de comando (Python corriendo `portal/app.py` o
+  `portal/iniciar.py` de esta instalación): otros Python, como el de VS Code, no se tocan. Usa `psutil`
+  (agregado a `requirements-portal.txt`; el instalador lo instala).
+- Al cerrar, la pestaña muestra "El portal se cerró" en lugar del "Connection error… restart it in your terminal"
+  de Streamlit.
+
+### Documentación
+- README: "Publicar una corrección" (pasos para mandar una versión nueva a los usuarios).
+
 ## [1.10.1] - 2026-10-01
 
 ### Retirado

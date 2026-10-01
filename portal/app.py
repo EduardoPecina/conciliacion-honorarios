@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 import streamlit as st
+import streamlit.components.v1 as componentes
 
 RAIZ_REPO = Path(__file__).resolve().parents[1]
 if str(RAIZ_REPO) not in sys.path:
@@ -18,7 +19,7 @@ if str(RAIZ_REPO) not in sys.path:
 from honorarios import __version__  # noqa: E402
 from honorarios.config import SOCIEDAD_SAP  # noqa: E402
 from portal.apagado import cerrar_portal, vigilar_inactividad  # noqa: E402
-from portal.estilo import ruta_logo  # noqa: E402
+from portal.estilo import pagina_portal_cerrado, ruta_logo  # noqa: E402
 
 st.set_page_config(page_title="Portal de Honorarios", page_icon="🩺", layout="wide")
 
@@ -42,8 +43,9 @@ def _vigilante():
 
 _vigilante()
 st.sidebar.caption(f"Conciliación de Honorarios · versión {__version__}")
-if st.sidebar.button("Cerrar el portal", help="Apaga el portal. Para volver a abrirlo: EJECUTAR_PORTAL.bat"):
-    st.sidebar.success("Portal cerrado. Ya puedes cerrar esta pestaña.")
+if st.sidebar.button("Cerrar el portal", help="Detiene todo lo del portal (como Ctrl + C) y lo cierra. "
+                                            "Para volver a abrirlo: acceso directo Portal de Honorarios"):
+    componentes.html(pagina_portal_cerrado(), height=0)
     cerrar_portal()
     st.stop()
 navegacion.run()
