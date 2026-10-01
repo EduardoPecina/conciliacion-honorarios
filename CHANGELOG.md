@@ -1,5 +1,12 @@
 # Historial de cambios
 
+## [1.11.4] - 2026-10-01
+
+### Cambiado
+- Se regresa a la **licencia de la empresa** (uso interno), que sustituye a la MIT de la 1.11.3: el programa
+  tiene reglas de negocio específicas de la empresa y así se evitan ambigüedades. Se agrega el crédito del autor
+  (Eduardo Pecina) en `LICENSE` y en el README.
+
 ## [1.11.3] - 2026-10-01
 
 ### Cambiado

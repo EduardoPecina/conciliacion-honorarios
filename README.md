@@ -324,9 +324,9 @@ python tests/datos_prueba.py C:\ruta\destino
 
 ## Licencia
 
-[Licencia MIT](LICENSE) © 2026 Eduardo Pecina. Desarrollado para Servicios Integrales Nova de Monterrey, S.A. de C.V., con autorización de la empresa para publicarlo bajo esta licencia.
+Software propietario de Servicios Integrales Nova de Monterrey, S.A. de C.V. Todos los derechos reservados; uso interno únicamente. Ver [LICENSE](LICENSE).
 
-La licencia cubre el código. Los datos de la empresa (catálogos, facturas, archivos de pagos, reportes) nunca forman parte del repositorio, y el logo de la empresa (`portal/recursos/`) no se incluye en la licencia.
+**Autor:** Eduardo Pecina, quien diseñó y desarrolló el programa para la empresa.
 
 ## Historial de cambios
 
