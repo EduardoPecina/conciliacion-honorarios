@@ -11,7 +11,7 @@ from honorarios.config import MESES, REPORTES
 from honorarios.entradas import NOMBRES_MES, rutas_en
 from honorarios.estado_sat import alerta_efos, describir
 from honorarios.reporte import ORDEN_ESTATUS, RESPONSABLE_POR_ESTATUS
-from honorarios.servicio import conciliar_periodo, registrar_historial, ruta_cache_sap
+from honorarios.servicio import AYUDA_REUSAR_SAP, conciliar_periodo, fecha_consultas_sap, registrar_historial
 from honorarios.utilidades import ErrorUsuario, fecha_actual
 from portal.archivos import preparar_carpeta
 from portal.estilo import aviso_al_salir, ruta_logo
@@ -58,10 +58,12 @@ with st.container(border=True):
     st.caption("Durante la validación, el portal usa la **primera ventana de SAP** que abriste: guarda lo que "
                "tengas ahí. No uses SAP hasta que termine; puedes seguir trabajando en otros programas. "
                "Si tienes abiertas varias conexiones (por ejemplo, Productivo y Calidad), deja solo Productivo.")
-reusar_sap = True
-if ruta_cache_sap({"salida": salida}, anio, mes).exists():
-    reusar_sap = st.checkbox("Reusar las consultas a SAP guardadas de este mes "
-                             "(desmárcalo si corregiste algo en SAP)", value=True)
+reusar_sap = False
+fecha_sap = fecha_consultas_sap({"salida": salida}, anio, mes)
+if fecha_sap:
+    dia, hora = fecha_sap.split()
+    reusar_sap = st.checkbox(f"Reusar lo consultado a SAP el {dia} a las {hora} (más rápido)", value=False,
+                             help=AYUDA_REUSAR_SAP)
 
 procesar = st.button("Procesar", type="primary", disabled=not (txt and xmls), use_container_width=True)
 

@@ -111,7 +111,7 @@ python _Programa.py
 El programa pregunta:
 
 1. **Año y mes** del periodo. Cada pregunta dice qué valor se usa si solo presionas Enter (por ejemplo, `Año (Enter = 2026, año actual)`); al terminar, el programa confirma el periodo: "Periodo a conciliar: septiembre 2026".
-2. **Abrir SAP.** La validación contra SAP es **obligatoria** (a petición de Contabilidad): el programa pide abrir SAP e iniciar sesión y espera a que presiones Enter. Si hay consultas SAP guardadas de ese mes, pregunta si reusarlas.
+2. **Abrir SAP.** La validación contra SAP es **obligatoria** (a petición de Contabilidad): el programa pide abrir SAP e iniciar sesión y espera a que presiones Enter. Si ese mes ya se procesó en esa computadora, pregunta si reusar lo consultado a SAP en esa fecha (por defecto, no: se consulta todo de nuevo).
 
    **Requisitos:** SAP abierto en el sistema productivo con la sesión iniciada, acceso a la transacción **FK03** y el **scripting de SAP GUI habilitado** (ambos los otorga IT; la primera vez SAP puede preguntar si permites que un script se conecte: responde que sí). El programa usa la **primera ventana de SAP** que abriste y navega ahí a la FK03, así que guarda lo que tengas en esa ventana. Mientras consulta, **no uses SAP**; el resto de la computadora sí se puede usar (el programa controla SAP por dentro, no mueve el mouse ni teclea).
 
@@ -240,7 +240,8 @@ Consultar SAP es lo más lento de la conciliación: SAP GUI se consulta **un pro
 | Consulta | Fecha y hora de la consulta |
 
 - **Para qué sirve:** si se vuelve a procesar **el mismo mes** (llegó una factura que faltaba, se corrigió el TXT…), se reusan las consultas que salieron bien y **solo se consulta a SAP lo que falta o falló**. Si SAP se cae a media consulta, la siguiente corrida sigue donde se quedó.
-- **Cuándo NO reusarlas:** si se corrigió algo en SAP (por ejemplo, se le agregó IH a un proveedor). En el portal, quita la marca de *"Reusar las consultas a SAP guardadas de este mes"*; en el `.bat`, responde que no.
+- **Por defecto NO se reusan.** La casilla *"Reusar lo consultado a SAP el dd/mm/aaaa a las hh:mm (más rápido)"* solo aparece si el mes ya se procesó en esa computadora, y viene **desmarcada**: cuando se vuelve a correr un mes casi siempre es porque se corrigió algo, y muchas veces es en SAP (por una línea Detenida: se agregó IH, se cambió RS↔RH). Márcala solo si desde esa fecha no se cambió nada en SAP. En el `.bat`, la pregunta equivalente tiene "no" como respuesta por defecto.
+- La fecha que se muestra es la de la consulta **más antigua** que se reusaría; cada proveedor conserva en el archivo la fecha en que realmente se consultó.
 - **Es por mes:** un mes nunca usa las consultas de otro, así que si un médico pasa de RH a RS (o al revés) se detecta en el mes en que cambió.
 - **Evidencia:** queda como constancia de qué retenciones tenía SAP cuando se concilió.
 - **Se puede borrar** sin perder nada: la siguiente corrida vuelve a consultar todo a SAP (solo tarda más).

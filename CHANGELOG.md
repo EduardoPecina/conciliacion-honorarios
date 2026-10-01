@@ -1,5 +1,18 @@
 # Historial de cambios
 
+## [1.12.0] - 2026-10-01
+
+### Cambiado
+- **Reusar las consultas a SAP ahora viene desmarcado por defecto** (portal y `.bat`). Volver a correr un mes casi
+  siempre es porque se corrigió algo, muchas veces en SAP por una línea Detenida; reusar daría lo que SAP tenía
+  antes de la corrección. Consultar todo de nuevo tarda unos minutos más, pero es lo seguro.
+- Texto más claro: *"Reusar lo consultado a SAP el 15/09/2026 a las 10:42 (más rápido)"*, con la explicación en
+  el ⓘ (cuándo marcarlo y cuándo no, con ejemplos: se agregó IH, RS↔RH).
+
+### Corregido
+- `CodigosSAP_AAAA-MM.xlsx`: al reusar, cada proveedor conserva la fecha en que realmente se consultó (antes se
+  sobrescribía con la fecha de la corrida, como si se hubiera consultado de nuevo).
+
 ## [1.11.4] - 2026-10-01
 
 ### Cambiado
