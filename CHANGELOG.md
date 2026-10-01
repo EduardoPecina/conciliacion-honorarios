@@ -1,5 +1,11 @@
 # Historial de cambios
 
+## [1.11.3] - 2026-10-01
+
+### Cambiado
+- **Licencia MIT** (antes, licencia propietaria de uso interno), con autorización del apoderado legal de la
+  empresa. El repositorio sigue siendo privado. El logo de la empresa no se incluye en la licencia.
+
 ## [1.11.2] - 2026-10-01
 
 ### Cambiado

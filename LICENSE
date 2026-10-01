@@ -1,18 +1,21 @@
-Copyright (c) 2026 Servicios Integrales Nova de Monterrey, S.A. de C.V.
-Todos los derechos reservados.
+MIT License
 
-Este software y su documentación (el "Software") son propiedad exclusiva de
-Servicios Integrales Nova de Monterrey, S.A. de C.V. (la "Empresa") y constituyen
-información confidencial de la misma.
+Copyright (c) 2026 Eduardo Pecina
 
-Se permite el uso, copia y modificación del Software únicamente al personal de la
-Empresa, o a quien ésta autorice expresamente, y solo para fines internos de la Empresa.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-Queda prohibido, sin autorización previa y por escrito de la Empresa:
-  - distribuir, publicar, sublicenciar, vender o transferir el Software o cualquier
-    parte de él a terceros;
-  - usar el Software para fines ajenos a la Empresa.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-EL SOFTWARE SE PROPORCIONA "TAL CUAL", SIN GARANTÍA DE NINGÚN TIPO, EXPRESA O
-IMPLÍCITA. EN NINGÚN CASO LOS AUTORES SERÁN RESPONSABLES POR RECLAMACIONES, DAÑOS
-U OTRAS RESPONSABILIDADES DERIVADAS DEL USO DEL SOFTWARE.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
