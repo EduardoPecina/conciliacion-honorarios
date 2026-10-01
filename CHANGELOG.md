@@ -1,5 +1,26 @@
 # Historial de cambios
 
+## [1.11.1] - 2026-10-01
+
+### Corregido
+- **Doble clic varias veces al abrir el portal ("jitter click").** Antes, cada clic hecho mientras el portal
+  arrancaba lanzaba su propio servidor: en una prueba con 5 clics llegaron a correr 3 a la vez (los de más
+  terminaban con "Port 8501 is not available"), se abrían 5 pestañas, `portal.log` quedaba revuelto y, con mala
+  suerte, salía una ventana de error falsa. Ahora solo un lanzador a la vez trabaja (candado en la carpeta temporal,
+  que el sistema suelta solo aunque el lanzador se caiga); los clics de más se retiran sin hacer nada y se abre una
+  sola pestaña. Misma prueba: 1 servidor, 1 pestaña, 0 errores.
+- Si el servidor que arrancó el lanzador termina porque otro portal ya tiene el puerto, ya no se reporta como error.
+- Un lanzador nunca vive más de 3.5 minutos (suelta el candado aunque algo se atore) y suelta el candado antes de
+  mostrar una ventana de error, para que otro clic pueda reintentar.
+
+### Agregado
+- **Portal trabado:** si el portal ocupa el puerto pero no contesta (4 intentos de 5 s), el doble clic detiene sus
+  procesos (solo los de este portal) y arranca uno nuevo. Probado: un portal ocupado conciliando contesta en
+  centésimas de segundo, así que no se reinicia a la mitad.
+
+### Documentación
+- README: qué es `CodigosSAP_AAAA-MM.xlsx` (consultas a SAP guardadas por mes), cuándo reusarlas y cuándo no.
+
 ## [1.11.0] - 2026-10-01
 
 ### Cambiado

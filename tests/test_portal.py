@@ -113,29 +113,156 @@ class TestArchivosSubidos(unittest.TestCase):
 
 
 class TestLanzador(unittest.TestCase):
-    """portal/iniciar.py (EJECUTAR_PORTAL.bat): abre el navegador sin ventana negra."""
+    """portal/iniciar.py (EJECUTAR_PORTAL.bat): abre el navegador sin ventana negra, un solo portal aunque se den
+    muchos clics, y si el portal quedó trabado lo reinicia."""
+
+    def setUp(self):
+        from unittest import mock
+        from portal import iniciar
+        self.iniciar, self.mock = iniciar, mock
+        carpeta = tempfile.TemporaryDirectory()
+        self.addCleanup(carpeta.cleanup)
+        for nombre, valor in {"CANDADO": Path(carpeta.name) / "portal.lock", "BITACORA": Path(carpeta.name) / "log",
+                              "PAUSA_ENTRE_CLICS": 0}.items():
+            parche = mock.patch.object(iniciar, nombre, valor)
+            parche.start()
+            self.addCleanup(parche.stop)
+
+    def lanzar(self, abierto, responde=True, proceso=None, al_avisar=None):
+        """Corre iniciar() simulando el puerto, el navegador y el arranque. Devuelve (salida, navegador, Popen, avisar)."""
+        mock, iniciar = self.mock, self.iniciar
+        abierto = abierto if isinstance(abierto, list) else [abierto]
+        with mock.patch.object(iniciar, "portal_abierto", side_effect=abierto + [abierto[-1]] * 50), \
+                mock.patch.object(iniciar, "portal_responde", return_value=responde), \
+                mock.patch("subprocess.Popen", return_value=proceso or mock.Mock(**{"poll.return_value": None})) \
+                as arrancar, mock.patch("webbrowser.open") as navegador, \
+                mock.patch.object(iniciar, "avisar", side_effect=al_avisar) as avisar:
+            salida = iniciar.iniciar()
+        return salida, navegador, arrancar, avisar
 
     def test_portal_ya_abierto_solo_abre_otra_pestana(self):
-        from unittest import mock
-        from portal import iniciar
-        with mock.patch.object(iniciar, "portal_abierto", return_value=True), \
-                mock.patch("webbrowser.open") as navegador, mock.patch("subprocess.Popen") as arrancar:
-            self.assertEqual(iniciar.iniciar(), 0)
-        navegador.assert_called_once_with(iniciar.URL)
+        salida, navegador, arrancar, _ = self.lanzar(abierto=True)
+        self.assertEqual(salida, 0)
+        navegador.assert_called_once_with(self.iniciar.URL)
         arrancar.assert_not_called()                          # no se arranca un segundo portal
 
-    def test_si_el_portal_falla_avisa_con_ventana(self):
-        from unittest import mock
-        from portal import iniciar
-        fallido = mock.Mock(**{"poll.return_value": 1})       # el proceso terminó antes de estar listo
-        with tempfile.TemporaryDirectory() as d, \
-                mock.patch.object(iniciar, "BITACORA", Path(d) / "portal.log"), \
-                mock.patch.object(iniciar, "portal_abierto", return_value=False), \
-                mock.patch("subprocess.Popen", return_value=fallido), \
-                mock.patch("webbrowser.open") as navegador, mock.patch.object(iniciar, "avisar") as avisar:
-            self.assertEqual(iniciar.iniciar(), 1)
+    def test_portal_cerrado_lo_arranca_y_abre_una_pestana(self):
+        salida, navegador, arrancar, avisar = self.lanzar(abierto=[False, False, True])
+        self.assertEqual(salida, 0)
+        arrancar.assert_called_once()
+        navegador.assert_called_once()
+        avisar.assert_not_called()
+
+    def test_clics_de_mas_mientras_otro_arranca_no_hacen_nada(self):
+        turno = self.iniciar.tomar_turno()                    # otro clic ya está arrancando el portal
+        self.assertIsNotNone(turno)
+        try:
+            salida, navegador, arrancar, avisar = self.lanzar(abierto=False)
+        finally:
+            self.iniciar.soltar_turno(turno)
+        self.assertEqual(salida, 0)
+        arrancar.assert_not_called()                          # ni otro portal...
+        navegador.assert_not_called()                         # ...ni otra pestaña...
+        avisar.assert_not_called()                            # ...ni ventana de error
+        self.assertIsNotNone(self.iniciar.tomar_turno(), "al terminar, el turno queda libre")
+
+    def test_si_otro_portal_gano_el_puerto_no_es_error(self):
+        termino = self.mock.Mock(**{"poll.return_value": 1})  # "Port 8501 is not available"...
+        salida, navegador, _, avisar = self.lanzar(abierto=[False, False, True], proceso=termino)
+        self.assertEqual(salida, 0)                           # ...pero el puerto ya lo tiene un portal: sirve
+        navegador.assert_called_once()
+        avisar.assert_not_called()
+
+    def test_si_el_portal_falla_avisa_con_ventana_y_suelta_el_turno(self):
+        fallido = self.mock.Mock(**{"poll.return_value": 1})  # el proceso terminó antes de estar listo
+        turno_con_la_ventana_abierta = []
+
+        def ventana(mensaje, error=False):                    # mientras se ve la ventana de error...
+            turno = self.iniciar.tomar_turno()
+            turno_con_la_ventana_abierta.append(turno is not None)
+            self.iniciar.soltar_turno(turno)
+
+        salida, navegador, _, avisar = self.lanzar(abierto=False, proceso=fallido, al_avisar=ventana)
+        self.assertEqual(salida, 1)
         navegador.assert_not_called()
         self.assertIn("No se pudo iniciar", avisar.call_args.args[0])
+        self.assertEqual(turno_con_la_ventana_abierta, [True], "...otro clic ya puede reintentar")
+
+    def test_portal_trabado_se_detiene_y_se_arranca_de_nuevo(self):
+        with self.mock.patch.object(self.iniciar, "detener_portal_trabado", return_value=True) as detener:
+            salida, navegador, arrancar, avisar = self.lanzar(abierto=[True, True], responde=False)
+        self.assertEqual(salida, 0)
+        detener.assert_called_once()
+        arrancar.assert_called_once()
+        navegador.assert_called_once()
+        avisar.assert_not_called()
+
+    def test_portal_trabado_que_no_se_deja_cerrar_avisa(self):
+        with self.mock.patch.object(self.iniciar, "detener_portal_trabado", return_value=False):
+            salida, navegador, arrancar, avisar = self.lanzar(abierto=True, responde=False)
+        self.assertEqual(salida, 1)
+        arrancar.assert_not_called()
+        navegador.assert_not_called()
+        self.assertIn("no responde", avisar.call_args.args[0])
+
+    def test_al_destrabar_no_se_detiene_a_si_mismo_ni_a_quien_lo_lanzo(self):
+        import psutil
+        from portal import apagado
+        padre = psutil.Process().parent()                     # p. ej. pyw.exe, que también parece "del portal"
+        trabado = self.mock.Mock(pid=999999)
+        with self.mock.patch.object(apagado, "procesos_del_portal",
+                                    return_value=[self.mock.Mock(pid=padre.pid), trabado]), \
+                self.mock.patch.object(apagado, "detener") as detener, \
+                self.mock.patch.object(self.iniciar, "portal_abierto", return_value=False):
+            self.assertTrue(self.iniciar.detener_portal_trabado())
+        detener.assert_called_once_with([trabado])
+
+    def test_portal_que_contesta_no_esta_trabado(self):
+        import http.server
+        import threading
+        class Contesta(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b"ok")
+
+            def log_message(self, *args):
+                pass
+
+        servidor = http.server.HTTPServer(("127.0.0.1", 0), Contesta)
+        threading.Thread(target=servidor.serve_forever, daemon=True).start()
+        try:
+            with self.mock.patch.object(self.iniciar, "PUERTO", servidor.server_address[1]):
+                self.assertTrue(self.iniciar.portal_responde(intentos=1))
+        finally:
+            servidor.shutdown()
+            servidor.server_close()
+        mudo = socket_que_no_contesta()                       # acepta la conexión pero nunca responde
+        try:
+            with self.mock.patch.object(self.iniciar, "PUERTO", mudo.getsockname()[1]):
+                self.assertFalse(self.iniciar.portal_responde(intentos=1, tiempo_espera=0.5))
+        finally:
+            mudo.close()
+
+    def test_un_solo_turno_entre_procesos_al_mismo_tiempo(self):
+        """Cinco "clics" reales (procesos) a la vez: exactamente uno obtiene el turno."""
+        import subprocess
+        codigo = ("import sys, time; sys.path.insert(0, sys.argv[1]); from portal import iniciar; "
+                  "from pathlib import Path; iniciar.CANDADO = Path(sys.argv[2]); "
+                  "print(iniciar.tomar_turno() is not None, flush=True); time.sleep(3)")
+        procesos = [subprocess.Popen([sys.executable, "-c", codigo, str(Path(__file__).resolve().parents[1]),
+                                      str(self.iniciar.CANDADO)], stdout=subprocess.PIPE, text=True)
+                    for _ in range(5)]
+        resultados = [p.communicate(timeout=60)[0].strip() for p in procesos]
+        self.assertEqual(sorted(resultados), ["False"] * 4 + ["True"])
+
+
+def socket_que_no_contesta():
+    import socket
+    mudo = socket.socket()
+    mudo.bind(("127.0.0.1", 0))
+    mudo.listen()
+    return mudo
 
 
 class TestCerrarPortal(unittest.TestCase):

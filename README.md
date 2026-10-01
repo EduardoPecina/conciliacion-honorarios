@@ -135,6 +135,10 @@ pip install -r requirements-portal.txt
 
 y doble clic en **`EJECUTAR_PORTAL.bat`**. **No aparece ninguna ventana negra:** el portal arranca en segundo plano y se abre en el navegador predeterminado de Windows (en una pestaña nueva si el navegador ya estaba abierto; si estaba cerrado, lo abre). La primera vez puede tardar unos segundos. Si el portal ya estaba abierto, el doble clic solo abre otra pestaña.
 
+**Clics de más:** si alguien da doble clic varias veces mientras el portal arranca, solo el primero trabaja; los demás se retiran sin hacer nada (nunca se arranca un segundo portal ni salen ventanas de error falsas), y se abre **una sola** pestaña. Para lograrlo, el lanzador toma un candado (`portal-honorarios-8501.lock` en la carpeta temporal de Windows, fuera de OneDrive) que Windows suelta solo cuando el lanzador termina, aunque se caiga; además, un lanzador nunca vive más de 3.5 minutos, así que un lanzador atorado no deja el acceso sin funcionar.
+
+**Portal trabado:** si el portal ocupa el puerto pero no contesta durante unos 20 segundos, el doble clic detiene sus procesos (solo los de este portal) y arranca uno nuevo. Un portal ocupado conciliando sí contesta, así que no se reinicia a la mitad.
+
 **Para cerrarlo:** botón **"Cerrar el portal"** en el menú de la izquierda. Detiene **todo** lo del portal, como un Ctrl + C: este portal, cualquier portal viejo que se haya quedado abierto y el lanzador. Los reconoce porque son Python corriendo `portal\app.py` o `portal\iniciar.py` de esta instalación; **cualquier otro Python (por ejemplo, el de VS Code) no se toca**. Después muestra la página "El portal se cerró" (en lugar del "Connection error… restart it in your terminal" de Streamlit). Si se cierran todas sus pestañas sin usar el botón, el portal se apaga solo a los 15 minutos. Antes de actualizar el programa, ciérralo.
 
 Si el portal no puede iniciar, aparece una ventana de Windows con el motivo; el detalle completo queda en `portal/portal.log`. Para ver los mensajes en una consola (útil para diagnosticar), desde la carpeta `_Programa`: `python -m streamlit run portal/app.py`.
@@ -223,6 +227,23 @@ En los F2, el importe del TXT ya incluye el IVA.
 | RH / RM | Retención ISR honorarios / servicios médicos 10% |
 | RE | Retención ISR extranjeros |
 | IP | Retención IVA Pitex 100% (no corresponde a honorarios) |
+
+#### Las consultas guardadas (`CodigosSAP_AAAA-MM.xlsx`)
+
+Consultar SAP es lo más lento de la conciliación: SAP GUI se consulta **un proveedor a la vez** (FK03), y con unos 250 médicos son varios minutos. Por eso cada consulta se guarda en `CodigosSAP_AAAA-MM.xlsx`, junto a los reportes de ese mes (`Reportes\<Año>\<MM Mes>\` en el portal; `Salida\` en el `.bat`):
+
+| Columna | Contenido |
+|---|---|
+| IDProveedor | ID del proveedor en SAP |
+| Codigos | Códigos de retención que SAP tenía en ese momento (p. ej. `IH, RS`) |
+| Error | Vacío si la consulta salió bien; si no, el motivo |
+| Consulta | Fecha y hora de la consulta |
+
+- **Para qué sirve:** si se vuelve a procesar **el mismo mes** (llegó una factura que faltaba, se corrigió el TXT…), se reusan las consultas que salieron bien y **solo se consulta a SAP lo que falta o falló**. Si SAP se cae a media consulta, la siguiente corrida sigue donde se quedó.
+- **Cuándo NO reusarlas:** si se corrigió algo en SAP (por ejemplo, se le agregó IH a un proveedor). En el portal, quita la marca de *"Reusar las consultas a SAP guardadas de este mes"*; en el `.bat`, responde que no.
+- **Es por mes:** un mes nunca usa las consultas de otro, así que si un médico pasa de RH a RS (o al revés) se detecta en el mes en que cambió.
+- **Evidencia:** queda como constancia de qué retenciones tenía SAP cuando se concilió.
+- **Se puede borrar** sin perder nada: la siguiente corrida vuelve a consultar todo a SAP (solo tarda más).
 
 ## Estatus en el SAT
 
