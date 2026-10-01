@@ -1,5 +1,11 @@
 # Historial de cambios
 
+## [1.11.2] - 2026-10-01
+
+### Cambiado
+- "Quién actúa" de las líneas **Detenida** (tabla "Qué hacer" del portal y Excel): ahora dice solo
+  **Customer Services** (antes "Sistemas / Customer Services", que hacía pensar que era una falla del programa).
+
 ## [1.11.1] - 2026-10-01
 
 ### Corregido
