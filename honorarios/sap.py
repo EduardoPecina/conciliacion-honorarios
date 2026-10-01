@@ -108,18 +108,35 @@ def progreso_en_consola(hechas, total, id_proveedor):
     print(f"  SAP {hechas}/{total}: proveedor {id_proveedor}   ", end="\n" if hechas == total else "\r")
 
 
+FORMATO_CONSULTA = "%d/%m/%Y %H:%M"
+
+
+def fecha_consultas_guardadas(cache_ruta):
+    """Fecha de la consulta más antigua que se reusaría del archivo de consultas guardadas (texto "dd/mm/aaaa
+    hh:mm"), o None si no hay archivo o no se puede leer. Es lo más viejo que se usaría al reusar."""
+    try:
+        previo = pd.read_excel(cache_ruta, dtype=str).fillna("")
+        fechas = [datetime.strptime(f, FORMATO_CONSULTA) for f, e in zip(previo["Consulta"], previo["Error"])
+                  if f and not e]
+    except Exception:
+        return None
+    return min(fechas).strftime(FORMATO_CONSULTA) if fechas else None
+
+
 def consultar_sap(ids, carpeta_salida, anio, mes, reusar=True, progreso=progreso_en_consola, avisar=print):
     """Consulta cada proveedor una sola vez y guarda el resultado para no repetir.
     Con reusar=False se ignora lo guardado (útil si se corrigió algo en SAP).
     Devuelve ({ID: (códigos, error)}, texto) o (None, texto) si no se pudo consultar nada."""
     cache_ruta = carpeta_salida / f"CodigosSAP_{anio}-{mes:02d}.xlsx"
     resultado = {}
+    cuando = {}                                   # fecha de cada consulta: lo reusado conserva la suya
     if reusar and cache_ruta.exists():
         previo = pd.read_excel(cache_ruta, dtype=str).fillna("")
         for _, r in previo.iterrows():
             codigos = [c for c in r["Codigos"].split(",") if c]
             if not r["Error"] and r["IDProveedor"] in ids:
                 resultado[r["IDProveedor"]] = (codigos, "")
+                cuando[r["IDProveedor"]] = r.get("Consulta", "")
 
     faltan = [i for i in ids if i not in resultado]
     no_consultados = 0
@@ -136,6 +153,7 @@ def consultar_sap(ids, carpeta_salida, anio, mes, reusar=True, progreso=progreso
         fallas_seguidas = 0
         for k, id_prov in enumerate(faltan, start=1):
             resultado[id_prov] = codigos_retencion(session, id_prov)
+            cuando[id_prov] = datetime.now().strftime(FORMATO_CONSULTA)
             progreso(k, len(faltan), id_prov)
             fallas_seguidas = fallas_seguidas + 1 if resultado[id_prov][1] else 0
             if fallas_seguidas == 3:
@@ -146,7 +164,7 @@ def consultar_sap(ids, carpeta_salida, anio, mes, reusar=True, progreso=progreso
 
     try:
         pd.DataFrame([{"IDProveedor": i, "Codigos": ",".join(c), "Error": e,
-                       "Consulta": datetime.now().strftime("%d/%m/%Y %H:%M")}
+                       "Consulta": cuando.get(i) or datetime.now().strftime(FORMATO_CONSULTA)}
                       for i, (c, e) in resultado.items()]).to_excel(cache_ruta, index=False)
     except PermissionError:
         avisar(f"No se pudo guardar {cache_ruta.name} (¿está abierto?).")

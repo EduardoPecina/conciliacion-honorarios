@@ -3,7 +3,7 @@ La conciliación en sí está en servicio.py, la misma que usa el portal web."""
 
 from .config import CP_SOCIEDAD, NOMBRE_SOCIEDAD
 from .entradas import obtener_rutas, pedir_periodo
-from .servicio import conciliar_periodo, registrar_historial, ruta_cache_sap
+from .servicio import AYUDA_REUSAR_SAP, conciliar_periodo, fecha_consultas_sap, registrar_historial
 
 
 # ------------------------------------------------------------------
@@ -30,8 +30,12 @@ def main():
     print("Se usará la primera ventana de SAP que abriste: guarda lo que tengas ahí.")
     print("No uses SAP hasta que termine; puedes seguir trabajando en otros programas.")
     input("Cuando SAP esté listo, presiona Enter para continuar...")
-    reusar_sap = not ruta_cache_sap(rutas, anio, mes).exists() or si(
-        "Hay consultas SAP guardadas de este mes. ¿Reusarlas? (di 'n' si corregiste algo en SAP)", "s")
+    fecha_sap = fecha_consultas_sap(rutas, anio, mes)
+    reusar_sap = False
+    if fecha_sap:
+        dia, hora = fecha_sap.split()
+        print(f"\n{AYUDA_REUSAR_SAP}")
+        reusar_sap = si(f"¿Reusar lo consultado a SAP el {dia} a las {hora}? (más rápido)", "n")
 
     conciliacion = conciliar_periodo(rutas, anio, mes, reusar_sap=reusar_sap)
     print("\n" + conciliacion.resumen.to_string(index=False))

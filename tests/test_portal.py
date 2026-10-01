@@ -77,6 +77,29 @@ class TestServicio(unittest.TestCase):
         self.assertFalse(ruta_historial.exists())
 
 
+class TestConsultasSapGuardadas(unittest.TestCase):
+    def test_lo_reusado_conserva_la_fecha_de_su_consulta(self):
+        import pandas as pd
+        from unittest import mock
+        from honorarios import sap
+        with tempfile.TemporaryDirectory() as d:
+            cache = Path(d) / "CodigosSAP_2026-09.xlsx"
+            pd.DataFrame([{"IDProveedor": "1", "Codigos": "RS", "Error": "", "Consulta": "15/09/2026 10:42"},
+                          {"IDProveedor": "2", "Codigos": "", "Error": "falló", "Consulta": "15/09/2026 10:43"}]) \
+                .to_excel(cache, index=False)
+            self.assertEqual(sap.fecha_consultas_guardadas(cache), "15/09/2026 10:42")
+            with mock.patch.object(sap, "conectar_sap"), \
+                    mock.patch.object(sap, "codigos_retencion", return_value=(["RH"], "")) as consultar:
+                resultado, _ = sap.consultar_sap(["1", "2"], Path(d), 2026, 9, reusar=True,
+                                                 progreso=lambda *a: None, avisar=lambda t: None)
+            consultar.assert_called_once()                    # solo el que había fallado
+            self.assertEqual(resultado, {"1": (["RS"], ""), "2": (["RH"], "")})
+            guardado = pd.read_excel(cache, dtype=str).set_index("IDProveedor")["Consulta"]
+            self.assertEqual(guardado["1"], "15/09/2026 10:42")    # no se finge que se consultó hoy
+            self.assertNotEqual(guardado["2"], "15/09/2026 10:43")
+            self.assertIsNone(sap.fecha_consultas_guardadas(Path(d) / "no_existe.xlsx"))
+
+
 class TestArchivosSubidos(unittest.TestCase):
     def zip_con(self, archivos):
         buffer = io.BytesIO()
@@ -319,6 +342,28 @@ class TestPaginasDelPortal(unittest.TestCase):
         self.assertEqual(len(mes.options), hoy.month)              # año actual: de enero al mes actual
         anio.set_value(hoy.year - 1).run()
         self.assertEqual(len(app.selectbox[1].options), 12)       # año anterior: los 12 meses
+
+    def test_reusar_sap_solo_si_ya_se_proceso_y_desmarcado_por_defecto(self):
+        import pandas as pd
+        from honorarios.config import MESES, REPORTES
+        from honorarios.utilidades import fecha_actual
+        hoy, _ = fecha_actual()
+        carpeta = REPORTES / str(hoy.year) / MESES[hoy.month - 1]
+        cache = carpeta / f"CodigosSAP_{hoy.year}-{hoy.month:02d}.xlsx"
+        app = self.abrir("conciliar.py")
+        self.assertFalse(app.checkbox, "primera corrida del mes: no se ofrece reusar")
+        carpeta.mkdir(parents=True, exist_ok=True)
+        pd.DataFrame([{"IDProveedor": "1", "Codigos": "RS", "Error": "", "Consulta": "15/09/2026 10:42"},
+                      {"IDProveedor": "2", "Codigos": "RH", "Error": "", "Consulta": "16/09/2026 08:00"}]) \
+            .to_excel(cache, index=False)
+        try:
+            app = self.abrir("conciliar.py")
+            casilla = app.checkbox[0]
+            self.assertFalse(casilla.value, "desmarcada por defecto: lo seguro es consultar todo de nuevo")
+            self.assertEqual(casilla.label, "Reusar lo consultado a SAP el 15/09/2026 a las 10:42 (más rápido)")
+            self.assertIn("RS↔RH", casilla.help)
+        finally:
+            cache.unlink()
 
     def test_catalogo(self):
         app = self.abrir("catalogo.py")

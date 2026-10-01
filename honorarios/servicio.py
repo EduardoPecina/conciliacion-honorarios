@@ -13,7 +13,7 @@ from .entradas import leer_catalogo, leer_txt, leer_xmls
 from .estado_sat import consultar_estados, progreso_en_consola
 from .historial import cargar_historial, guardar_historial
 from .reporte import generar_reporte
-from .sap import consultar_sap, progreso_en_consola as progreso_sap_en_consola
+from .sap import consultar_sap, fecha_consultas_guardadas, progreso_en_consola as progreso_sap_en_consola
 from .utilidades import fecha_actual, validar_periodo
 
 
@@ -50,8 +50,19 @@ def ruta_cache_sap(rutas, anio, mes):
     return rutas["salida"] / f"CodigosSAP_{anio}-{mes:02d}.xlsx"
 
 
+def fecha_consultas_sap(rutas, anio, mes):
+    """Fecha de las consultas a SAP guardadas del periodo ("dd/mm/aaaa hh:mm"), o None si no hay que reusar."""
+    ruta = ruta_cache_sap(rutas, anio, mes)
+    return fecha_consultas_guardadas(ruta) if ruta.exists() else None
+
+
+AYUDA_REUSAR_SAP = ("Ya procesaste este mes en esta computadora. Márcalo solo si desde entonces NO se cambió nada en "
+                    "SAP. Si se corrigió algún proveedor (p. ej. se le agregó la retención IH o pasó de RESICO a "
+                    "honorarios, RS↔RH), déjalo sin marcar para consultar todo de nuevo.")
+
+
 def conciliar_periodo(rutas, anio, mes, avisar=print, progreso_sat=progreso_en_consola,
-                      progreso_sap=progreso_sap_en_consola, reusar_sap=True,
+                      progreso_sap=progreso_sap_en_consola, reusar_sap=False,
                       consultar_sat=consultar_estados, consultar_sap=consultar_sap, hoy=None):
     """Corre la conciliación con las rutas de entradas.rutas_en() / obtener_rutas().
 
