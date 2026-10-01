@@ -47,3 +47,30 @@ def aviso_al_salir(activo):
     'if (window.__conciliando) {{ e.preventDefault(); e.returnValue = ""; }}'));
 }})();
 </script>"""
+
+
+def pagina_portal_cerrado():
+    """JavaScript para st.components.v1.html: reemplaza la página por un aviso claro de "El portal se cerró".
+    Sin esto, al apagarse el portal Streamlit muestra "Connection error... restart it in your terminal"."""
+    return """<script>
+(function () {
+  const w = window.parent, d = w.document;
+  w.__conciliando = false;                               // que el navegador no pregunte "¿Salir del sitio?"
+  d.title = "Portal de Honorarios (cerrado)";
+  d.body.style.background = "#ffffff";
+  // Streamlit, al perder la conexión, agrega a <body> su ventana de "Connection error": se oculta todo lo que no
+  // sea este aviso, incluso lo que se agregue después.
+  const estilo = d.createElement("style");
+  estilo.textContent = "body > :not(#portal-cerrado) { display: none !important; }";
+  d.head.appendChild(estilo);
+  d.body.innerHTML = `
+    <div id="portal-cerrado" style="font-family: 'Source Sans Pro', 'Segoe UI', sans-serif; max-width: 560px; margin: 15vh auto;
+                padding: 28px 32px; border: 1px solid #d0d7e2; border-left: 6px solid #305496;
+                border-radius: 12px; color: #262730; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);">
+      <h2 style="margin-top: 0;">El portal se cerró</h2>
+      <p>Se detuvieron todos sus procesos. Ya puedes cerrar esta pestaña.</p>
+      <p style="color: #6b7280;">Para volver a abrirlo: doble clic en <b>Portal de Honorarios</b>
+         en tu Escritorio.</p>
+    </div>`;
+})();
+</script>"""

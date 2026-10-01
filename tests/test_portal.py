@@ -138,6 +138,26 @@ class TestLanzador(unittest.TestCase):
         self.assertIn("No se pudo iniciar", avisar.call_args.args[0])
 
 
+class TestCerrarPortal(unittest.TestCase):
+    """'Cerrar el portal' detiene solo los procesos de ESTE portal, nunca otro Python (p. ej. el de VS Code)."""
+
+    def test_reconoce_solo_los_procesos_de_este_portal(self):
+        from portal import apagado
+        repo = apagado.PORTAL.parent
+        casos = {
+            ("python", "-m", "streamlit", "run", "portal/app.py"): (repo, True),         # el portal
+            ("pythonw.exe", str(apagado.PORTAL / "iniciar.py")): ("/", True),            # el lanzador
+            ("python", "-c", "import time", "portal/app.py"): (repo, True),              # portal viejo colgado
+            ("python", "otro_programa.py"): (repo, False),                               # otro Python
+            ("python", "portal/app.py"): ("/otra/instalacion", False),                   # otro portal ajeno
+            ("node", "portal/app.py"): (repo, False),                                    # no es Python
+            (): (repo, False),
+        }
+        for linea, (carpeta, esperado) in casos.items():
+            with self.subTest(linea=linea):
+                self.assertEqual(apagado.es_del_portal(list(linea), carpeta), esperado)
+
+
 try:
     from streamlit.testing.v1 import AppTest
 except ImportError:                                       # el portal es opcional: sin Streamlit no se prueba
