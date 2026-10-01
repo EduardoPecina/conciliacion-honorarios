@@ -39,7 +39,7 @@ RESPONSABLE_POR_ESTATUS = {
     "Cruzado": "Nadie: se puede pagar",
     "Cruzado (pago quebrado)": "Nadie: se puede pagar",
     "Cruzado con observaciones": "Revisor (ver Observaciones)",
-    "Detenida": "Sistemas / Customer Services",
+    "Detenida": "Customer Services",
     "Rechazar": "Médico: refacturar",
     "Diferencia de importe": "Revisor",
     "Sin XML": "Responsables de envío de XML",

@@ -176,7 +176,7 @@ _Programa.py  el programa de consola (.bat)
 | **Cruzado** | Pasó todas las validaciones | Nadie, se puede pagar |
 | **Cruzado (pago quebrado)** | Igual que Cruzado, pero varias líneas y facturas se combinan | Nadie |
 | **Cruzado con observaciones** | Cruzó, pero hay algo que revisar (ver columna Observaciones) | Revisor |
-| **Detenida** | La factura puede estar bien, pero algo interno impide pagarla (SAP sin IH, UUID ya pagado, impuestos que no cuadran…) | Sistemas / Customer Services |
+| **Detenida** | La factura puede estar bien, pero algo interno impide pagarla (SAP sin IH, UUID ya pagado, impuestos que no cuadran…) | Customer Services |
 | **Rechazar** | La factura está mal hecha: se pide refacturar | Médico |
 | **Diferencia de importe** | Hay XML del proveedor, pero ningún importe coincide | Revisor |
 | **Sin XML** | No llegó la factura | Responsables de envío de XML |
