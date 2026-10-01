@@ -10,14 +10,12 @@ el catálogo, el historial y los reportes no se tocan).
              _Configuracion\\    aquí va el Excel del catálogo de proveedores
              Reportes\\          los Excel de cada conciliación (el portal crea la carpeta de cada mes)
              _Programa\\         el programa
-    3. Crea el acceso directo "Portal de Honorarios" en el Escritorio y dentro de Honorarios, y
-       "Desinstalar Portal de Honorarios" dentro de Honorarios (ver desinstalar.py).
+    3. Crea el acceso directo "Portal de Honorarios" en el Escritorio y dentro de Honorarios.
 
 Uso manual (pruebas):  python instalador/instalar.py [--sin-librerias] [--sin-accesos]
 """
 
 import argparse
-import json
 import os
 import shutil
 import socket
@@ -28,9 +26,6 @@ from pathlib import Path
 ORIGEN = Path(__file__).resolve().parents[1]              # la carpeta del ZIP (o del repositorio)
 NOMBRE_CARPETA = "Honorarios"
 NOMBRE_ACCESO = "Portal de Honorarios"
-NOMBRE_DESINSTALAR = "Desinstalar Portal de Honorarios"
-ICONO_DESINSTALAR = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32",
-                                 "shell32.dll") + ",31"                  # ícono de bote de basura de Windows
 CATALOGO = "CatalogoProveedoresTM26.xlsx"
 NO_COPIAR = shutil.ignore_patterns(".git", ".github", "__pycache__", "*.pyc", "portal.log", "*.tmp")
 
@@ -54,10 +49,6 @@ CARPETAS
 ACTUALIZAR
   Cierra el portal y vuelve a correr INSTALAR.bat de la versión nueva. Tu catálogo, tu historial y tus
   reportes no se tocan.
-
-DESINSTALAR
-  Doble clic en "{NOMBRE_DESINSTALAR}" (en esta carpeta). Pregunta si quieres conservar tu
-  catálogo, historial y reportes (recomendado: así, al reinstalar, todo sigue ahí).
 """
 
 
@@ -135,10 +126,16 @@ def copiar_programa(destino):
     shutil.rmtree(anterior, ignore_errors=True)
 
 
+# Archivos que dejaron versiones anteriores del instalador y ya no existen (se quitan al actualizar)
+OBSOLETOS = ["Desinstalar Portal de Honorarios.lnk"]           # el desinstalador se retiró en la versión 1.10.1
+
+
 def crear_estructura(raiz):
     for carpeta in (raiz / "_Configuracion", raiz / "Reportes"):
         carpeta.mkdir(parents=True, exist_ok=True)
     (raiz / "LEEME.txt").write_text(LEEME, encoding="utf-8-sig")
+    for nombre in OBSOLETOS:
+        (raiz / nombre).unlink(missing_ok=True)
 
 
 def crear_icono(programa):
@@ -157,35 +154,27 @@ def crear_icono(programa):
         return None
 
 
-_CREAR_ACCESOS = (
-    "import json, sys, win32com.client\n"
-    "shell = win32com.client.Dispatch('WScript.Shell')\n"
-    "for a in json.loads(sys.argv[1]):\n"
-    "    acceso = shell.CreateShortcut(a['ruta'])\n"
-    "    acceso.TargetPath, acceso.Arguments, acceso.WorkingDirectory = a['destino'], a['argumentos'], a['carpeta']\n"
-    "    if a['icono']: acceso.IconLocation = a['icono']\n"
-    "    acceso.Description = a['descripcion']\n"
-    "    acceso.Save()\n")
-
-
 def crear_accesos(raiz, programa):
-    """Accesos directos: "Portal de Honorarios" (pythonw, sin ventana negra) en el Escritorio y en Honorarios, y
-    "Desinstalar Portal de Honorarios" en Honorarios. Se crean en otro proceso de Python porque pywin32 se acaba
-    de instalar y en este proceso todavía no se puede importar."""
+    """Acceso directo con pythonw (sin ventana negra). Se crea en otro proceso de Python porque pywin32 se
+    acaba de instalar y en este proceso todavía no se puede importar."""
     pythonw = Path(sys.executable).with_name("pythonw.exe")
     if pythonw.exists():
         destino, argumentos = pythonw, '"portal\\iniciar.py"'
     else:                                                        # sin pythonw: el .bat (lo hace minimizado)
         destino, argumentos = programa / "EJECUTAR_PORTAL.bat", ""
     icono = crear_icono(programa)
-    portal = {"destino": str(destino), "argumentos": argumentos, "carpeta": str(programa),
-              "icono": str(icono or ""), "descripcion": "Abre el Portal de Honorarios en el navegador"}
-    accesos = [dict(portal, ruta=str(raiz.parent / f"{NOMBRE_ACCESO}.lnk")),
-               dict(portal, ruta=str(raiz / f"{NOMBRE_ACCESO}.lnk")),
-               {"ruta": str(raiz / f"{NOMBRE_DESINSTALAR}.lnk"), "destino": str(programa / "DESINSTALAR.bat"),
-                "argumentos": "", "carpeta": str(raiz), "icono": ICONO_DESINSTALAR,
-                "descripcion": "Quita el Portal de Honorarios de esta computadora"}]
-    resultado = subprocess.run([sys.executable, "-c", _CREAR_ACCESOS, json.dumps(accesos)])
+    codigo = (
+        "import sys, win32com.client\n"
+        "shell = win32com.client.Dispatch('WScript.Shell')\n"
+        "for ruta in sys.argv[5:]:\n"
+        "    acceso = shell.CreateShortcut(ruta)\n"
+        "    acceso.TargetPath, acceso.Arguments, acceso.WorkingDirectory = sys.argv[1], sys.argv[2], sys.argv[3]\n"
+        "    if sys.argv[4]: acceso.IconLocation = sys.argv[4]\n"
+        "    acceso.Description = 'Abre el Portal de Honorarios en el navegador'\n"
+        "    acceso.Save()\n")
+    rutas = [str(raiz.parent / f"{NOMBRE_ACCESO}.lnk"), str(raiz / f"{NOMBRE_ACCESO}.lnk")]
+    resultado = subprocess.run([sys.executable, "-c", codigo, str(destino), argumentos, str(programa),
+                                str(icono or ""), *rutas])
     return resultado.returncode == 0
 
 

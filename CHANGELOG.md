@@ -1,5 +1,13 @@
 # Historial de cambios
 
+## [1.10.1] - 2026-10-01
+
+### Retirado
+- Se quita el desinstalador (`DESINSTALAR.bat`, `instalador/desinstalar.py`) agregado en la 1.10.0: para
+  actualizar o corregir un bug basta con correr el `INSTALAR.bat` de la versión nueva, que reemplaza `_Programa`
+  completo, conserva catálogo, historial y reportes, y si algo falla deja la versión anterior.
+- Al actualizar, el instalador borra el acceso directo "Desinstalar Portal de Honorarios" que dejó la 1.10.0.
+
 ## [1.10.0] - 2026-09-30
 
 ### Agregado
