@@ -252,7 +252,7 @@ class TestTrabajoDeVariosDias(unittest.TestCase):
     def test_excel_regenerado_con_los_cambios(self):
         from openpyxl import load_workbook
         cambios = [{"Linea": 7, "Columna": "IDProveedor", "Anterior": "100005", "Nuevo": "100006",
-                    "Motivo": "Sugerencia del portal", "Usuario": "conta", "Fecha": "03/10/2026 10:00"}]
+                    "Motivo": "Edición manual (ventana Editar línea)", "Usuario": "conta", "Fecha": "03/10/2026 10:00"}]
         editada = servicio.replace(self.conciliacion, cambios=cambios, editada=True)
         nueva = servicio.regenerar_reporte(editada, self.carpeta, b"TXT editado")
         libro = load_workbook(nueva.destino)
