@@ -1,5 +1,15 @@
 # Historial de cambios
 
+## [1.17.0] - 2026-10-03
+
+### Agregado
+- **Bitácora de instalación `Honorarios\instalacion.log`:** todo lo que muestra la ventana del instalador (pasos de
+  `INSTALAR.bat`, salida de pip, mensajes, errores inesperados con su detalle) queda en un archivo, con un encabezado
+  por instalación (fecha, versión, Python, Windows, usuario) y el resultado final. Los mensajes de error piden mandar
+  ese archivo. Se agrega cada instalación (historial) y se recorta solo si pasa de 2 MB.
+- `INSTALAR.bat` anota sus pasos (búsqueda e instalación de Python, códigos de winget/curl); si no logra instalar
+  Python, abre la carpeta con su registro.
+
 ## [1.16.1] - 2026-10-03
 
 ### Corregido

@@ -71,6 +71,8 @@ El portal corre en la computadora de cada persona (necesita su sesión de SAP GU
 3. **El usuario copia el Excel del catálogo** (`CatalogoProveedoresTM26.xlsx`), que le pasa quien mantiene el programa, a `Honorarios\_Configuracion`. **Ese catálogo lo mantiene cada usuario**: los médicos nuevos se dan de alta en su Excel.
 4. Doble clic en **"Portal de Honorarios"**.
 
+**Si algo falla al instalar:** todo lo que muestra la ventana negra (incluido lo que imprime pip y los pasos de `INSTALAR.bat` para buscar o instalar Python) queda en **`Honorarios\instalacion.log`**, con un encabezado por instalación (fecha, versión del programa, Python, Windows, usuario) y una línea final `RESULTADO: terminó bien` o `RESULTADO: NO se completó`. Los mensajes de error le piden al usuario mandar ese archivo; así se diagnostica a distancia, aunque haya cerrado la ventana. Cada instalación se agrega al final (sirve también de historial de actualizaciones) y el archivo se recorta solo si pasa de 2 MB. Si falla antes de tener Python, el `.bat` abre la carpeta temporal con su propio registro (`InstalacionHonorarios_bat.log`).
+
 **Actualizar (por ejemplo, para corregir un bug):** se comparte el ZIP de la versión nueva y se corre su `INSTALAR.bat` (con el portal cerrado). No hace falta borrar nada antes:
 - Reemplaza `_Programa` **completo** (no quedan archivos de la versión anterior); el catálogo, el historial y los reportes no se tocan.
 - Si algo falla a la mitad, deja la versión anterior como estaba: el usuario nunca se queda sin programa.
