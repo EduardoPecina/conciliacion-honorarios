@@ -4,17 +4,22 @@ Aquí no hay reglas de negocio (esas viven en reglas.py y cruce.py): solo se enc
 leer -> consultar SAT -> consultar SAP -> cruzar -> generar Excel, y se avisa el avance con funciones que
 cada interfaz decide cómo mostrar (print en la consola, mensajes en el portal)."""
 
-from dataclasses import dataclass, field, replace
+import pickle
+from dataclasses import dataclass, field, fields, replace
+from datetime import datetime
+from pathlib import Path
 
 import pandas as pd
 
+from . import __version__
+from .config import REPORTES
 from .cruce import conciliar
 from .entradas import NOMBRES_MES, leer_catalogo, leer_txt, leer_xmls
 from .estado_sat import consultar_estados, progreso_en_consola
 from .historial import cargar_historial, guardar_historial
 from .reporte import generar_reporte
 from .sap import consultar_sap, fecha_consultas_guardadas, progreso_en_consola as progreso_sap_en_consola
-from .utilidades import ErrorUsuario, fecha_actual, validar_periodo
+from .utilidades import ErrorUsuario, fecha_actual, guardar_seguro, validar_periodo
 
 
 @dataclass
@@ -36,6 +41,10 @@ class Conciliacion:
     # cruzar con esto al editar, sin repetir las consultas al SAT ni a SAP.
     entradas: dict = field(default_factory=dict, repr=False)
     editada: bool = False           # True: el resultado ya incluye cambios hechos en Edición TXT
+    cambios: list = field(default_factory=list)     # bitácora de Edición TXT
+    version: int = 0                # sube con cada cambio: el portal sabe cuándo regenerar el Excel
+    consultado: str = ""            # fecha y hora de las consultas al SAT y a SAP ("dd/mm/aaaa hh:mm")
+    txt_editado: bytes = b""        # el TXT con los cambios de Edición TXT (para el Excel y su huella)
 
     @property
     def se_puede_registrar(self):
@@ -136,9 +145,11 @@ def conciliar_periodo(rutas, anio, mes, avisar=print, progreso_sat=progreso_en_c
     sin_consultar = [nombre for nombre, falta in (
         ("SAP", sap is None),
         ("SAT", bool(estados_sat) and all(c.get("SinConexion") for c in estados_sat.values()))) if falta]
-    entradas = {"catalogo": catalogo, "lineas": lineas, "facturas": facturas, "sap": sap, "historial": historial}
+    entradas = {"catalogo": catalogo, "lineas": lineas, "facturas": facturas, "sap": sap, "historial": historial,
+                "ruta_catalogo": rutas["catalogo"], "n_xml": len(rutas["xmls"])}
     return Conciliacion(anio, mes, resultado, sobrantes, errores_xml, estados, estados_sat,
-                        destino, resumen, historial is not None, avisos, sin_consultar, entradas)
+                        destino, resumen, historial is not None, avisos, sin_consultar, entradas,
+                        consultado=datetime.now().strftime(FORMATO_FECHA))
 
 
 def revalidar(conciliacion, lineas):
@@ -148,7 +159,7 @@ def revalidar(conciliacion, lineas):
     resultado, sobrantes = conciliar(lineas, e["catalogo"], e["facturas"], conciliacion.anio, conciliacion.mes,
                                      e["sap"], e["historial"], conciliacion.estados_sat)
     return replace(conciliacion, resultado=resultado, sobrantes=sobrantes, editada=True,
-                   entradas={**e, "lineas": lineas})
+                   entradas={**e, "lineas": lineas}, version=conciliacion.version + 1)
 
 
 def ids_sin_consultar_en_sap(conciliacion):
@@ -179,3 +190,101 @@ def registrar_historial(conciliacion):
         return (f"El historial de UUID no se actualizó: no se pudo consultar {' ni '.join(conciliacion.sin_consultar)}. "
                 "Vuelve a conciliar con conexión antes de registrar el periodo.")
     return guardar_historial(conciliacion.resultado, conciliacion.anio, conciliacion.mes)
+
+
+# ------------------------------------------------------------------ Trabajo de varios días
+FORMATO_FECHA = "%d/%m/%Y %H:%M"
+
+
+def ruta_trabajo(carpeta, anio, mes):
+    return Path(carpeta) / f"Trabajo_{anio}-{mes:02d}.pkl"
+
+
+def guardar_trabajo(conciliacion, carpeta, txt_original):
+    """Guarda todo lo del mes (resultado, lo consultado al SAT y a SAP, el TXT original, la bitácora) para poder
+    continuar otro día sin volver a procesar. Se guarda en la carpeta del mes; si falla, no detiene nada."""
+    datos = {"programa": __version__, "guardado": datetime.now().strftime(FORMATO_FECHA), "txt": txt_original,
+             "conciliacion": {f.name: getattr(conciliacion, f.name) for f in fields(conciliacion)}}
+    destino = ruta_trabajo(carpeta, conciliacion.anio, conciliacion.mes)
+    try:
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        guardar_seguro(destino, lambda tmp: tmp.write_bytes(pickle.dumps(datos, protocol=pickle.HIGHEST_PROTOCOL)))
+    except OSError:
+        return False
+    return True
+
+
+def trabajos_guardados(raiz=REPORTES, limite=3):
+    """Trabajos guardados más recientes: [(ruta, "septiembre 2026", "03/10/2026 18:40")]."""
+    trabajos = sorted(Path(raiz).glob("*/*/Trabajo_*.pkl"), key=lambda r: r.stat().st_mtime, reverse=True)
+    salida = []
+    for ruta in trabajos[:limite]:
+        anio, mes = ruta.stem.split("_")[1].split("-")
+        salida.append((ruta, f"{NOMBRES_MES[int(mes) - 1]} {anio}",
+                       datetime.fromtimestamp(ruta.stat().st_mtime).strftime(FORMATO_FECHA)))
+    return salida
+
+
+def cargar_trabajo(ruta):
+    """-> (conciliacion, txt_original, carpeta). Solo lee archivos que escribió este programa (carpeta Reportes).
+    Si el trabajo es de una versión con otros campos, toma los que coinciden (los nuevos quedan con su valor
+    por omisión). ErrorUsuario si no se puede recuperar."""
+    try:
+        datos = pickle.loads(Path(ruta).read_bytes())
+        guardados = datos["conciliacion"]
+        conocidos = {f.name for f in fields(Conciliacion)}
+        conciliacion = Conciliacion(**{k: v for k, v in guardados.items() if k in conocidos})
+    except Exception as e:                                        # noqa: BLE001 - archivo dañado o de otra versión
+        raise ErrorUsuario(f"No se pudo recuperar el trabajo guardado ({type(e).__name__}). Vuelve a procesar el mes.")
+    return conciliacion, datos["txt"], Path(ruta).parent
+
+
+def actualizar_sat(conciliacion, progreso=progreso_en_consola, avisar=print, consultar_sat=consultar_estados):
+    """Vuelve a consultar el SAT (p. ej. si pasaron días: una factura pudo cancelarse) y vuelve a cruzar."""
+    estados_sat, texto = consultar_sat(conciliacion.entradas["facturas"], progreso=progreso, avisar=avisar)
+    sin_conexion = bool(estados_sat) and all(c.get("SinConexion") for c in estados_sat.values())
+    if sin_conexion:
+        return conciliacion, texto
+    actualizada = replace(conciliacion, estados_sat=estados_sat,
+                          estados={**conciliacion.estados, "Estatus en el SAT": texto},
+                          sin_consultar=[x for x in conciliacion.sin_consultar if x != "SAT"],
+                          consultado=datetime.now().strftime(FORMATO_FECHA))
+    return revalidar(actualizada, conciliacion.entradas["lineas"]), texto
+
+
+def actualizar_sap(conciliacion, carpeta, progreso=progreso_sap_en_consola, avisar=print, consultar=None):
+    """Vuelve a consultar en SAP a todos los proveedores (p. ej. si Customer Services corrigió algo) y vuelve a cruzar."""
+    e = conciliacion.entradas
+    en_catalogo = set(e["catalogo"]["IDProveedor"])
+    ids = sorted({l["IDProveedor"] for l in e["lineas"] if l["IDProveedor"] in en_catalogo})
+    sap, texto = (consultar or consultar_sap)(ids, carpeta, conciliacion.anio, conciliacion.mes, False,
+                                               progreso=progreso, avisar=avisar)
+    if sap is None:
+        return conciliacion, texto
+    actualizada = replace(conciliacion, entradas={**e, "sap": sap},
+                          estados={**conciliacion.estados, "Validación SAP": texto},
+                          sin_consultar=[x for x in conciliacion.sin_consultar if x != "SAP"],
+                          consultado=datetime.now().strftime(FORMATO_FECHA))
+    return revalidar(actualizada, e["lineas"]), texto
+
+
+def dias_desde_consulta(conciliacion, hoy=None):
+    try:
+        return ((hoy or datetime.now()) - datetime.strptime(conciliacion.consultado, FORMATO_FECHA)).days
+    except ValueError:
+        return 0
+
+
+def regenerar_reporte(conciliacion, carpeta, txt_editado):
+    """Excel con el resultado actual (con las ediciones) y la hoja "Cambios TXT". El TXT editado se guarda junto
+    al Excel: su nombre y su huella SHA-256 quedan en la hoja Info."""
+    e = conciliacion.entradas
+    carpeta = Path(carpeta)
+    carpeta.mkdir(parents=True, exist_ok=True)
+    ruta_txt = carpeta / f"TXT_editado_{conciliacion.anio}-{conciliacion.mes:02d}.txt"
+    ruta_txt.write_bytes(txt_editado)
+    rutas = {"txt": ruta_txt, "catalogo": e["ruta_catalogo"], "salida": carpeta}
+    destino, resumen = generar_reporte(rutas, conciliacion.anio, conciliacion.mes, conciliacion.resultado,
+                                       conciliacion.sobrantes, conciliacion.errores_xml, e["n_xml"],
+                                       conciliacion.estados, cambios=conciliacion.cambios)
+    return replace(conciliacion, destino=destino, resumen=resumen)

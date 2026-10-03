@@ -151,5 +151,90 @@ class TestRevalidar(unittest.TestCase):
         self.assertEqual(self.estatus(completa, 1), "Cruzado")
 
 
+class TestTrabajoDeVariosDias(unittest.TestCase):
+    """Cerrar el portal y continuar otro día: se recupera todo sin volver a consultar SAT ni SAP."""
+
+    @classmethod
+    def setUpClass(cls):
+        datos_prueba.crear(RAIZ)
+        cls.rutas = obtener_rutas(ANIO, MES)
+        cls.conciliacion = servicio.conciliar_periodo(
+            cls.rutas, ANIO, MES, hoy=datetime(ANIO, MES, 30), avisar=lambda t: None,
+            progreso_sat=lambda h, t: None, consultar_sat=sat_todo_vigente, consultar_sap=sap_simulado)
+
+    def setUp(self):
+        import tempfile
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.carpeta = Path(self.tmp.name) / str(ANIO) / "09 Sep"
+
+    def test_guardar_y_continuar(self):
+        txt = ("Honorarios.txt", self.rutas["txt"].read_bytes())
+        editada = servicio.replace(self.conciliacion, cambios=[{"Linea": 1, "Columna": "Monto"}], version=7)
+        self.assertTrue(servicio.guardar_trabajo(editada, self.carpeta, txt))
+        (ruta, nombre, fecha), = servicio.trabajos_guardados(Path(self.tmp.name))
+        self.assertEqual(nombre, "septiembre 2026")
+        conciliacion, txt_recuperado, carpeta = servicio.cargar_trabajo(ruta)
+        self.assertEqual(txt_recuperado, txt)
+        self.assertEqual(carpeta, self.carpeta)
+        self.assertEqual([f["Estatus"] for f in conciliacion.resultado], [f["Estatus"] for f in editada.resultado])
+        self.assertEqual((conciliacion.version, conciliacion.cambios), (7, [{"Linea": 1, "Columna": "Monto"}]))
+        lineas, _ = txt_sap.lineas_para_el_motor(txt_sap.leer(txt[1]).lineas)
+        servicio.revalidar(conciliacion, lineas)          # se puede seguir editando sin volver a consultar
+
+    def test_trabajo_danado_o_de_otra_version(self):
+        import pickle
+        self.carpeta.mkdir(parents=True)
+        danado = self.carpeta / "Trabajo_2026-09.pkl"
+        danado.write_bytes(b"no es un trabajo")
+        with self.assertRaises(servicio.ErrorUsuario):
+            servicio.cargar_trabajo(danado)
+        campos = {f.name: getattr(self.conciliacion, f.name) for f in servicio.fields(self.conciliacion)}
+        campos["campo_de_una_version_futura"] = 1
+        del campos["consultado"]                          # campo que una versión vieja no tenía
+        danado.write_bytes(pickle.dumps({"programa": "0.0", "guardado": "", "txt": ("a.txt", b""),
+                                         "conciliacion": campos}))
+        conciliacion, _, _ = servicio.cargar_trabajo(danado)
+        self.assertEqual(conciliacion.consultado, "")
+
+    def test_actualizar_sat_detecta_una_cancelacion_nueva(self):
+        uuid = next(f["UUID"] for f in self.conciliacion.resultado if f["Linea"] == 1)
+        def sat_con_cancelada(facturas, progreso=None, avisar=None):
+            estados, texto = sat_todo_vigente(facturas)
+            estados[uuid] = {**estados[uuid], "Estado": "Cancelado"}
+            return estados, texto
+        nueva, _ = servicio.actualizar_sat(self.conciliacion, consultar_sat=sat_con_cancelada)
+        self.assertEqual(next(f["Estatus"] for f in nueva.resultado if f["Linea"] == 1), "Rechazar")
+        self.assertGreater(nueva.version, self.conciliacion.version)
+        sin_internet = lambda facturas, **k: ({f["UUID"]: {"SinConexion": True} for f in facturas if f["UUID"]}, "x")
+        igual, _ = servicio.actualizar_sat(self.conciliacion, consultar_sat=sin_internet)
+        self.assertIs(igual, self.conciliacion, "sin conexión no se pierde lo que ya se tenía")
+
+    def test_actualizar_sap_consulta_todo_sin_reusar(self):
+        consulta = mock.Mock(return_value=(datos_prueba.sap_simulado(), "consultado"))
+        nueva, _ = servicio.actualizar_sap(self.conciliacion, self.carpeta, consultar=consulta)
+        self.assertFalse(consulta.call_args.args[4], "no se reusan las consultas guardadas")
+        self.assertEqual(nueva.estados["Validación SAP"], "consultado")
+
+    def test_dias_desde_la_consulta(self):
+        c = servicio.replace(self.conciliacion, consultado="01/10/2026 09:00")
+        self.assertEqual(servicio.dias_desde_consulta(c, datetime(2026, 10, 3, 10)), 2)
+        self.assertEqual(servicio.dias_desde_consulta(servicio.replace(c, consultado="")), 0)
+
+    def test_excel_regenerado_con_los_cambios(self):
+        from openpyxl import load_workbook
+        cambios = [{"Linea": 7, "Columna": "IDProveedor", "Anterior": "100005", "Nuevo": "100006",
+                    "Motivo": "Sugerencia del portal", "Usuario": "conta", "Fecha": "03/10/2026 10:00"}]
+        editada = servicio.replace(self.conciliacion, cambios=cambios, editada=True)
+        nueva = servicio.regenerar_reporte(editada, self.carpeta, b"TXT editado")
+        libro = load_workbook(nueva.destino)
+        self.assertIn("Cambios TXT", libro.sheetnames)
+        self.assertEqual(libro["Cambios TXT"]["D2"].value, "100006")
+        info = {fila[0].value: fila[1].value for fila in libro["Info"].iter_rows()}
+        self.assertEqual(info["Archivo TXT"], "TXT_editado_2026-09.txt")
+        self.assertIn("1 (ver hoja Cambios TXT", info["Cambios hechos en Edición TXT"])
+        self.assertEqual((self.carpeta / "TXT_editado_2026-09.txt").read_bytes(), b"TXT editado")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -533,7 +533,8 @@ def escribir_instrucciones(libro):
     hoja.sheet_view.showGridLines = False
 
 
-def generar_reporte(rutas, anio, mes, resultado, sobrantes, errores_xml, n_xml, estados):
+def generar_reporte(rutas, anio, mes, resultado, sobrantes, errores_xml, n_xml, estados, cambios=None):
+    """cambios: bitácora de Edición TXT (si se editó el TXT): va en la hoja "Cambios TXT"."""
     detalle = pd.DataFrame(resultado)
     columnas = ["Linea", "Estatus", "Fecha", "IDProveedor", "Nombre", "RFC", "Folio",
                 "CodigoImpuesto", "Importe", "Ver cálculo", "Revisión importe", "Variación importe",
@@ -592,7 +593,8 @@ def generar_reporte(rutas, anio, mes, resultado, sobrantes, errores_xml, n_xml, 
         {"Dato": "Tolerancia de importe (cruce TXT vs XML)", "Valor": str(TOLERANCIA)},
         {"Dato": "Tolerancia de impuestos (redondeo)", "Valor": str(TOLERANCIA_IMPUESTOS)},
         {"Dato": "Variación etiquetada como OK (hasta)", "Valor": str(UMBRAL_OK)},
-    ])
+    ] + ([{"Dato": "Cambios hechos en Edición TXT",
+           "Valor": f"{len(cambios)} (ver hoja Cambios TXT; el TXT de arriba es el editado)"}] if cambios else []))
 
     nombre = f"Conciliacion_{anio}-{mes:02d}_{datetime.now():%Y%m%d_%H%M%S}.xlsx"
     destino = rutas["salida"] / nombre
@@ -603,6 +605,9 @@ def generar_reporte(rutas, anio, mes, resultado, sobrantes, errores_xml, n_xml, 
         pd.DataFrame(errores_xml, columns=["Archivo", "Error"]).to_excel(
             w, sheet_name="Errores XML", index=False)
         info.to_excel(w, sheet_name="Info", index=False)
+        if cambios:
+            pd.DataFrame(cambios, columns=["Linea", "Columna", "Anterior", "Nuevo", "Motivo", "Usuario", "Fecha"]) \
+                .to_excel(w, sheet_name="Cambios TXT", index=False)
         for hoja in w.book.worksheets:
             if hoja.title != "Resumen":
                 # Hasta aquí estas hojas solo tienen datos (las fórmulas del programa se agregan después)
@@ -616,7 +621,7 @@ def generar_reporte(rutas, anio, mes, resultado, sobrantes, errores_xml, n_xml, 
         fichas = escribir_calculos(w.book, L, detalle)
         escribir_por_proveedor(w.book, L, detalle, fichas)
         escribir_instrucciones(w.book)
-        orden = ["Resumen", "Cómo usar", "Por proveedor", "Detalle", "Cálculos",
+        orden = ["Resumen", "Cómo usar", "Por proveedor", "Detalle", "Cambios TXT", "Cálculos",
                  "XML sin TXT", "Errores XML", "Tasas", "Info"]
         w.book._sheets.sort(key=lambda h: orden.index(h.title) if h.title in orden else 99)
         w.book.active = 0
