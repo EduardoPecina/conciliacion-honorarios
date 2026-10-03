@@ -28,7 +28,7 @@ def cargar_historial():
     return historial, f"{len(historial):,} UUID registrados"
 
 
-def guardar_historial(resultado, anio, mes):
+def guardar_historial(resultado, anio, mes, forzar=False):
     """Registra los UUID cruzados en este periodo (reemplaza lo que hubiera del mismo periodo)."""
     ruta = CONFIG / ARCHIVO_HISTORIAL
     periodo = f"{anio}-{mes:02d}"
@@ -44,6 +44,13 @@ def guardar_historial(resultado, anio, mes):
     try:
         previo = (pd.read_csv(ruta, dtype=str, encoding="utf-8-sig").fillna("") if ruta.exists()
                   else pd.DataFrame(columns=["UUID", "Periodo", "IDProveedor", "Linea", "Importe", "Registrado"]))
+        registrados = previo.loc[previo["Periodo"] == periodo, "UUID"].nunique()
+        if registrados and len({n["UUID"] for n in nuevos}) * 2 < registrados and not forzar:
+            # Candado: confirmar REEMPLAZA el periodo. Una corrida con mucho menos UUID (archivos de otro mes,
+            # SAP o SAT a medias) borraría la protección contra doble pago de lo que ya se registró.
+            return (f"No se actualizó el historial: {periodo} ya tenía {registrados} UUID registrados y esta "
+                    f"conciliación solo tiene {len({n['UUID'] for n in nuevos})} cruzados. Revisa que el mes y los "
+                    "archivos sean los correctos; si de verdad es así, avisa a quien mantiene el programa.")
         previo = previo[previo["Periodo"] != periodo]
         total = pd.concat([previo, pd.DataFrame(nuevos)], ignore_index=True).drop_duplicates(["UUID", "Periodo"])
         guardar_seguro(ruta, lambda tmp: total.to_csv(tmp, index=False, encoding="utf-8-sig"))

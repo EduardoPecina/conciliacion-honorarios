@@ -77,6 +77,39 @@ class TestServicio(unittest.TestCase):
         self.assertFalse(ruta_historial.exists())
 
 
+class TestCandadosDelPeriodo(unittest.TestCase):
+    """Archivos de un mes procesados con otro mes elegido: se detiene antes del SAT y SAP, y confirmar nunca
+    borra del historial un mes ya registrado."""
+
+    @classmethod
+    def setUpClass(cls):
+        datos_prueba.crear(RAIZ)
+
+    def test_archivos_de_otro_mes_se_detienen_antes_del_sat(self):
+        consultado = []
+        sat = lambda facturas, **k: consultado.append(1) or sat_todo_vigente(facturas)
+        siguiente = (ANIO, MES + 1) if MES < 12 else (ANIO + 1, 1)
+        with self.assertRaises(utilidades.ErrorUsuario) as error:
+            servicio.conciliar_periodo(obtener_rutas(ANIO, MES), *siguiente, hoy=datetime(*siguiente, 28),
+                                       avisar=lambda t: None, consultar_sat=sat, consultar_sap=sap_simulado)
+        self.assertIn("parecen ser de", str(error.exception))
+        self.assertIn("No se consultó al SAT ni a SAP", str(error.exception))
+        self.assertFalse(consultado)
+
+    def test_confirmar_no_borra_un_mes_ya_registrado(self):
+        ruta = CONFIG / ARCHIVO_HISTORIAL
+        ruta.unlink(missing_ok=True)
+        cruzadas = [{"Estatus": "Cruzado", "UUID": f"U{i}", "IDProveedor": "1", "Linea": i, "Importe": 1}
+                    for i in range(10)]
+        self.assertIn("10 UUID registrados", historial.guardar_historial(cruzadas, ANIO, MES))
+        rechazadas = [dict(f, Estatus="Rechazar") for f in cruzadas]       # archivos de otro mes: nada cruza
+        self.assertIn("No se actualizó el historial", historial.guardar_historial(rechazadas, ANIO, MES))
+        registrados, _ = historial.cargar_historial()
+        self.assertEqual(len(registrados), 10, "los UUID del mes siguen protegidos")
+        self.assertIn("9 UUID registrados", historial.guardar_historial(cruzadas[:9], ANIO, MES))  # corrección normal
+        ruta.unlink()
+
+
 class TestConsultasSapGuardadas(unittest.TestCase):
     def test_lo_reusado_conserva_la_fecha_de_su_consulta(self):
         import pandas as pd
@@ -101,6 +134,10 @@ class TestConsultasSapGuardadas(unittest.TestCase):
 
 
 class TestArchivosSubidos(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        datos_prueba.crear(RAIZ)                          # rutas_en() necesita el catálogo
+
     def zip_con(self, archivos):
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w") as z:
@@ -342,6 +379,29 @@ class TestPaginasDelPortal(unittest.TestCase):
         self.assertEqual(len(mes.options), hoy.month)              # año actual: de enero al mes actual
         anio.set_value(hoy.year - 1).run()
         self.assertEqual(len(app.selectbox[1].options), 12)       # año anterior: los 12 meses
+
+    def test_mes_que_no_es_el_vigente_pide_confirmar(self):
+        app = self.abrir("conciliar.py")
+        self.assertFalse(app.checkbox, "mes vigente: no se pregunta nada")
+        self.assertIn("deben coincidir", app.info[0].value)
+        app.selectbox[0].set_value(int(app.selectbox[0].options[0])).run()     # el año pasado: nunca es vigente
+        self.assertIn("no es el mes vigente", app.warning[0].value)
+        self.assertTrue(app.checkbox[0].label.startswith("Sí, quiero conciliar"))
+
+    def test_fechas_dinamicas_al_cambiar_de_anio(self):
+        from unittest import mock
+        import streamlit as st
+        for hoy, anios, meses_del_actual in ((datetime(2027, 1, 5), ["2026", "2027"], 1),
+                                             (datetime(2031, 12, 31), ["2030", "2031"], 12)):
+            with self.subTest(hoy=hoy):
+                st.cache_data.clear()
+                with mock.patch("honorarios.utilidades.fecha_actual", return_value=(hoy, "prueba")):
+                    app = self.abrir("conciliar.py")
+                    self.assertEqual(app.selectbox[0].options, anios)
+                    self.assertEqual(len(app.selectbox[1].options), meses_del_actual)
+                    app.selectbox[0].set_value(hoy.year - 1).run()
+                    self.assertEqual(len(app.selectbox[1].options), 12)
+        st.cache_data.clear()
 
     def test_reusar_sap_solo_si_ya_se_proceso_y_desmarcado_por_defecto(self):
         import pandas as pd

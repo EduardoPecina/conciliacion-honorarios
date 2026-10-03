@@ -9,12 +9,12 @@ from dataclasses import dataclass, field
 import pandas as pd
 
 from .cruce import conciliar
-from .entradas import leer_catalogo, leer_txt, leer_xmls
+from .entradas import NOMBRES_MES, leer_catalogo, leer_txt, leer_xmls
 from .estado_sat import consultar_estados, progreso_en_consola
 from .historial import cargar_historial, guardar_historial
 from .reporte import generar_reporte
 from .sap import consultar_sap, fecha_consultas_guardadas, progreso_en_consola as progreso_sap_en_consola
-from .utilidades import fecha_actual, validar_periodo
+from .utilidades import ErrorUsuario, fecha_actual, validar_periodo
 
 
 @dataclass
@@ -61,6 +61,22 @@ AYUDA_REUSAR_SAP = ("Ya procesaste este mes en esta computadora. Márcalo solo s
                     "honorarios, RS↔RH), déjalo sin marcar para consultar todo de nuevo.")
 
 
+def revisar_periodo_de_los_archivos(lineas, facturas, anio, mes):
+    """Regla: el TXT, los XML y el periodo elegido deben coincidir. Si la mayoría de las fechas (del TXT y de los
+    XML) son de otro mes, se detiene ANTES de consultar SAT y SAP: lo más probable es que se eligió el mes
+    equivocado. Si no, todas las facturas saldrían "Rechazar" por estar fuera del periodo, lo que confunde."""
+    periodo = f"{anio}-{mes:02d}"
+    fechas = [l["_fecha"].strftime("%Y-%m") for l in lineas] + [f["FechaXML"][:7] for f in facturas if f["FechaXML"]]
+    if not fechas or fechas.count(periodo) * 2 >= len(fechas):
+        return
+    detectado = max(set(fechas), key=fechas.count)
+    porcentaje = fechas.count(detectado) * 100 // len(fechas)
+    nombre = lambda p: f"{NOMBRES_MES[int(p[5:]) - 1]} {p[:4]}"
+    raise ErrorUsuario(f"Los archivos parecen ser de {nombre(detectado)} ({porcentaje}% de las fechas del TXT y de "
+                       f"los XML) y elegiste {nombre(periodo)}. El TXT, los XML y el mes elegido deben coincidir: "
+                       "revisa el mes o los archivos. No se consultó al SAT ni a SAP.")
+
+
 def conciliar_periodo(rutas, anio, mes, avisar=print, progreso_sat=progreso_en_consola,
                       progreso_sap=progreso_sap_en_consola, reusar_sap=False,
                       consultar_sat=consultar_estados, consultar_sap=consultar_sap, hoy=None):
@@ -90,6 +106,7 @@ def conciliar_periodo(rutas, anio, mes, avisar=print, progreso_sat=progreso_en_c
     avisar(f"Leyendo {len(rutas['xmls']):,} XML...")
     facturas, errores_xml = leer_xmls(rutas["xmls"], rutas["carpeta_xml"])
     avisar(f"  {len(facturas):,} leídos, {len(errores_xml)} con error")
+    revisar_periodo_de_los_archivos(lineas, facturas, anio, mes)
 
     historial, estados["Historial de UUID"] = cargar_historial()
     avisar(f"Historial de UUID: {estados['Historial de UUID']}")
