@@ -19,8 +19,10 @@ import argparse
 import os
 import shutil
 import socket
+import stat
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 ORIGEN = Path(__file__).resolve().parents[1]              # la carpeta del ZIP (o del repositorio)
@@ -111,15 +113,43 @@ def instalar_librerias():
     return False
 
 
+def borrar_carpeta(ruta, intentos=10, espera=1.0):
+    """Borra una carpeta aunque tenga archivos de solo lectura. Reintenta unos segundos: OneDrive (o el antivirus)
+    a veces deja archivos abiertos un momento después de copiarlos. True si quedó borrada."""
+    def quitar_solo_lectura(funcion, camino, _):
+        try:
+            os.chmod(camino, stat.S_IWRITE)
+            funcion(camino)
+        except OSError:
+            pass
+    opcion = {"onexc": quitar_solo_lectura} if sys.version_info >= (3, 12) else {"onerror": quitar_solo_lectura}
+    for intento in range(intentos):
+        if not ruta.exists():
+            return True
+        shutil.rmtree(ruta, **opcion)
+        if ruta.exists() and intento < intentos - 1:
+            time.sleep(espera)
+    return not ruta.exists()
+
+
+def respaldos(destino):
+    """Copias de seguridad que deja una actualización: _Programa_anterior, _Programa_anterior_2..."""
+    return sorted(p for p in destino.parent.glob(destino.name + "_anterior*") if p.is_dir())
+
+
 def copiar_programa(destino):
     """Copia el programa a Honorarios\\_Programa. Al actualizar, la versión anterior se reemplaza completa
-    (así no quedan archivos viejos). Si el origen ya es el destino (se corrió desde _Programa), no copia."""
+    (así no quedan archivos viejos). Si el origen ya es el destino (se corrió desde _Programa), no copia.
+    Mientras copia, la versión anterior queda como respaldo (_Programa_anterior); al terminar se borra. Si OneDrive
+    no deja borrarla en ese momento, la borra el portal la próxima vez que se abra."""
     if destino.exists() and destino.resolve() == ORIGEN:
         print("El programa ya está en su lugar (se corrió desde _Programa).")
         return
-    anterior = destino.with_name(destino.name + "_anterior")
-    if anterior.exists():
-        shutil.rmtree(anterior, ignore_errors=True)
+    for viejo in respaldos(destino):                     # restos de actualizaciones anteriores
+        borrar_carpeta(viejo, intentos=3)
+    anterior, n = destino.with_name(destino.name + "_anterior"), 2
+    while anterior.exists():                             # uno viejo sigue bloqueado: se usa otro nombre
+        anterior, n = destino.with_name(f"{destino.name}_anterior_{n}"), n + 1
     if destino.exists():
         destino.rename(anterior)             # si el portal o un archivo está abierto, Windows no deja: PermissionError
     try:
@@ -128,7 +158,8 @@ def copiar_programa(destino):
         if anterior.exists() and not destino.exists():
             anterior.rename(destino)         # algo falló: se deja la versión anterior como estaba
         raise
-    shutil.rmtree(anterior, ignore_errors=True)
+    if not borrar_carpeta(anterior):
+        print(f"OneDrive todavía usa {anterior.name}: se borrará sola la próxima vez que abras el portal.")
 
 
 # Archivos que dejaron versiones anteriores del instalador y ya no existen (se quitan al actualizar)

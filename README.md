@@ -74,6 +74,7 @@ El portal corre en la computadora de cada persona (necesita su sesión de SAP GU
 **Actualizar (por ejemplo, para corregir un bug):** se comparte el ZIP de la versión nueva y se corre su `INSTALAR.bat` (con el portal cerrado). No hace falta borrar nada antes:
 - Reemplaza `_Programa` **completo** (no quedan archivos de la versión anterior); el catálogo, el historial y los reportes no se tocan.
 - Si algo falla a la mitad, deja la versión anterior como estaba: el usuario nunca se queda sin programa.
+- Mientras copia, la versión anterior queda como respaldo en `_Programa_anterior` y al terminar se borra (reintenta unos segundos, por si OneDrive la está sincronizando). Si aun así no se puede, **el portal la borra solo la próxima vez que se abre**, así que el usuario no ve carpetas de más. El portal solo borra una carpeta `_Programa_anterior…` junto a `_Programa` cuyo contenido sea una copia del programa; nunca otra cosa.
 
 > ⚠️ Cada computadora tiene su propio catálogo e historial de UUID. Si dos personas concilian en computadoras distintas, un pago doble entre ellas no se detecta. Pendiente: una `_Configuracion` compartida (carpeta de red o SharePoint) o la base de datos.
 
