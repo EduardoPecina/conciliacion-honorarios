@@ -1,5 +1,13 @@
 # Historial de cambios
 
+## [1.15.3] - 2026-10-03
+
+### Cambiado
+- Edición TXT: **se quita el botón "Aplicar"** de las sugerencias de ID (cambiaba el ID en un clic). Ahora son
+  "Posibles ID equivocados · solo apoyo", con el recordatorio de verificar en SAP, y el botón **Editar línea** abre una
+  ventana con los valores actuales de IDProveedor, Nombre (se busca en el catálogo al escribir), Tax y Monto. Quien
+  edita decide; el cambio queda en la bitácora.
+
 ## [1.15.2] - 2026-10-03
 
 ### Cambiado

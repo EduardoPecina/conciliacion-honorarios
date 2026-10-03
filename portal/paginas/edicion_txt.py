@@ -16,7 +16,7 @@ from honorarios import folios, txt_sap
 from honorarios.config import ARCHIVO_CATALOGO, CODIGOS_IMPUESTO_TXT, CONFIG
 from honorarios.entradas import NOMBRES_MES, leer_catalogo
 from honorarios.servicio import consultar_sap_faltantes, ids_sin_consultar_en_sap, revalidar
-from honorarios.utilidades import ErrorUsuario, guardar_seguro, normalizar_id
+from honorarios.utilidades import ErrorUsuario, guardar_seguro, importe_txt, normalizar_id
 from portal.trabajo import guardar, ofrecer_continuar
 
 ss = st.session_state
@@ -149,9 +149,38 @@ def formatear_folios():
     despues_de_cambiar()
 
 
-def aplicar_sugerencia(n, id_nuevo):
-    if registrar_cambio(n, "IDProveedor", id_nuevo, "Sugerencia del portal"):
-        despues_de_cambiar()
+@st.dialog("Editar línea", width="large")
+def editar_linea(n, apoyo):
+    """Ventana para corregir a mano IDProveedor, Tax y Monto de una línea. La sugerencia del portal es solo apoyo:
+    la ventana abre con los valores ACTUALES y quien edita decide (SAP le paga a la cuenta del ID del TXT)."""
+    valores = dict(zip(txt_sap.COLUMNAS, e["lineas"][n]))
+    st.markdown(f"**Línea {n}** · Fecha {valores['Fecha']} · Folio {valores['Folio']}")
+    st.info(f"**Apoyo del portal:** {apoyo}", icon="💡")
+    id_nuevo = st.text_input("IDProveedor", value=valores["IDProveedor"].strip(), key=f"dlg_id_{n}")
+    nombre = nombres.get(normalizar_id(id_nuevo))
+    st.text_input("Nombre (del catálogo, según el ID)", value=nombre or "Este ID no está en el catálogo",
+                  disabled=True, key=f"dlg_nombre_{n}_{id_nuevo}")
+    col_tax, col_monto = st.columns(2)
+    opciones = sorted(CODIGOS_IMPUESTO_TXT)
+    actual_tax = valores["Tax"].strip().upper()
+    tax = col_tax.selectbox("Tax", opciones, index=opciones.index(actual_tax) if actual_tax in opciones else 0,
+                            key=f"dlg_tax_{n}", help="E0: sin IVA (médicos) · F2: con IVA (otros profesionales)")
+    monto = col_monto.text_input("Monto a pagar", value=valores["Monto"].strip(), key=f"dlg_monto_{n}")
+    monto_valido = importe_txt(monto) is not None
+    if not monto_valido:
+        st.error("El monto no es válido (formato 1234.56 o 1,234.56, máximo 2 decimales).")
+    st.caption("SAP le deposita a la cuenta bancaria del ID que va en el TXT: revisa en SAP (FK03) a quién "
+               "corresponde el ID antes de guardar. El cambio queda en la bitácora con tu usuario.")
+    guardar_col, cancelar_col = st.columns(2)
+    if guardar_col.button("Guardar cambios", type="primary", width="stretch", disabled=not monto_valido):
+        hubo = False
+        for columna, valor in (("IDProveedor", id_nuevo.strip()), ("Tax", tax), ("Monto", monto.strip())):
+            hubo |= registrar_cambio(n, columna, valor, "Edición manual (ventana Editar línea)")
+        if hubo:
+            despues_de_cambiar()
+        st.rerun()
+    if cancelar_col.button("Cancelar", width="stretch"):
+        st.rerun()
 
 
 def deshacer_todo():
@@ -280,11 +309,14 @@ else:
 
 pendientes = {n: s for n, s in sugerencias.items() if n in set(ss.etxt_vista)}
 if pendientes:
-    with st.expander(f"Sugerencias de ID ({len(pendientes)})", expanded=True):
-        for n, (id_nuevo, texto) in sorted(pendientes.items()):
+    with st.expander(f"Posibles ID equivocados ({len(pendientes)}) · solo apoyo", expanded=True):
+        st.caption("El portal no cambia nada solo. Revisa cada caso en SAP y, si hay que corregir, usa "
+                   "**Editar línea**.")
+        for n, (_, texto) in sorted(pendientes.items()):
             col = st.columns([5, 1])
             col[0].markdown(f"**Línea {n}:** {texto}")
-            col[1].button("Aplicar", key=f"sugerencia_{n}", on_click=aplicar_sugerencia, args=(n, id_nuevo))
+            if col[1].button("Editar línea", key=f"sugerencia_{n}"):
+                editar_linea(n, texto)
 
 # ------------------------------------------------------------------ 4. Descargar
 st.subheader("Descargar TXT para SAP")

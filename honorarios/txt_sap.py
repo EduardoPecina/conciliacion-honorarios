@@ -132,8 +132,9 @@ def problemas(txt, lineas, ids_catalogo, periodo=None, folios_registrados=None):
 
 
 def sugerencias_de_id(resultado, sobrantes, catalogo_nombres):
-    """Línea sin factura + factura sin línea por el mismo importe -> probable ID equivocado en el TXT.
-    Devuelve {línea: (ID sugerido, texto)}."""
+    """Línea sin factura + factura sin línea por el mismo importe -> POSIBLE ID equivocado en el TXT. Es solo apoyo:
+    el portal nunca lo cambia solo (SAP le deposita a la cuenta del ID que va en el TXT; quien edita lo verifica).
+    Devuelve {línea: (ID de la factura, texto)}."""
     huerfanas = [s for s in sobrantes if re.fullmatch(r"[^,]+", s.get("IDProveedorCatalogo", ""))
                  and s["IDProveedorCatalogo"] != "No está en catálogo"]
     salida = {}
@@ -147,9 +148,11 @@ def sugerencias_de_id(resultado, sobrantes, catalogo_nombres):
         if len(ids) == 1:                               # una sola explicación: si hay varias, no se adivina
             s = candidatas[0]
             nuevo = s["IDProveedorCatalogo"]
-            salida[fila["Linea"]] = (nuevo, f"¿El ID correcto es {nuevo}? La factura {s['ArchivoXML']} de "
-                                            f"{catalogo_nombres.get(nuevo, s['NombreEmisor'])} es por "
-                                            f"${s['ImporteConIVA']:,.2f} y no tiene línea en el TXT")
+            actual = fila["IDProveedor"] or "(vacío)"
+            salida[fila["Linea"]] = (nuevo, f"Posible ID equivocado: la factura {s['ArchivoXML']} de "
+                                            f"{catalogo_nombres.get(nuevo, s['NombreEmisor'])} (ID {nuevo} en el "
+                                            f"catálogo) es por ${s['ImporteConIVA']:,.2f} y no tiene línea en el TXT. "
+                                            f"Verifica en SAP quién es el ID {actual} antes de cambiar nada.")
     return salida
 
 
