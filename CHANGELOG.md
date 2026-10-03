@@ -1,5 +1,30 @@
 # Historial de cambios
 
+## [1.14.0] - 2026-10-03
+
+### Agregado
+- **Edición TXT** (nueva página): el TXT procesado como tabla editable, con columnas de apoyo que no van al archivo
+  (Estatus del cruce, Médico, Problemas del TXT, Sugerencia, Motivo).
+  - Se editan IDProveedor, Monto, Tax, Centro de Costo, Cuenta Contable y Referencia. Fecha, X, 1 y PM no; el
+    Folio solo con "Formatear folios".
+  - Al editar, el médico y el estatus se actualizan solos: se vuelve a cruzar con lo ya consultado al SAT y a SAP.
+    Botón para consultar en SAP solo los IDs nuevos.
+  - Problemas por celda (rojo); los que SAP rechazaría bloquean la descarga. Celdas editadas en amarillo.
+  - Sugerencia de ID correcto cuando una línea sin factura coincide en importe con una factura sin línea de otro
+    proveedor, con botón Aplicar.
+  - Bitácora de cambios (valor anterior/nuevo, usuario, fecha) y borrador que se recupera si se cierra el portal.
+  - Descarga con el formato exacto del TXT original (11 columnas, tabulador, sin encabezados, misma codificación y
+    saltos de línea); se guarda copia y bitácora en la carpeta del mes.
+- **Folios únicos** (`honorarios/folios.py`): huella SHA-256 del UUID de la factura, 10 caracteres de un alfabeto de
+  32 símbolos; parte por línea en pagos quebrados; aleatorio criptográfico para líneas sin factura; comprobación
+  contra `HistorialFolios.csv`.
+- `honorarios/txt_sap.py`: lectura y escritura fiel del TXT y revisión de problemas. `entradas.leer_linea_txt`
+  (la misma validación por línea para la conciliación y la Edición TXT). `servicio.revalidar`.
+
+### Corregido
+- Al terminar de procesar, el aviso "La conciliación sigue en proceso" se quedaba activo: cambiar de página o cerrar
+  el portal preguntaba si salir aunque ya había terminado.
+
 ## [1.13.0] - 2026-10-03
 
 ### Agregado

@@ -135,6 +135,32 @@ def leer_catalogo(ruta):
     return catalogo.reset_index(drop=True)
 
 
+def leer_linea_txt(campos, n):
+    """Una línea del TXT (ya separada por tabuladores) -> (fila para el motor, None) o (None, motivo del error).
+    La usan leer_txt() y la Edición TXT del portal, así que las dos validan igual."""
+    campos = [c.strip() for c in campos]
+    if len(campos) != len(COLUMNAS_TXT):
+        return None, f"trae {len(campos)} columnas y se esperaban {len(COLUMNAS_TXT)}"
+    fila = dict(zip(COLUMNAS_TXT, campos))
+    try:
+        fila["_fecha"] = datetime.strptime(fila["Fecha"], "%d.%m.%Y")
+    except ValueError:
+        return None, f"la fecha '{fila['Fecha']}' no es válida (formato DD.MM.AAAA)"
+    fila["Linea"] = n
+    fila["IDProveedor"] = normalizar_id(fila["IDProveedor"])
+    fila["CodigoImpuesto"] = fila["CodigoImpuesto"].upper()
+    fila["Importe"] = importe_txt(fila["Importe"])
+    if fila["Importe"] is None:
+        return None, (f"el importe '{campos[3]}' no es válido "
+                      "(formato esperado 1234.56 o 1,234.56, máximo 2 decimales)")
+    return fila, None
+
+
+def es_encabezado_txt(campos):
+    """Encabezado: la primera columna no trae dígitos. Una fecha mal escrita ("1.09.2026") NO es encabezado."""
+    return not re.search(r"\d", campos[0])
+
+
 def leer_txt(ruta):
     lineas = leer_texto(ruta).splitlines()
     filas, errores, sin_id = [], [], []
@@ -142,32 +168,17 @@ def leer_txt(ruta):
     for n, linea in enumerate(lineas, start=1):
         if not linea.strip():
             continue
-        campos = [c.strip() for c in linea.split("\t")]
+        campos = linea.split("\t")
         if primera:
             primera = False
-            # Encabezado (aunque haya renglones vacíos antes): la primera columna no trae dígitos.
-            # Una fecha mal escrita ("1.09.2026") NO es encabezado: sigue y marca error de formato.
-            if not re.search(r"\d", campos[0]):
+            if es_encabezado_txt(campos):                # aunque haya renglones vacíos antes
                 continue
-        if len(campos) != len(COLUMNAS_TXT):
-            errores.append(f"Línea {n}: trae {len(campos)} columnas y se esperaban {len(COLUMNAS_TXT)}")
+        fila, error = leer_linea_txt(campos, n)
+        if error:
+            errores.append(f"Línea {n}: {error}")
             continue
-        fila = dict(zip(COLUMNAS_TXT, campos))
-        try:
-            fila["_fecha"] = datetime.strptime(fila["Fecha"], "%d.%m.%Y")
-        except ValueError:
-            errores.append(f"Línea {n}: la fecha '{fila['Fecha']}' no es válida (formato DD.MM.AAAA)")
-            continue
-        fila["Linea"] = n
-        fila["IDProveedor"] = normalizar_id(fila["IDProveedor"])
         if not fila["IDProveedor"]:
             sin_id.append(n)                           # no detiene: sale en el reporte con su importe
-        fila["CodigoImpuesto"] = fila["CodigoImpuesto"].upper()
-        fila["Importe"] = importe_txt(fila["Importe"])
-        if fila["Importe"] is None:
-            errores.append(f"Línea {n}: el importe '{campos[3]}' no es válido "
-                           "(formato esperado 1234.56 o 1,234.56, máximo 2 decimales)")
-            continue
         filas.append(fila)
 
     if errores:
