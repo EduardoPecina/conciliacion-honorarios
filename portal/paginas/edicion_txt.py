@@ -6,6 +6,7 @@ honorarios/servicio.py (mismas reglas que la conciliación) y genera folios con 
 import getpass
 import hashlib
 import json
+from dataclasses import replace
 from datetime import datetime
 
 import pandas as pd
@@ -16,6 +17,7 @@ from honorarios.config import ARCHIVO_CATALOGO, CONFIG
 from honorarios.entradas import NOMBRES_MES, leer_catalogo
 from honorarios.servicio import consultar_sap_faltantes, ids_sin_consultar_en_sap, revalidar
 from honorarios.utilidades import ErrorUsuario, guardar_seguro, normalizar_id
+from portal.trabajo import guardar, ofrecer_continuar
 
 ss = st.session_state
 ROJO, AMARILLO = "background-color: rgba(220, 38, 38, 0.20)", "background-color: rgba(234, 179, 8, 0.28)"
@@ -30,6 +32,7 @@ st.caption("Revisa y corrige el TXT antes de cargarlo a SAP. Las columnas **Lín
 conciliacion = ss.get("conciliacion")
 original = ss.get("txt_original")
 if conciliacion is None or original is None:
+    ofrecer_continuar()
     st.info("Para ver el **estatus de cada línea**, primero procesa el mes en **Conciliador Automático**. "
             "Mientras tanto, puedes subir un TXT aquí para revisar y corregir solo su formato.")
     subido = st.file_uploader("TXT de pagos", type=["txt"])
@@ -77,7 +80,9 @@ def volver_a_cruzar():
     if ss.get("conciliacion") is None or "txt_original" not in ss:
         return
     lineas, _ = txt_sap.lineas_para_el_motor(ss.etxt["lineas"])
-    ss.conciliacion = revalidar(ss.conciliacion, lineas)
+    ss.conciliacion = replace(revalidar(ss.conciliacion, lineas), cambios=list(ss.etxt["bitacora"]),
+                              txt_editado=txt_sap.escribir(ss.etxt["txt"], ss.etxt["lineas"]))
+    guardar()                                           # el trabajo del mes queda guardado para otro día
 
 
 if ss.get("etxt", {}).get("huella") != huella:          # TXT nuevo: se empieza de cero (o del borrador)
@@ -218,11 +223,12 @@ if faltan_sap:
     if st.button(f"Consultar en SAP {len(faltan_sap)} ID(s)"):
         with st.status("Consultando SAP...", expanded=True) as estado:
             barra = st.progress(0.0)
-            ss.conciliacion, texto = consultar_sap_faltantes(
+            nueva, texto = consultar_sap_faltantes(
                 conciliacion, salida, progreso=lambda h, t, i: barra.progress(h / t, text=f"SAP: {h}/{t} ({i})"),
                 avisar=st.write)
             estado.update(label=texto, state="complete")
-        guardar_borrador()
+        ss.conciliacion = replace(nueva, cambios=list(e["bitacora"]), txt_editado=txt_sap.escribir(txt, e["lineas"]))
+        guardar()
         st.rerun()
 
 b = st.columns([1, 1, 2])
@@ -288,6 +294,10 @@ else:
     st.caption("Mismo formato que el TXT original: 11 columnas separadas por tabulador, sin encabezados. "
                + ("Al descargar se guarda una copia y la bitácora de cambios en la carpeta del mes."
                   if salida else "Sin conciliación no se guarda copia ni bitácora: procesa el mes para tenerlas."))
+
+if conciliacion:
+    st.page_link("paginas/conciliar.py", label="Ver el reporte actualizado (Excel con tus cambios) en Conciliador "
+                 "Automático", icon="📊")
 
 if e["bitacora"]:
     with st.expander(f"Bitácora de cambios ({len(e['bitacora'])})"):

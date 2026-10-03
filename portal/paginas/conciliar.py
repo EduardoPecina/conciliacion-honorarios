@@ -10,10 +10,13 @@ from honorarios.config import MESES, REPORTES
 from honorarios.entradas import NOMBRES_MES, rutas_en
 from honorarios.estado_sat import alerta_efos, describir
 from honorarios.reporte import ORDEN_ESTATUS, RESPONSABLE_POR_ESTATUS
-from honorarios.servicio import AYUDA_REUSAR_SAP, conciliar_periodo, fecha_consultas_sap, registrar_historial
+from honorarios.servicio import (AYUDA_REUSAR_SAP, actualizar_sap, actualizar_sat, conciliar_periodo,
+                                 dias_desde_consulta, fecha_consultas_sap, regenerar_reporte,
+                                 registrar_historial)
 from honorarios.utilidades import ErrorUsuario, fecha_actual
 from portal.archivos import preparar_carpeta
 from portal.estilo import aviso_al_salir, ruta_logo
+from portal.trabajo import guardar, ofrecer_continuar
 
 CRUZADOS = ("Cruzado", "Cruzado (pago quebrado)")
 
@@ -28,16 +31,21 @@ def fecha_de_hoy():
 if ruta_logo():
     st.image(str(ruta_logo()), width=220)
 st.title("Conciliación de Honorarios")
+ofrecer_continuar()
 
 # ------------------------------------------------------------------ 1. Periodo y archivos
 # Solo el mes actual y los anteriores: un periodo que todavía no llega no se puede conciliar. Se ofrece también
 # el año anterior (en enero se concilia diciembre).
 hoy, fuente_fecha = fecha_de_hoy()
 col_anio, col_mes = st.columns(2)
-anio = col_anio.selectbox("Año", [hoy.year - 1, hoy.year], index=1)
+anios = [hoy.year - 1, hoy.year]
+if st.session_state.get("anio_sel") not in anios:                     # por omisión: el mes vigente
+    st.session_state["anio_sel"] = hoy.year
+anio = col_anio.selectbox("Año", anios, key="anio_sel")
 meses = list(range(1, (hoy.month if anio == hoy.year else 12) + 1))
-mes = col_mes.selectbox("Mes", meses, index=len(meses) - 1,
-                        format_func=lambda m: NOMBRES_MES[m - 1].capitalize())
+if st.session_state.get("mes_sel") not in meses:
+    st.session_state["mes_sel"] = meses[-1]
+mes = col_mes.selectbox("Mes", meses, key="mes_sel", format_func=lambda m: NOMBRES_MES[m - 1].capitalize())
 st.caption(f"Hoy es {hoy.day} de {NOMBRES_MES[hoy.month - 1]} de {hoy.year} (fecha de {fuente_fecha}). "
            "Solo se pueden conciliar el mes actual y los anteriores.")
 mes_confirmado = True
@@ -102,6 +110,9 @@ if procesar:
             st.session_state["conciliacion"] = conciliacion
             st.session_state["txt_original"] = (txt.name, txt.getvalue())      # para Edición TXT
             st.session_state["salida"] = salida
+            st.session_state.pop("etxt", None)                                 # TXT nuevo: Edición TXT de cero
+            st.session_state["excel_version"] = conciliacion.version
+            guardar()                                                          # para continuar otro día
             st.session_state["excel"] = Path(conciliacion.destino).read_bytes()
             estado.update(label="Listo", state="complete", expanded=False)
         except ErrorUsuario as e:
@@ -132,8 +143,37 @@ st.header(f"Resultado · {periodo}")
 for aviso in conciliacion.avisos:
     st.warning(aviso)
 if conciliacion.editada:
-    st.info("Los números de abajo ya incluyen los cambios hechos en **Edición TXT**. El Excel que se descarga aquí "
-            "es el de la conciliación original; los cambios quedan en la bitácora de Edición TXT.")
+    st.info("Incluye los cambios hechos en **Edición TXT**: los números de abajo y el Excel ya están actualizados "
+            "(el Excel trae la hoja **Cambios TXT** con la bitácora).")
+
+# Consultas al SAT y a SAP: si el trabajo se retoma días después, pudieron cambiar
+dias = dias_desde_consulta(conciliacion)
+with st.expander(f"Consultas al SAT y a SAP: {conciliacion.consultado or 'sin fecha'}", expanded=dias >= 1):
+    if dias >= 1:
+        st.warning(f"Las consultas tienen {dias} día(s). Desde entonces una factura pudo cancelarse en el SAT o "
+                   "Customer Services pudo corregir algo en SAP: actualízalas antes de confirmar o descargar el TXT.")
+    col_sat, col_sap = st.columns(2)
+    actualizar = None
+    if col_sat.button("Actualizar SAT", width="stretch", help="Vuelve a consultar el estatus de todas las facturas "
+                                                            "en el SAT (≈1 minuto) y vuelve a cruzar."):
+        actualizar = "SAT"
+    if col_sap.button("Actualizar SAP", width="stretch", help="Vuelve a consultar en SAP a todos los proveedores "
+                                                            "(abre SAP con tu sesión antes) y vuelve a cruzar."):
+        actualizar = "SAP"
+    if actualizar:
+        with st.status(f"Consultando {actualizar}...", expanded=True) as estado:
+            barra = st.progress(0.0)
+            if actualizar == "SAT":
+                nueva, texto = actualizar_sat(conciliacion, avisar=st.write,
+                                              progreso=lambda h, t: barra.progress(h / t, text=f"SAT: {h}/{t}"))
+            else:
+                nueva, texto = actualizar_sap(conciliacion, st.session_state["salida"], avisar=st.write,
+                                              progreso=lambda h, t, i: barra.progress(h / t, text=f"SAP: {h}/{t} ({i})"))
+            estado.update(label=texto, state="complete" if nueva is not conciliacion else "error")
+        if nueva is not conciliacion:
+            st.session_state["conciliacion"] = conciliacion = nueva
+            guardar()
+            st.rerun()
 
 detalle = pd.DataFrame(conciliacion.resultado)
 por_estatus = detalle.groupby("Estatus")["Importe"].agg(["count", "sum"])
@@ -174,6 +214,15 @@ if conciliacion.sobrantes:
     st.caption(f"{len(conciliacion.sobrantes):,} XML sin línea en el TXT (hoja 'XML sin TXT' del Excel). "
                f"{len(conciliacion.errores_xml):,} XML no se pudieron leer (hoja 'Errores XML').")
 
+if st.session_state.get("excel_version") != conciliacion.version or not st.session_state.get("excel"):
+    # Hubo cambios (Edición TXT, actualizar SAT o SAP): Excel nuevo con el resultado actual
+    with st.spinner("Actualizando el Excel..."):
+        txt_actual = conciliacion.txt_editado or st.session_state["txt_original"][1]
+        conciliacion = regenerar_reporte(conciliacion, st.session_state["salida"], txt_actual)
+        st.session_state["conciliacion"] = conciliacion
+        st.session_state["excel"] = Path(conciliacion.destino).read_bytes()
+        st.session_state["excel_version"] = conciliacion.version
+        guardar()
 st.download_button("Descargar Excel", st.session_state["excel"], file_name=Path(conciliacion.destino).name,
                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                    type="primary", width="stretch")

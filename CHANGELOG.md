@@ -1,5 +1,16 @@
 # Historial de cambios
 
+## [1.15.0] - 2026-10-03
+
+### Agregado
+- **Trabajo de varios días:** todo lo del mes (resultado, consultas al SAT y a SAP, TXT original y cambios de
+  Edición TXT) se guarda solo en la carpeta del mes. Al abrir el portal, **"Continuar donde te quedaste"** lo
+  recupera con un clic, sin volver a consultar nada; el selector se mueve al mes recuperado.
+- **Actualizar SAT / Actualizar SAP** en el resultado, con la fecha de la última consulta; si tiene 1 día o más, un
+  aviso pide actualizar antes de confirmar o descargar (una factura pudo cancelarse o SAP pudo corregirse).
+- **Excel con las ediciones:** "Descargar Excel" genera el reporte actual con la hoja **Cambios TXT** (bitácora); el
+  TXT editado se guarda junto al Excel y su huella queda en la hoja Info. Enlace desde Edición TXT.
+
 ## [1.14.1] - 2026-10-03
 
 ### Cambiado

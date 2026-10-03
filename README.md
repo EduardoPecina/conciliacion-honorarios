@@ -176,6 +176,19 @@ Las páginas de Catálogo de Proveedores e Historial de UUID (`portal/paginas/ca
 
 El portal corre en la computadora de cada usuario y usa **su** sesión de SAP GUI, igual que el `.bat`: antes de dar clic en **Procesar**, abre SAP e inicia sesión. Sin SAP (o sin respuesta del SAT) el botón "Confirmar" queda bloqueado.
 
+### Trabajo de varios días
+
+La conciliación de un mes puede llevar días (revisar errores, esperar correcciones). **El trabajo se guarda solo** en la carpeta del mes (`Reportes\<Año>\<MM Mes>\Trabajo_AAAA-MM.pkl`) cada vez que se procesa, se edita algo o se actualizan las consultas.
+
+- Al abrir el portal aparece **"Continuar donde te quedaste"** con los últimos meses trabajados. Un clic recupera todo: el resultado, lo consultado al SAT y a SAP (sin volver a consultar), el TXT y los cambios de Edición TXT. El selector se mueve al mes recuperado.
+- **Si pasaron días**, el SAT o SAP pudieron cambiar (una factura cancelada, una corrección de Customer Services). En el resultado, **"Consultas al SAT y a SAP"** muestra la fecha de la última consulta y los botones **Actualizar SAT** y **Actualizar SAP**; si tienen 1 día o más, un aviso pide actualizarlas antes de confirmar o descargar el TXT.
+- Para empezar el mes de cero, basta con subir los archivos y procesar (reemplaza el trabajo guardado de ese mes).
+- El archivo lo escribe y lo lee solo el programa; si está dañado o es de una versión muy distinta, el portal lo dice y se vuelve a procesar.
+
+### Excel con las ediciones
+
+El botón **Descargar Excel** de Conciliador Automático siempre da el reporte **actual**: si hubo cambios en Edición TXT (o se actualizó el SAT o SAP), genera un Excel nuevo con los estatus actualizados y la hoja **Cambios TXT** (la bitácora: línea, columna, valor anterior y nuevo, motivo, usuario y fecha). El TXT editado se guarda junto al Excel (`TXT_editado_AAAA-MM.txt`) y la hoja Info registra su nombre y su huella SHA-256. Edición TXT tiene un enlace directo al reporte.
+
 ### Edición TXT
 
 Después de procesar el mes en Conciliador Automático, **Edición TXT** muestra el TXT como tabla, una fila por línea, con columnas de apoyo que **no van en el TXT descargado**: Línea, Estatus (el del cruce), Médico (del catálogo), Problemas del TXT, Sugerencia y Motivo del estatus.
