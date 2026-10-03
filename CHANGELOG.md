@@ -1,5 +1,11 @@
 # Historial de cambios
 
+## [1.15.2] - 2026-10-03
+
+### Cambiado
+- Formatear folios: la Referencia queda **sin espacios**, con guion bajo entre el folio y el resto
+  (`A1893      Q18-2026` → `7KQ2M9XHRT_Q18-2026`). Con el folio de 10 caracteres mide lo mismo que antes (19).
+
 ## [1.15.1] - 2026-10-03
 
 ### Cambiado

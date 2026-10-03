@@ -239,8 +239,8 @@ editar = b[0].toggle("Editar", help="Activa la edición de IDProveedor, Monto, T
 b[1].button("Formatear folios", on_click=formatear_folios, disabled=not conciliacion,
             help="Pone a cada línea un folio único de 10 caracteres, calculado a partir del UUID de su factura "
                  "(misma factura = mismo folio; nunca se repite). Las líneas sin factura reciben uno aleatorio. "
-                 "La Referencia cambia igual: solo su parte del folio (\"A1893      Q18-2026\" -> "
-                 "\"7KQ2M9XHRT      Q18-2026\"). "
+                 "La Referencia cambia igual: folio nuevo y el resto unidos con guion bajo, sin espacios "
+                 "(\"A1893      Q18-2026\" -> \"7KQ2M9XHRT_Q18-2026\"). "
                  + ("" if conciliacion else "Disponible después de procesar el mes en Conciliador Automático."))
 
 f = st.columns([2, 1, 2])
