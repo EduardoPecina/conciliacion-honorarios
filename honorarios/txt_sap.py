@@ -15,9 +15,11 @@ from .utilidades import ErrorUsuario, normalizar_id
 # Nombres que ve el usuario (mismo orden que COLUMNAS_TXT y que el archivo)
 COLUMNAS = ["Fecha", "IDProveedor", "Folio", "Monto", "X", "Tax", "1", "Centro de Costo", "Cuenta Contable",
             "PM", "Referencia"]
-# Lo que Contabilidad puede editar. Fecha, X, 1 y PM son campos fijos que pide SAP; el Folio solo cambia con
-# "Formatear folios" (folios únicos, ver folios.py).
-EDITABLES = ("IDProveedor", "Monto", "Tax", "Centro de Costo", "Cuenta Contable", "Referencia")
+# Lo que Contabilidad puede editar. Fecha, X, 1 y PM son campos fijos que pide SAP; el Folio y la Referencia solo
+# cambian con "Formatear folios" (folios únicos, ver folios.py; la Referencia empieza con el folio).
+EDITABLES = ("IDProveedor", "Monto", "Tax", "Centro de Costo", "Cuenta Contable")
+# Entre el folio y el resto de la Referencia ("A1893      Q18-2026"): se usa solo si la referencia no traía folio.
+SEPARADOR_REFERENCIA = " " * 6
 assert len(COLUMNAS) == len(COLUMNAS_TXT)
 
 
@@ -149,3 +151,14 @@ def sugerencias_de_id(resultado, sobrantes, catalogo_nombres):
                                             f"{catalogo_nombres.get(nuevo, s['NombreEmisor'])} es por "
                                             f"${s['ImporteConIVA']:,.2f} y no tiene línea en el TXT")
     return salida
+
+
+def referencia_con_folio(referencia, folio_actual, folio_nuevo):
+    """La Referencia empieza con el folio ("A1893      Q18-2026"). Al formatear folios se cambia SOLO esa parte; los
+    espacios y lo demás que escribió quien manda el TXT se quedan igual. Si la referencia no empezaba con el folio,
+    se le antepone el folio nuevo (con el separador de siempre); si estaba vacía, queda solo el folio."""
+    if folio_actual and referencia.startswith(folio_actual):
+        return folio_nuevo + referencia[len(folio_actual):]
+    if not referencia.strip():
+        return folio_nuevo
+    return folio_nuevo + SEPARADOR_REFERENCIA + referencia.lstrip()

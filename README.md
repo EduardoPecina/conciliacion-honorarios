@@ -196,8 +196,8 @@ Después de procesar el mes en Conciliador Automático, **Edición TXT** muestra
 | Columna | ¿Se edita? |
 |---|---|
 | Fecha, X, 1, PM | No: campos fijos que pide SAP |
-| Folio | Solo con **"Formatear folios"** |
-| IDProveedor, Monto, Tax, Centro de Costo, Cuenta Contable, Referencia | Sí, con el interruptor **Editar** |
+| Folio y Referencia | Solo con **"Formatear folios"** (la Referencia empieza con el folio: cambia solo esa parte) |
+| IDProveedor, Monto, Tax (lista: E0 / F2), Centro de Costo, Cuenta Contable | Sí, con el interruptor **Editar** |
 
 - **Al editar, todo se recalcula solo:** el médico cambia con el ID y el estatus se vuelve a cruzar con las mismas reglas, usando lo ya consultado al SAT y a SAP (segundos). Si un ID nuevo no se había consultado en SAP, aparece un botón para consultar solo esos IDs.
 - **Problemas del TXT, por celda** (en rojo): fecha o importe inválidos, columnas de más o de menos, código de impuesto que no es E0/F2, ID fuera del catálogo, folio repetido para el mismo proveedor o ya usado en otro mes. Los que SAP rechazaría (fecha, importe, columnas, caracteres) **bloquean la descarga**. Las celdas editadas se ven en amarillo.
@@ -212,6 +212,7 @@ SAP rechaza el TXT si un proveedor repite un folio que ya usó, aunque haya sido
 
 - Misma factura → mismo folio siempre (reprocesar el mes no inventa folios, y pagar dos veces la misma factura también lo rechazaría SAP). Facturas distintas → folios distintos, en cualquier computadora.
 - Pago quebrado (varias líneas, una factura): cada línea agrega su número de parte, así no chocan entre sí.
+- **La Referencia se actualiza junto con el folio:** `A1893      Q18-2026` → `7KQ2M9XHRT      Q18-2026`. Solo cambia la parte del folio; los espacios y lo demás que escribió quien manda el TXT se quedan igual. Si la referencia no empezaba con el folio, se le antepone el folio nuevo (con 6 espacios, como en el formato de siempre).
 - Línea sin factura: código aleatorio criptográfico; si se vuelve a formatear, conserva el que ya tenía.
 - 32^10 ≈ 1.1 × 10^15 combinaciones. Con 300 folios al mes por 20 años, la probabilidad de que dos facturas del **mismo proveedor** coincidan es del orden de 1 en 200 mil millones. Además, antes de aceptar un folio se comprueba contra los del archivo y contra `_Configuracion\HistorialFolios.csv` (se llena al descargar); si chocara, se recalcula.
 - Si SAP aceptara menos de 10 caracteres, se cambia `LONGITUD_FOLIO`.
