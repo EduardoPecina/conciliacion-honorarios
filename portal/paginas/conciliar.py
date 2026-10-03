@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as componentes
 
 from honorarios.config import MESES, REPORTES
 from honorarios.entradas import NOMBRES_MES, rutas_en
@@ -73,14 +72,14 @@ if fecha_sap:
     reusar_sap = st.checkbox(f"Reusar lo consultado a SAP el {dia} a las {hora} (más rápido)", value=False,
                              help=AYUDA_REUSAR_SAP)
 
-procesar = st.button("Procesar", type="primary", disabled=not (txt and xmls and mes_confirmado), use_container_width=True)
+procesar = st.button("Procesar", type="primary", disabled=not (txt and xmls and mes_confirmado), width="stretch")
 
 # ------------------------------------------------------------------ 2. Proceso
 if procesar:
     st.session_state.pop("conciliacion", None)
     aviso = st.empty()                                     # pregunta antes de salir de la página (no bloquea)
     with aviso:
-        componentes.html(aviso_al_salir(True), height=0)
+        st.html(aviso_al_salir(True), unsafe_allow_javascript=True)
     nota = st.info("⏳ **Conciliación en proceso.** Puedes hacer scroll y usar otros programas (excepto SAP). "
                    "Si cambias de página o cierras esta pestaña, el proceso se detiene.")
     with st.status("Procesando...", expanded=True) as estado:
@@ -113,15 +112,15 @@ if procesar:
             st.error(f"Error inesperado: {type(e).__name__}: {e}\n\n"
                      "Toma captura de este mensaje y compártela con quien mantiene el programa.")
     with aviso:                                            # terminó (bien o con error): ya no se pregunta al salir
-        componentes.html(aviso_al_salir(False), height=0)
+        st.html(aviso_al_salir(False), unsafe_allow_javascript=True)
     nota.empty()
     if "conciliacion" in st.session_state:
         st.rerun()                                         # carga limpia: muestra el resultado y apaga el aviso
 
 if not procesar:
     # Fuera del proceso nunca se pregunta al salir. Se reafirma en cada carga: el aviso vive en la página principal
-    # (window.parent) y el iframe que lo apaga al terminar no siempre alcanza a ejecutarse.
-    componentes.html(aviso_al_salir(False), height=0)
+    # y el aviso que lo apaga al terminar no siempre alcanza a ejecutarse.
+    st.html(aviso_al_salir(False), unsafe_allow_javascript=True)
 
 # ------------------------------------------------------------------ 3. Resultado
 conciliacion = st.session_state.get("conciliacion")
@@ -167,7 +166,7 @@ pendientes = [{"Estatus": e, "Líneas": int(por_estatus.at[e, "count"]),
                "Importe": float(por_estatus.at[e, "sum"]), "Quién actúa": RESPONSABLE_POR_ESTATUS[e]}
               for e in ORDEN_ESTATUS if e in por_estatus.index and e not in CRUZADOS]
 if pendientes:
-    st.dataframe(pd.DataFrame(pendientes), hide_index=True, use_container_width=True,
+    st.dataframe(pd.DataFrame(pendientes), hide_index=True, width="stretch",
                  column_config={"Importe": st.column_config.NumberColumn(format="$%,.2f")})
 else:
     st.success("Todas las líneas cruzaron sin observaciones.")
@@ -177,7 +176,7 @@ if conciliacion.sobrantes:
 
 st.download_button("Descargar Excel", st.session_state["excel"], file_name=Path(conciliacion.destino).name,
                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                   type="primary", use_container_width=True)
+                   type="primary", width="stretch")
 
 st.divider()
 st.subheader("Confirmar conciliación")

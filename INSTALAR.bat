@@ -1,8 +1,9 @@
 @echo off
 REM ==========================================================================
 REM  Instalador del Portal de Honorarios: doble clic para INSTALAR o ACTUALIZAR.
-REM  1) Revisa que haya Python 3.10 o superior; si no hay, lo instala solo para
-REM     este usuario (sin permisos de administrador).
+REM  1) Busca Python 3.13 (la version con la que el programa esta probado); si no
+REM     esta, lo instala solo para este usuario (sin permisos de administrador),
+REM     junto a cualquier otro Python que ya tenga la PC (ese no se toca).
 REM  2) Lo demas (librerias, carpetas, acceso directo) lo hace instalador\instalar.py
 REM ==========================================================================
 title Instalador - Portal de Honorarios
@@ -11,13 +12,15 @@ echo ============================================================
 echo   INSTALADOR - PORTAL DE HONORARIOS
 echo ============================================================
 echo.
-echo Revisando Python...
+echo Revisando Python 3.13...
 set "PY="
-py -3 -c "import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)" >nul 2>nul && set "PY=py -3"
-if not defined PY python -c "import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)" >nul 2>nul && set "PY=python"
+set "PYNUEVO=%LOCALAPPDATA%\Programs\Python\Python313\python.exe"
+py -3.13 -c "import sys" >nul 2>nul && set "PY=py -3.13"
+if not defined PY python -c "import sys; sys.exit(0 if sys.version_info[:2] == (3, 13) else 1)" >nul 2>nul && set "PY=python"
+if not defined PY if exist "%PYNUEVO%" set PY="%PYNUEVO%"
 if not defined PY call :instalar_python
 if not defined PY goto :sin_python
-echo Python encontrado.
+echo Python 3.13 encontrado.
 echo.
 %PY% instalador\instalar.py
 if errorlevel 1 goto :fallo
@@ -27,9 +30,8 @@ timeout /t 10 >nul
 exit /b 0
 
 :instalar_python
-echo No se encontro Python 3.10 o superior. Se instalara solo para tu usuario.
+echo No se encontro Python 3.13. Se instalara solo para tu usuario.
 echo Esto puede tardar unos minutos; no cierres esta ventana.
-set "PYNUEVO=%LOCALAPPDATA%\Programs\Python\Python313\python.exe"
 where winget >nul 2>nul && winget install --id Python.Python.3.13 -e --scope user --silent --accept-package-agreements --accept-source-agreements
 if not exist "%PYNUEVO%" (
     echo Descargando Python desde python.org...
@@ -42,7 +44,7 @@ exit /b 0
 :sin_python
 echo.
 echo No se pudo instalar Python automaticamente.
-echo Pide a Sistemas que instale Python 3.10 o superior (python.org) y vuelve a correr INSTALAR.bat.
+echo Pide a Sistemas que instale Python 3.13 de 64 bits (python.org) y vuelve a correr INSTALAR.bat.
 pause
 exit /b 1
 

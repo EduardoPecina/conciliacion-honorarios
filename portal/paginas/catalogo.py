@@ -34,4 +34,4 @@ if buscar:
     texto = (catalogo["IDProveedor"] + " " + catalogo["Nombre"].str.upper() + " " + catalogo["RFC"])
     vista = catalogo[texto.str.contains(buscar, regex=False)]
 # Todo como texto: el Excel puede traer columnas con números y texto mezclados (p. ej. la columna histórica Activo)
-st.dataframe(vista.fillna("").astype(str), hide_index=True, use_container_width=True)
+st.dataframe(vista.fillna("").astype(str), hide_index=True, width="stretch")

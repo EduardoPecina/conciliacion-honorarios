@@ -10,7 +10,6 @@ import sys
 from pathlib import Path
 
 import streamlit as st
-import streamlit.components.v1 as componentes
 
 RAIZ_REPO = Path(__file__).resolve().parents[1]
 if str(RAIZ_REPO) not in sys.path:
@@ -45,7 +44,7 @@ _vigilante()
 st.sidebar.caption(f"Conciliación de Honorarios · versión {__version__}")
 if st.sidebar.button("Cerrar el portal", help="Detiene todo lo del portal (como Ctrl + C) y lo cierra. "
                                             "Para volver a abrirlo: acceso directo Portal de Honorarios"):
-    componentes.html(pagina_portal_cerrado(), height=0)
+    st.html(pagina_portal_cerrado(), unsafe_allow_javascript=True)
     cerrar_portal()
     st.stop()
 navegacion.run()

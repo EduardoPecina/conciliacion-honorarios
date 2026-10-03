@@ -22,16 +22,16 @@ MENSAJE_SALIR = ("La conciliación sigue en proceso.\n\n"
 
 
 def aviso_al_salir(activo):
-    """HTML+JavaScript para st.components.v1.html: mientras activo=True, al dar clic en otra página del menú
+    """HTML+JavaScript para st.html(..., unsafe_allow_javascript=True): mientras activo=True, al dar clic en otra página del menú
     (o en "Cerrar el portal") el navegador pregunta si de verdad se quiere salir; al cerrar o recargar la
     pestaña, el navegador muestra su aviso de "¿Salir del sitio?". NO bloquea nada: se puede hacer scroll y la
-    decisión final es del usuario. Las funciones se crean en la página principal (window.parent), no en el
-    iframe del componente, para que sigan funcionando cuando el iframe se quite."""
+    decisión final es del usuario. st.html corre en la página principal (window.parent es la misma ventana);
+    se deja window.parent para que también funcione si algún día se inserta dentro de un iframe."""
     return f"""<script>
 (function () {{
   const w = window.parent;
   w.__conciliando = {"true" if activo else "false"};
-  w.__versionAviso = {time.time_ns()};                   // cada llamada es distinta: el iframe siempre se ejecuta
+  w.__versionAviso = {time.time_ns()};                   // cada llamada es distinta: siempre se vuelve a ejecutar
   if (w.__avisoInstalado) return;
   w.__avisoInstalado = true;
   const alClic = new w.Function("e", `
@@ -49,21 +49,7 @@ def aviso_al_salir(activo):
 </script>"""
 
 
-def pagina_portal_cerrado():
-    """JavaScript para st.components.v1.html: reemplaza la página por un aviso claro de "El portal se cerró".
-    Sin esto, al apagarse el portal Streamlit muestra "Connection error... restart it in your terminal"."""
-    return """<script>
-(function () {
-  const w = window.parent, d = w.document;
-  w.__conciliando = false;                               // que el navegador no pregunte "¿Salir del sitio?"
-  d.title = "Portal de Honorarios (cerrado)";
-  d.body.style.background = "#ffffff";
-  // Streamlit, al perder la conexión, agrega a <body> su ventana de "Connection error": se oculta todo lo que no
-  // sea este aviso, incluso lo que se agregue después.
-  const estilo = d.createElement("style");
-  estilo.textContent = "body > :not(#portal-cerrado) { display: none !important; }";
-  d.head.appendChild(estilo);
-  d.body.innerHTML = `
+AVISO_PORTAL_CERRADO = """
     <div id="portal-cerrado" style="font-family: 'Source Sans Pro', 'Segoe UI', sans-serif; max-width: 560px; margin: 15vh auto;
                 padding: 28px 32px; border: 1px solid #d0d7e2; border-left: 6px solid #305496;
                 border-radius: 12px; color: #262730; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);">
@@ -71,6 +57,26 @@ def pagina_portal_cerrado():
       <p>Se detuvieron todos sus procesos. Ya puedes cerrar esta pestaña.</p>
       <p style="color: #6b7280;">Para volver a abrirlo: doble clic en <b>Portal de Honorarios</b>
          en tu Escritorio.</p>
-    </div>`;
+    </div>"""
+
+
+def pagina_portal_cerrado():
+    """JavaScript para st.html(..., unsafe_allow_javascript=True): reemplaza la página por un aviso claro de "El portal se
+    cerró". Sin esto, al apagarse el portal Streamlit muestra "Connection error... restart it in your terminal".
+    Ojo: st.html limpia el HTML (DOMPurify) y BORRA un <script> cuyo texto contenga etiquetas; por eso el aviso va
+    con los "<" escritos como \\x3c (JavaScript los convierte de vuelta)."""
+    aviso = json.dumps(AVISO_PORTAL_CERRADO).replace("<", "\\x3c")
+    return """<script>
+(function () {
+  const w = window.parent, d = w.document;
+  w.__conciliando = false;                               // que el navegador no pregunte "¿Salir del sitio?"
+  d.title = "Portal de Honorarios (cerrado)";
+  d.body.style.background = "#ffffff";
+  // Streamlit, al perder la conexión, agrega a body su ventana de "Connection error": se oculta todo lo que no
+  // sea este aviso, incluso lo que se agregue después.
+  const estilo = d.createElement("style");
+  estilo.textContent = "body > :not(#portal-cerrado) { display: none !important; }";
+  d.head.appendChild(estilo);
+  d.body.innerHTML = """ + aviso + """;
 })();
 </script>"""

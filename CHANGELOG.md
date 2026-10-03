@@ -1,5 +1,22 @@
 # Historial de cambios
 
+## [1.14.1] - 2026-10-03
+
+### Cambiado
+- **Versiones fijas, para que el programa funcione igual por años en cualquier PC:**
+  - `INSTALAR.bat` usa siempre **Python 3.13** (si no está, lo instala para el usuario aunque haya otro Python); los
+    `.bat` y los accesos directos usan ese mismo Python. El instalador se niega a correr con otra versión.
+  - Nuevo `requirements-lock.txt` con las versiones **exactas** de las 40 librerías que se instalan (incluidas las
+    dependencias de las dependencias), verificadas para Windows de 64 bits + Python 3.13. El instalador las usa como
+    restricción y solo acepta instaladores precompilados (nunca compila).
+  - Prueba que falla si el entorno tiene otras versiones o si se pide una librería sin fijar.
+- Se reemplazan las funciones de Streamlit marcadas para retirarse: `st.components.v1.html` → `st.html` (con
+  JavaScript) y `use_container_width` → `width="stretch"`. Ya no aparecen avisos de funciones obsoletas.
+
+### Corregido
+- La página "El portal se cerró" se armaba con etiquetas HTML dentro del script; `st.html` borra en silencio esos
+  scripts, así que se reescribió sin etiquetas literales (y una prueba lo vigila).
+
 ## [1.14.0] - 2026-10-03
 
 ### Agregado
