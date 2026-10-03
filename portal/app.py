@@ -18,6 +18,7 @@ if str(RAIZ_REPO) not in sys.path:
 from honorarios import __version__  # noqa: E402
 from portal.apagado import cerrar_portal, vigilar_inactividad  # noqa: E402
 from portal.estilo import pagina_portal_cerrado, ruta_logo  # noqa: E402
+from portal.limpieza import limpiar_respaldos  # noqa: E402
 
 st.set_page_config(page_title="Portal de Honorarios", page_icon="🩺", layout="wide")
 
@@ -35,8 +36,10 @@ navegacion = st.navigation([
 
 @st.cache_resource
 def _vigilante():
-    """Una sola vez por portal: se apaga solo si nadie lo usa (ver portal/apagado.py)."""
+    """Una sola vez por portal: se apaga solo si nadie lo usa (ver portal/apagado.py) y borra las copias de
+    seguridad que haya dejado una actualización (ver portal/limpieza.py)."""
     vigilar_inactividad()
+    limpiar_respaldos()
     return True
 
 

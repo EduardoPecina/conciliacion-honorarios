@@ -1,5 +1,14 @@
 # Historial de cambios
 
+## [1.16.1] - 2026-10-03
+
+### Corregido
+- **`_Programa_anterior` ya no se queda a la vista** después de actualizar. El instalador reintenta borrarlo unos
+  segundos (OneDrive o el antivirus pueden tener archivos abiertos) y quita el atributo de solo lectura; si aun así
+  no puede, el portal lo borra en segundo plano la próxima vez que se abre (solo si es una copia del programa).
+- Si un respaldo viejo seguía bloqueado, la siguiente actualización fallaba al renombrar `_Programa`; ahora usa otro
+  nombre (`_Programa_anterior_2`) y lo limpia después.
+
 ## [1.16.0] - 2026-10-03
 
 ### Agregado
