@@ -1,5 +1,12 @@
 # Historial de cambios
 
+## [1.15.1] - 2026-10-03
+
+### Cambiado
+- Edición TXT: **la Referencia cambia junto con el folio** al presionar "Formatear folios" (solo la parte del folio:
+  `A1893      Q18-2026` → `7KQ2M9XHRT      Q18-2026`; espacios y resto intactos) y ya no se edita a mano.
+- La columna **Tax** se edita con una lista (E0 / F2), para no teclear códigos inválidos.
+
 ## [1.15.0] - 2026-10-03
 
 ### Agregado

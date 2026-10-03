@@ -13,7 +13,7 @@ import pandas as pd
 import streamlit as st
 
 from honorarios import folios, txt_sap
-from honorarios.config import ARCHIVO_CATALOGO, CONFIG
+from honorarios.config import ARCHIVO_CATALOGO, CODIGOS_IMPUESTO_TXT, CONFIG
 from honorarios.entradas import NOMBRES_MES, leer_catalogo
 from honorarios.servicio import consultar_sap_faltantes, ids_sin_consultar_en_sap, revalidar
 from honorarios.utilidades import ErrorUsuario, guardar_seguro, normalizar_id
@@ -142,7 +142,9 @@ def formatear_folios():
               for n in e["lineas"] if n not in txt.estructura]
     actuales = {n: v[2] for n, v in e["lineas"].items()}
     for n, (folio, clave) in folios.asignar_folios(lineas, folios.cargar_folios(), actuales).items():
+        referencia = txt_sap.referencia_con_folio(e["lineas"][n][10], actuales[n], folio)
         registrar_cambio(n, "Folio", folio, "Formatear folios")
+        registrar_cambio(n, "Referencia", referencia, "Formatear folios")
         e["claves"][n] = clave
     despues_de_cambiar()
 
@@ -232,11 +234,13 @@ if faltan_sap:
         st.rerun()
 
 b = st.columns([1, 1, 2])
-editar = b[0].toggle("Editar", help="Activa la edición de IDProveedor, Monto, Tax, Centro de Costo, Cuenta "
-                                    "Contable y Referencia. Cada cambio queda en la bitácora.")
+editar = b[0].toggle("Editar", help="Activa la edición de IDProveedor, Monto, Tax (E0/F2), Centro de Costo y "
+                                    "Cuenta Contable. Cada cambio queda en la bitácora.")
 b[1].button("Formatear folios", on_click=formatear_folios, disabled=not conciliacion,
             help="Pone a cada línea un folio único de 10 caracteres, calculado a partir del UUID de su factura "
                  "(misma factura = mismo folio; nunca se repite). Las líneas sin factura reciben uno aleatorio. "
+                 "La Referencia cambia igual: solo su parte del folio (\"A1893      Q18-2026\" -> "
+                 "\"7KQ2M9XHRT      Q18-2026\"). "
                  + ("" if conciliacion else "Disponible después de procesar el mes en Conciliador Automático."))
 
 f = st.columns([2, 1, 2])
@@ -259,9 +263,14 @@ if editar:
         vista, key=f"editor_{e['version']}", on_change=aplicar_ediciones, hide_index=True,
         width="stretch", num_rows="fixed",
         disabled=[c for c in vista.columns if c not in txt_sap.EDITABLES],
-        column_config={c: st.column_config.TextColumn(c) for c in txt_sap.COLUMNAS})
-    st.caption("Las celdas grises no se editan: Fecha, X, 1 y PM son campos fijos de SAP y el Folio se cambia con "
-               "\"Formatear folios\". Al editar el ID, el médico y el estatus se actualizan solos.")
+        column_config={**{c: st.column_config.TextColumn(c) for c in txt_sap.COLUMNAS},
+                       "Tax": st.column_config.SelectboxColumn(
+                           "Tax", options=sorted(CODIGOS_IMPUESTO_TXT),
+                           help="E0: sin IVA (médicos) · F2: con IVA (otros profesionales). Cámbialo si el médico "
+                                "facturó con otro esquema de impuestos.")})
+    st.caption("Las celdas grises no se editan: Fecha, X, 1 y PM son campos fijos de SAP; el Folio y la Referencia "
+               "se cambian juntos con \"Formatear folios\". Al editar el ID, el médico y el estatus se actualizan "
+               "solos.")
 else:
     def colorear(fila):
         n = fila["Línea"]
