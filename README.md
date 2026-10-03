@@ -64,8 +64,8 @@ El portal corre en la computadora de cada persona (necesita su sesión de SAP GU
 
 1. **Quien mantiene el programa** descarga el ZIP de la rama `main` (GitHub → **Code → Download ZIP**) y lo comparte (correo, Teams, carpeta compartida). El repositorio es privado: Contabilidad no necesita cuenta de GitHub.
 2. **El usuario** descomprime el ZIP en cualquier lugar (por ejemplo, Descargas) y da doble clic en **`INSTALAR.bat`**:
-   - Si no tiene Python 3.10 o superior, lo instala **solo para su usuario, sin permisos de administrador** (con `winget` o, si no está, con el instalador oficial de python.org). Si ya lo tiene, se lo salta.
-   - Instala las librerías (pandas, openpyxl, streamlit, pywin32…); las que ya estén, se las salta.
+   - Si no tiene **Python 3.13** (la versión con la que el programa está probado), lo instala **solo para su usuario, sin permisos de administrador** (con `winget` o, si no está, con el instalador oficial de python.org), junto a cualquier otro Python que ya tenga la PC (ese no se toca). Si ya lo tiene, se lo salta.
+   - Instala las librerías (pandas, openpyxl, streamlit, pywin32…) **en las versiones exactas probadas** (`requirements-lock.txt`); las que ya estén, se las salta. Ver [Versiones fijas](#versiones-fijas).
    - Crea `Honorarios` en su **Escritorio** (el de OneDrive si Windows lo tiene ahí; la ruta se le pregunta a Windows, no se escribe a mano), con `_Configuracion`, `Reportes`, `_Programa` y `LEEME.txt`.
    - Crea el acceso directo **"Portal de Honorarios"** (con el logo de Nova) en el Escritorio y en `Honorarios`. Abre el portal sin ventana negra.
 3. **El usuario copia el Excel del catálogo** (`CatalogoProveedoresTM26.xlsx`), que le pasa quien mantiene el programa, a `Honorarios\_Configuracion`. **Ese catálogo lo mantiene cada usuario**: los médicos nuevos se dan de alta en su Excel.
@@ -85,9 +85,22 @@ El portal corre en la computadora de cada persona (necesita su sesión de SAP GU
 4. Descarga el ZIP de `main` (GitHub → **Code → Download ZIP**) y compártelo.
 5. Cada usuario cierra el portal (botón "Cerrar el portal") y corre el `INSTALAR.bat` del ZIP. Al abrir el portal debe ver la versión nueva en el menú.
 
+## Versiones fijas
+
+Para que una PC instalada dentro de años funcione igual que una instalada hoy, **nada se instala "en la versión más nueva"**:
+
+- **Python 3.13.** `INSTALAR.bat` busca Python 3.13 y, si no está, lo instala para el usuario (aunque la PC tenga otro Python más nuevo). Los accesos directos y los `.bat` usan ese Python. El instalador se niega a correr con otra versión.
+- **Librerías:** `requirements-lock.txt` fija las versiones **exactas** de todo lo que se instala (40 librerías, incluidas las dependencias de las dependencias). El instalador usa `pip install -r requirements-portal.txt -c requirements-lock.txt --only-binary=:all:`: solo instaladores precompilados de esas versiones, que PyPI conserva para siempre. Todas se verificaron para Windows de 64 bits con Python 3.13.
+- **Pruebas:** `tests/test_instalador.py` falla si el entorno de pruebas tiene versiones distintas a las fijadas, o si se pide una librería que no está fijada.
+
+**Actualizar versiones (a propósito, nunca solo).** Python 3.13 recibe correcciones de seguridad hasta octubre de 2029; seguir usándolo después no rompe nada, pero conviene planear el cambio:
+1. En un entorno limpio con la versión nueva de Python, instala las librerías nuevas y corre todas las pruebas y el portal con datos reales.
+2. Regenera `requirements-lock.txt` con esas versiones (comprobando que existan para Windows: `pip download --platform win_amd64 --python-version 3.X --only-binary=:all: -r requirements-lock.txt`).
+3. Cambia `PYTHON_PROBADO` en `instalador/instalar.py`, la versión en `INSTALAR.bat`, `EJECUTAR_PORTAL.bat` y `EJECUTAR.bat`, y publica la versión como cualquier corrección.
+
 ## Instalación para desarrollo (con git)
 
-Requiere Python 3.10 o superior.
+Requiere Python 3.13 (con otra versión el programa funciona, pero las pruebas de versiones fijas avisan).
 
 El repositorio debe quedar en una carpeta llamada **`_Programa`** dentro de `Honorarios/`, porque el programa busca `_Configuracion` y las carpetas de los años un nivel arriba de ella:
 
@@ -95,7 +108,7 @@ El repositorio debe quedar en una carpeta llamada **`_Programa`** dentro de `Hon
 cd ruta\a\Honorarios
 git clone <url-del-repositorio> _Programa
 cd _Programa
-pip install -r requirements.txt
+pip install -r requirements.txt -c requirements-lock.txt
 ```
 
 `pywin32` solo se necesita para la validación con SAP (Windows).
@@ -130,7 +143,7 @@ El historial de UUID **no** se registra al procesar: solo cuando alguien da clic
 Para probarlo en tu computadora:
 
 ```
-pip install -r requirements-portal.txt
+pip install -r requirements-portal.txt -c requirements-lock.txt
 ```
 
 y doble clic en **`EJECUTAR_PORTAL.bat`**. **No aparece ninguna ventana negra:** el portal arranca en segundo plano y se abre en el navegador predeterminado de Windows (en una pestaña nueva si el navegador ya estaba abierto; si estaba cerrado, lo abre). La primera vez puede tardar unos segundos. Si el portal ya estaba abierto, el doble clic solo abre otra pestaña.

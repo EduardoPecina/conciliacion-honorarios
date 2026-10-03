@@ -1,6 +1,7 @@
 """Pruebas del instalador (instalador/instalar.py) con un Escritorio falso: sin pip ni accesos directos."""
 
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -64,6 +65,51 @@ class TestInstalador(unittest.TestCase):
             self.assertEqual(instalar.instalar(sin_librerias=True, sin_accesos=True), 1)
         self.assertIn("Ciérralo", avisar.call_args.args[0])
         self.assertFalse(self.raiz.exists())
+
+
+class TestVersionesFijas(unittest.TestCase):
+    """requirements-lock.txt: versiones exactas con las que el programa está probado. Si esta prueba falla, el entorno
+    de pruebas tiene otras versiones: o se instalan las del lock, o se actualiza el lock a propósito (README)."""
+
+    RAIZ = Path(__file__).resolve().parent.parent
+    SOLO_WINDOWS = {"pywin32", "colorama", "tzdata"}
+
+    def lock(self):
+        lineas = (self.RAIZ / "requirements-lock.txt").read_text(encoding="utf-8").splitlines()
+        return dict(l.split("==") for l in lineas if l.strip() and not l.startswith("#"))
+
+    def test_todo_lo_que_se_pide_esta_fijado(self):
+        lock = self.lock()
+        for archivo in ("requirements.txt", "requirements-portal.txt"):
+            for linea in (self.RAIZ / archivo).read_text(encoding="utf-8").splitlines():
+                nombre = re.split(r"[<>=;# ]", linea.strip(), maxsplit=1)[0].lower()
+                if nombre and not nombre.startswith("-"):
+                    with self.subTest(archivo=archivo, libreria=nombre):
+                        self.assertIn(nombre, lock)
+
+    def test_las_pruebas_corren_con_las_versiones_fijadas(self):
+        from importlib.metadata import PackageNotFoundError, version
+        for nombre, fijada in self.lock().items():
+            if nombre in self.SOLO_WINDOWS:
+                continue
+            with self.subTest(libreria=nombre):
+                try:
+                    self.assertEqual(version(nombre), fijada)
+                except PackageNotFoundError:
+                    self.skipTest(f"{nombre} no está instalado (pip install -r requirements-portal.txt "
+                                  "-c requirements-lock.txt)")
+
+    def test_el_instalador_usa_el_lock_y_python_313(self):
+        self.assertEqual(instalar.PYTHON_PROBADO, (3, 13))
+        texto = (self.RAIZ / "INSTALAR.bat").read_text(encoding="ascii")
+        self.assertIn("py -3.13", texto)
+        self.assertIn("Python313", texto)
+        with mock.patch("subprocess.run", return_value=mock.Mock(returncode=0)) as pip:
+            self.assertTrue(instalar.instalar_librerias())
+        comando = pip.call_args.args[0]
+        self.assertIn("-c", comando)
+        self.assertTrue(comando[comando.index("-c") + 1].endswith("requirements-lock.txt"))
+        self.assertIn("--only-binary=:all:", comando)
 
 
 if __name__ == "__main__":

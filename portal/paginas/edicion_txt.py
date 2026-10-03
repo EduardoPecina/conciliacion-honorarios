@@ -251,7 +251,7 @@ ss.etxt_vista = vista["Línea"].tolist()
 if editar:
     st.data_editor(
         vista, key=f"editor_{e['version']}", on_change=aplicar_ediciones, hide_index=True,
-        use_container_width=True, num_rows="fixed",
+        width="stretch", num_rows="fixed",
         disabled=[c for c in vista.columns if c not in txt_sap.EDITABLES],
         column_config={c: st.column_config.TextColumn(c) for c in txt_sap.COLUMNAS})
     st.caption("Las celdas grises no se editan: Fecha, X, 1 y PM son campos fijos de SAP y el Folio se cambia con "
@@ -260,7 +260,7 @@ else:
     def colorear(fila):
         n = fila["Línea"]
         return [celdas.get((n, c)) or (AMARILLO if (n, c) in editadas else "") for c in fila.index]
-    st.dataframe(vista.style.apply(colorear, axis=1), hide_index=True, use_container_width=True)
+    st.dataframe(vista.style.apply(colorear, axis=1), hide_index=True, width="stretch")
     st.caption("🟥 problema en esa celda · 🟨 celda editada. Activa **Editar** para corregir.")
 
 pendientes = {n: s for n, s in sugerencias.items() if n in set(ss.etxt_vista)}
@@ -284,13 +284,13 @@ else:
     nombre = (f"TXT_SAP_{NOMBRES_MES[conciliacion.mes - 1]}_{conciliacion.anio}.txt" if conciliacion
               else nombre_txt.rsplit(".", 1)[0] + "_corregido.txt")
     st.download_button("Descargar TXT", txt_sap.escribir(txt, e["lineas"]), file_name=nombre, mime="text/plain",
-                       type="primary", use_container_width=True, on_click=registrar_descarga)
+                       type="primary", width="stretch", on_click=registrar_descarga)
     st.caption("Mismo formato que el TXT original: 11 columnas separadas por tabulador, sin encabezados. "
                + ("Al descargar se guarda una copia y la bitácora de cambios en la carpeta del mes."
                   if salida else "Sin conciliación no se guarda copia ni bitácora: procesa el mes para tenerlas."))
 
 if e["bitacora"]:
     with st.expander(f"Bitácora de cambios ({len(e['bitacora'])})"):
-        st.dataframe(pd.DataFrame(e["bitacora"]), hide_index=True, use_container_width=True)
+        st.dataframe(pd.DataFrame(e["bitacora"]), hide_index=True, width="stretch")
         if st.checkbox("Quiero deshacer todos mis cambios y volver al TXT original"):
             st.button("Deshacer todos los cambios", on_click=deshacer_todo)

@@ -19,6 +19,7 @@ Honorarios_prueba/
 # Excepciones: archivos del propio repositorio
 !requirements.txt
 !requirements-portal.txt
+!requirements-lock.txt
 
 # ============================================================
 # Python

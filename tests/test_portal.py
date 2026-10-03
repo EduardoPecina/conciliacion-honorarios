@@ -325,6 +325,20 @@ def socket_que_no_contesta():
     return mudo
 
 
+class TestJavaScriptDelPortal(unittest.TestCase):
+    """st.html limpia el HTML con DOMPurify y BORRA en silencio un <script> cuyo texto contenga etiquetas ("<div",
+    "</p"...). Si alguien edita estos scripts y mete una etiqueta literal, el aviso dejaría de funcionar sin error."""
+
+    def test_los_scripts_no_traen_etiquetas_literales(self):
+        import re
+        from portal.estilo import aviso_al_salir, pagina_portal_cerrado
+        for nombre, html in (("aviso activo", aviso_al_salir(True)), ("aviso apagado", aviso_al_salir(False)),
+                             ("portal cerrado", pagina_portal_cerrado())):
+            with self.subTest(nombre):
+                self.assertTrue(html.startswith("<script>") and html.endswith("</script>"))
+                self.assertEqual(re.findall(r"<[/\w]", html[len("<script>"):-len("</script>")]), [])
+
+
 class TestCerrarPortal(unittest.TestCase):
     """'Cerrar el portal' detiene solo los procesos de ESTE portal, nunca otro Python (p. ej. el de VS Code)."""
 

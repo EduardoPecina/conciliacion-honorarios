@@ -29,4 +29,4 @@ buscar = st.text_input("Buscar UUID o IDProveedor").strip().upper()
 vista = historial if periodo == "Todos" else historial[historial["Periodo"] == periodo]
 if buscar:
     vista = vista[(vista["UUID"].str.upper() + " " + vista["IDProveedor"]).str.contains(buscar, regex=False)]
-st.dataframe(vista, hide_index=True, use_container_width=True)
+st.dataframe(vista, hide_index=True, width="stretch")

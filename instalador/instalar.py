@@ -94,10 +94,15 @@ def portal_abierto():
 
 
 # ------------------------------------------------------------------ Pasos
+PYTHON_PROBADO = (3, 13)                                  # el mismo que instala INSTALAR.bat
+
+
 def instalar_librerias():
-    """pip install de requirements-portal.txt (si ya están, solo lo confirma). Reintenta por la red corporativa."""
-    print("Revisando librerías (pandas, openpyxl, streamlit, pywin32)...")
+    """pip install de requirements-portal.txt con las versiones EXACTAS de requirements-lock.txt (si ya están, solo
+    lo confirma). Solo instaladores precompilados: nunca intenta compilar. Reintenta por la red corporativa."""
+    print("Revisando librerías (pandas, openpyxl, streamlit, pywin32) en las versiones probadas...")
     comando = [sys.executable, "-m", "pip", "install", "-r", str(ORIGEN / "requirements-portal.txt"),
+               "-c", str(ORIGEN / "requirements-lock.txt"), "--only-binary=:all:",
                "--disable-pip-version-check", "--retries", "10", "--timeout", "60"]
     for intento in (1, 2):
         if subprocess.run(comando).returncode == 0:
@@ -183,6 +188,12 @@ def instalar(sin_librerias=False, sin_accesos=False):
     programa = raiz / "_Programa"
     print(f"Instalando en: {raiz}")
 
+    if sys.version_info[:2] != PYTHON_PROBADO and not sin_librerias:
+        version = ".".join(map(str, PYTHON_PROBADO))
+        avisar(f"Este instalador debe correr con Python {version} (se está usando "
+               f"{sys.version_info.major}.{sys.version_info.minor}).\n\nUsa INSTALAR.bat: busca Python {version} y, "
+               "si no está, lo instala solo para tu usuario.", error=True)
+        return 1
     if portal_abierto():
         avisar("El Portal de Honorarios está abierto.\n\nCiérralo (botón \"Cerrar el portal\") y vuelve a "
                "correr INSTALAR.bat.", error=True)
