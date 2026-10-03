@@ -150,6 +150,7 @@ Por ahora el portal solo acepta conexiones desde la misma computadora (`address 
 | Página | Qué hace |
 |---|---|
 | Conciliador Automático | Subir archivos → Procesar → resumen → Descargar Excel → Confirmar |
+| Edición TXT | Revisar y corregir el TXT, formatear folios únicos y descargar el TXT para SAP |
 
 Las páginas de Catálogo de Proveedores e Historial de UUID (`portal/paginas/catalogo.py` e `historial.py`) ya no se muestran en el menú porque Contabilidad no las usa. El catálogo y el historial se siguen usando igual en cada conciliación.
 
@@ -161,6 +162,33 @@ Las páginas de Catálogo de Proveedores e Historial de UUID (`portal/paginas/ca
 - **Logo:** guarda el logo de la empresa como `portal/recursos/logo.png` (ver `portal/recursos/LEEME.md`); aparece arriba del título y del menú.
 
 El portal corre en la computadora de cada usuario y usa **su** sesión de SAP GUI, igual que el `.bat`: antes de dar clic en **Procesar**, abre SAP e inicia sesión. Sin SAP (o sin respuesta del SAT) el botón "Confirmar" queda bloqueado.
+
+### Edición TXT
+
+Después de procesar el mes en Conciliador Automático, **Edición TXT** muestra el TXT como tabla, una fila por línea, con columnas de apoyo que **no van en el TXT descargado**: Línea, Estatus (el del cruce), Médico (del catálogo), Problemas del TXT, Sugerencia y Motivo del estatus.
+
+| Columna | ¿Se edita? |
+|---|---|
+| Fecha, X, 1, PM | No: campos fijos que pide SAP |
+| Folio | Solo con **"Formatear folios"** |
+| IDProveedor, Monto, Tax, Centro de Costo, Cuenta Contable, Referencia | Sí, con el interruptor **Editar** |
+
+- **Al editar, todo se recalcula solo:** el médico cambia con el ID y el estatus se vuelve a cruzar con las mismas reglas, usando lo ya consultado al SAT y a SAP (segundos). Si un ID nuevo no se había consultado en SAP, aparece un botón para consultar solo esos IDs.
+- **Problemas del TXT, por celda** (en rojo): fecha o importe inválidos, columnas de más o de menos, código de impuesto que no es E0/F2, ID fuera del catálogo, folio repetido para el mismo proveedor o ya usado en otro mes. Los que SAP rechazaría (fecha, importe, columnas, caracteres) **bloquean la descarga**. Las celdas editadas se ven en amarillo.
+- **Sugerencia de ID:** si una línea no encontró factura y hay una factura sin línea por el mismo importe, de otro proveedor del catálogo, el portal sugiere el ID correcto ("¿El ID correcto es 100245? La factura … de DR. PÉREZ es por $12,500.00…") con un botón **Aplicar**. Evita depositarle a quien no es.
+- **Bitácora:** cada cambio queda registrado (línea, columna, valor anterior, valor nuevo, motivo, usuario de Windows, fecha). Si se cierra el portal a media edición, los cambios se recuperan al volver (borrador `EdicionTXT_AAAA-MM.json` en la carpeta del mes).
+- **Descargar TXT:** mismo formato que el TXT original: 11 columnas separadas por tabulador, **sin encabezados**, misma codificación y mismos saltos de línea. Lo que no se editó sale idéntico, carácter por carácter. Al descargar se guardan en `Reportes\<Año>\<MM Mes>\` una copia (`TXT_SAP_AAAA-MM_<fecha>.txt`) y la bitácora (`BitacoraTXT_AAAA-MM.csv`).
+- Sin procesar el mes, Edición TXT permite subir un TXT para revisar y corregir solo su formato (sin estatus ni folios).
+
+#### Folios únicos ("Formatear folios")
+
+SAP rechaza el TXT si un proveedor repite un folio que ya usó, aunque haya sido en otro mes. El folio que pone el portal **no es aleatorio**: es una huella (SHA-256) del UUID de la factura con la que cruzó la línea, escrita con 32 símbolos que no se confunden (sin 0/O ni 1/I), de 10 caracteres (`LONGITUD_FOLIO` en `honorarios/config.py`).
+
+- Misma factura → mismo folio siempre (reprocesar el mes no inventa folios, y pagar dos veces la misma factura también lo rechazaría SAP). Facturas distintas → folios distintos, en cualquier computadora.
+- Pago quebrado (varias líneas, una factura): cada línea agrega su número de parte, así no chocan entre sí.
+- Línea sin factura: código aleatorio criptográfico; si se vuelve a formatear, conserva el que ya tenía.
+- 32^10 ≈ 1.1 × 10^15 combinaciones. Con 300 folios al mes por 20 años, la probabilidad de que dos facturas del **mismo proveedor** coincidan es del orden de 1 en 200 mil millones. Además, antes de aceptar un folio se comprueba contra los del archivo y contra `_Configuracion\HistorialFolios.csv` (se llena al descargar); si chocara, se recalcula.
+- Si SAP aceptara menos de 10 caracteres, se cambia `LONGITUD_FOLIO`.
 
 ### Arquitectura: una regla
 

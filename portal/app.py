@@ -30,6 +30,7 @@ paginas = Path(__file__).parent / "paginas"
 # sigue usando el catálogo y el historial igual que antes.
 navegacion = st.navigation([
     st.Page(paginas / "conciliar.py", title="Conciliador Automático", icon="✅", default=True),
+    st.Page(paginas / "edicion_txt.py", title="Edición TXT", icon="✏️"),
 ])
 
 

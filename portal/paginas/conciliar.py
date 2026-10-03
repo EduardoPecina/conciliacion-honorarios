@@ -101,6 +101,8 @@ if procesar:
                         hechas / total, text=f"Consulta a SAP: {hechas}/{total} (proveedor {id_prov})"),
                     hoy=hoy)
             st.session_state["conciliacion"] = conciliacion
+            st.session_state["txt_original"] = (txt.name, txt.getvalue())      # para Edición TXT
+            st.session_state["salida"] = salida
             st.session_state["excel"] = Path(conciliacion.destino).read_bytes()
             estado.update(label="Listo", state="complete", expanded=False)
         except ErrorUsuario as e:
@@ -113,6 +115,13 @@ if procesar:
     with aviso:                                            # terminó (bien o con error): ya no se pregunta al salir
         componentes.html(aviso_al_salir(False), height=0)
     nota.empty()
+    if "conciliacion" in st.session_state:
+        st.rerun()                                         # carga limpia: muestra el resultado y apaga el aviso
+
+if not procesar:
+    # Fuera del proceso nunca se pregunta al salir. Se reafirma en cada carga: el aviso vive en la página principal
+    # (window.parent) y el iframe que lo apaga al terminar no siempre alcanza a ejecutarse.
+    componentes.html(aviso_al_salir(False), height=0)
 
 # ------------------------------------------------------------------ 3. Resultado
 conciliacion = st.session_state.get("conciliacion")
@@ -123,6 +132,9 @@ periodo = f"{NOMBRES_MES[conciliacion.mes - 1]} {conciliacion.anio}"
 st.header(f"Resultado · {periodo}")
 for aviso in conciliacion.avisos:
     st.warning(aviso)
+if conciliacion.editada:
+    st.info("Los números de abajo ya incluyen los cambios hechos en **Edición TXT**. El Excel que se descarga aquí "
+            "es el de la conciliación original; los cambios quedan en la bitácora de Edición TXT.")
 
 detalle = pd.DataFrame(conciliacion.resultado)
 por_estatus = detalle.groupby("Estatus")["Importe"].agg(["count", "sum"])

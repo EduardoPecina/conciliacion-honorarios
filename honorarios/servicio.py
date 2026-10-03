@@ -4,7 +4,7 @@ Aquí no hay reglas de negocio (esas viven en reglas.py y cruce.py): solo se enc
 leer -> consultar SAT -> consultar SAP -> cruzar -> generar Excel, y se avisa el avance con funciones que
 cada interfaz decide cómo mostrar (print en la consola, mensajes en el portal)."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import pandas as pd
 
@@ -32,6 +32,10 @@ class Conciliacion:
     historial_legible: bool         # False: el historial no se pudo leer y no se debe registrar nada
     avisos: list = field(default_factory=list)
     sin_consultar: list = field(default_factory=list)   # "SAP" / "SAT" si no hubo conexión en esta corrida
+    # Lo leído y consultado en esta corrida (catálogo, líneas, facturas, SAP, historial): Edición TXT vuelve a
+    # cruzar con esto al editar, sin repetir las consultas al SAT ni a SAP.
+    entradas: dict = field(default_factory=dict, repr=False)
+    editada: bool = False           # True: el resultado ya incluye cambios hechos en Edición TXT
 
     @property
     def se_puede_registrar(self):
@@ -132,8 +136,39 @@ def conciliar_periodo(rutas, anio, mes, avisar=print, progreso_sat=progreso_en_c
     sin_consultar = [nombre for nombre, falta in (
         ("SAP", sap is None),
         ("SAT", bool(estados_sat) and all(c.get("SinConexion") for c in estados_sat.values()))) if falta]
+    entradas = {"catalogo": catalogo, "lineas": lineas, "facturas": facturas, "sap": sap, "historial": historial}
     return Conciliacion(anio, mes, resultado, sobrantes, errores_xml, estados, estados_sat,
-                        destino, resumen, historial is not None, avisos, sin_consultar)
+                        destino, resumen, historial is not None, avisos, sin_consultar, entradas)
+
+
+def revalidar(conciliacion, lineas):
+    """Vuelve a cruzar con las líneas editadas, usando lo ya consultado al SAT y a SAP (tarda segundos).
+    Las mismas reglas que la conciliación: nada se salta."""
+    e = conciliacion.entradas
+    resultado, sobrantes = conciliar(lineas, e["catalogo"], e["facturas"], conciliacion.anio, conciliacion.mes,
+                                     e["sap"], e["historial"], conciliacion.estados_sat)
+    return replace(conciliacion, resultado=resultado, sobrantes=sobrantes, editada=True,
+                   entradas={**e, "lineas": lineas})
+
+
+def ids_sin_consultar_en_sap(conciliacion):
+    """IDs del TXT (editado) que están en el catálogo pero no se consultaron en SAP (p. ej. un ID corregido)."""
+    e = conciliacion.entradas
+    en_catalogo = set(e["catalogo"]["IDProveedor"])
+    return sorted({l["IDProveedor"] for l in e["lineas"] if l["IDProveedor"] in en_catalogo} - set(e["sap"] or {}))
+
+
+def consultar_sap_faltantes(conciliacion, carpeta, progreso=progreso_sap_en_consola, avisar=print):
+    """Consulta en SAP solo los IDs que faltan (reusa lo ya consultado este mes) y vuelve a cruzar."""
+    e = conciliacion.entradas
+    ids = sorted(set(e["sap"] or {}) | set(ids_sin_consultar_en_sap(conciliacion)))
+    sap, texto = consultar_sap(ids, carpeta, conciliacion.anio, conciliacion.mes, True, progreso=progreso,
+                               avisar=avisar)
+    if sap is None:
+        return conciliacion, texto
+    actualizada = replace(conciliacion, entradas={**e, "sap": {**(e["sap"] or {}), **sap}},
+                          sin_consultar=[x for x in conciliacion.sin_consultar if x != "SAP"])
+    return revalidar(actualizada, e["lineas"]), texto
 
 
 def registrar_historial(conciliacion):
