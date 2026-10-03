@@ -18,8 +18,8 @@ COLUMNAS = ["Fecha", "IDProveedor", "Folio", "Monto", "X", "Tax", "1", "Centro d
 # Lo que Contabilidad puede editar. Fecha, X, 1 y PM son campos fijos que pide SAP; el Folio y la Referencia solo
 # cambian con "Formatear folios" (folios únicos, ver folios.py; la Referencia empieza con el folio).
 EDITABLES = ("IDProveedor", "Monto", "Tax", "Centro de Costo", "Cuenta Contable")
-# Entre el folio y el resto de la Referencia ("A1893      Q18-2026"): se usa solo si la referencia no traía folio.
-SEPARADOR_REFERENCIA = " " * 6
+# Separa el folio del resto de la Referencia al formatear: "A1893      Q18-2026" -> "7KQ2M9XHRT_Q18-2026".
+SEPARADOR_REFERENCIA = "_"
 assert len(COLUMNAS) == len(COLUMNAS_TXT)
 
 
@@ -154,11 +154,11 @@ def sugerencias_de_id(resultado, sobrantes, catalogo_nombres):
 
 
 def referencia_con_folio(referencia, folio_actual, folio_nuevo):
-    """La Referencia empieza con el folio ("A1893      Q18-2026"). Al formatear folios se cambia SOLO esa parte; los
-    espacios y lo demás que escribió quien manda el TXT se quedan igual. Si la referencia no empezaba con el folio,
-    se le antepone el folio nuevo (con el separador de siempre); si estaba vacía, queda solo el folio."""
-    if folio_actual and referencia.startswith(folio_actual):
-        return folio_nuevo + referencia[len(folio_actual):]
-    if not referencia.strip():
-        return folio_nuevo
-    return folio_nuevo + SEPARADOR_REFERENCIA + referencia.lstrip()
+    """La Referencia empieza con el folio ("A1893      Q18-2026"). Al formatear folios queda el folio nuevo y lo demás
+    que escribió quien manda el TXT, unidos con guion bajo y sin espacios: "7KQ2M9XHRT_Q18-2026". Si la referencia
+    no empezaba con el folio, el folio nuevo se le antepone igual; si estaba vacía, queda solo el folio.
+    Formatear otra vez da lo mismo (no se acumulan guiones)."""
+    referencia = referencia.strip()
+    resto = referencia[len(folio_actual):] if folio_actual and referencia.startswith(folio_actual) else referencia
+    partes = resto.replace(SEPARADOR_REFERENCIA, " ").split()
+    return SEPARADOR_REFERENCIA.join([folio_nuevo] + partes)

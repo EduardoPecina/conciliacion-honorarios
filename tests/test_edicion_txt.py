@@ -70,10 +70,11 @@ class TestReferencia(unittest.TestCase):
 
     def test_solo_cambia_la_parte_del_folio(self):
         casos = [
-            ("A1893      Q18-2026", "A1893", "A1893      Q18-2026".replace("A1893", "7KQ2M9XHRT")),
-            ("7      Q18-2026", "7", "7KQ2M9XHRT      Q18-2026"),
-            ("A1805 Q18-2026 extra", "A1805", "7KQ2M9XHRT Q18-2026 extra"),       # otro espaciado: se respeta
-            ("Q18-2026", "A1", "7KQ2M9XHRT      Q18-2026"),                      # no traía folio: se antepone
+            ("A1893      Q18-2026", "A1893", "7KQ2M9XHRT_Q18-2026"),
+            ("7      Q18-2026", "7", "7KQ2M9XHRT_Q18-2026"),
+            ("A1805 Q18-2026 extra", "A1805", "7KQ2M9XHRT_Q18-2026_extra"),       # sin espacios: guion bajo
+            ("Q18-2026", "A1", "7KQ2M9XHRT_Q18-2026"),                           # no traía folio: se antepone
+            ("  A1   Q18-2026  ", "A1", "7KQ2M9XHRT_Q18-2026"),                    # espacios al inicio y al final
             ("", "A1", "7KQ2M9XHRT"),
         ]
         for referencia, folio, esperado in casos:
@@ -83,6 +84,8 @@ class TestReferencia(unittest.TestCase):
     def test_formatear_otra_vez_no_cambia_nada(self):
         una = txt_sap.referencia_con_folio("A1893      Q18-2026", "A1893", "7KQ2M9XHRT")
         self.assertEqual(txt_sap.referencia_con_folio(una, "7KQ2M9XHRT", "7KQ2M9XHRT"), una)
+        self.assertNotIn(" ", una)
+        self.assertEqual(len(una), len("A1893      Q18-2026"), "con folio de 10 queda del mismo largo que antes")
 
     def test_la_referencia_ya_no_se_edita_a_mano_y_tax_si(self):
         self.assertNotIn("Referencia", txt_sap.EDITABLES)
