@@ -17,7 +17,6 @@ if str(RAIZ_REPO) not in sys.path:
     sys.path.insert(0, str(RAIZ_REPO))           # para importar honorarios/ y portal/
 
 from honorarios import __version__  # noqa: E402
-from honorarios.config import SOCIEDAD_SAP  # noqa: E402
 from portal.apagado import cerrar_portal, vigilar_inactividad  # noqa: E402
 from portal.estilo import pagina_portal_cerrado, ruta_logo  # noqa: E402
 
@@ -27,10 +26,10 @@ if ruta_logo():
     st.logo(str(ruta_logo()), size="large")
 
 paginas = Path(__file__).parent / "paginas"
+# Catálogo e Historial de UUID no se muestran (Contabilidad no los usa); sus páginas siguen en paginas/ y el motor
+# sigue usando el catálogo y el historial igual que antes.
 navegacion = st.navigation([
     st.Page(paginas / "conciliar.py", title="Conciliador Automático", icon="✅", default=True),
-    st.Page(paginas / "catalogo.py", title=f"Catálogo de Proveedores {SOCIEDAD_SAP}", icon="📇"),
-    st.Page(paginas / "historial.py", title="Historial de UUID", icon="🗂️"),
 ])
 
 

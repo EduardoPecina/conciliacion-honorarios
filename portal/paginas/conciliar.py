@@ -41,7 +41,15 @@ mes = col_mes.selectbox("Mes", meses, index=len(meses) - 1,
                         format_func=lambda m: NOMBRES_MES[m - 1].capitalize())
 st.caption(f"Hoy es {hoy.day} de {NOMBRES_MES[hoy.month - 1]} de {hoy.year} (fecha de {fuente_fecha}). "
            "Solo se pueden conciliar el mes actual y los anteriores.")
+mes_confirmado = True
+if (anio, mes) != (hoy.year, hoy.month):
+    nombre_periodo = f"{NOMBRES_MES[mes - 1]} {anio}"
+    st.warning(f"**{nombre_periodo.capitalize()} no es el mes vigente** "
+               f"({NOMBRES_MES[hoy.month - 1]} {hoy.year}). La conciliación se hace una vez al mes: revisa que "
+               "sea el mes correcto.")
+    mes_confirmado = st.checkbox(f"Sí, quiero conciliar {nombre_periodo}")
 
+st.info("Recuerda: **el TXT, los XML y el mes elegido deben coincidir** para que el resultado sea correcto.")
 txt = st.file_uploader("1. TXT de pagos", type=["txt"])
 xmls = st.file_uploader("2. Facturas XML (arrastra todos los archivos a la vez, o un .zip)",
                         type=["xml", "zip"], accept_multiple_files=True)
@@ -65,7 +73,7 @@ if fecha_sap:
     reusar_sap = st.checkbox(f"Reusar lo consultado a SAP el {dia} a las {hora} (más rápido)", value=False,
                              help=AYUDA_REUSAR_SAP)
 
-procesar = st.button("Procesar", type="primary", disabled=not (txt and xmls), use_container_width=True)
+procesar = st.button("Procesar", type="primary", disabled=not (txt and xmls and mes_confirmado), use_container_width=True)
 
 # ------------------------------------------------------------------ 2. Proceso
 if procesar:
@@ -168,4 +176,5 @@ if conciliacion.sin_consultar:
     st.warning(f"No se puede confirmar: en esta corrida no se pudo consultar {' ni '.join(conciliacion.sin_consultar)}. "
                "Vuelve a procesar con SAP abierto y conexión a internet.")
 if st.button("Confirmar y registrar en el historial", disabled=not conciliacion.se_puede_registrar):
-    st.success(registrar_historial(conciliacion))
+    mensaje = registrar_historial(conciliacion)
+    (st.warning if "no se actualizó" in mensaje.lower() else st.success)(mensaje)

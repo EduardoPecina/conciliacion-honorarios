@@ -150,10 +150,13 @@ Por ahora el portal solo acepta conexiones desde la misma computadora (`address 
 | Página | Qué hace |
 |---|---|
 | Conciliador Automático | Subir archivos → Procesar → resumen → Descargar Excel → Confirmar |
-| Catálogo de Proveedores TM26 | Consulta y búsqueda (por ahora se edita en el Excel de `_Configuracion`) |
-| Historial de UUID | UUID ya conciliados, por periodo |
 
-- **Periodo:** solo se ofrecen el mes actual y los anteriores (y los 12 meses del año anterior, para conciliar diciembre en enero). Un periodo que todavía no llega no se puede conciliar, ni en el portal ni en el `.bat`. La fecha de "hoy" se toma de internet (encabezado `Date` del servicio del SAT, al que la red ya tiene acceso) para no depender del reloj de la PC; sin conexión se usa el reloj de la PC y el portal lo indica.
+Las páginas de Catálogo de Proveedores e Historial de UUID (`portal/paginas/catalogo.py` e `historial.py`) ya no se muestran en el menú porque Contabilidad no las usa. El catálogo y el historial se siguen usando igual en cada conciliación.
+
+- **Periodo:** solo se ofrecen el mes actual y los anteriores (y los 12 meses del año anterior, para conciliar diciembre en enero). Un periodo que todavía no llega no se puede conciliar, ni en el portal ni en el `.bat`. La fecha de "hoy" se toma de internet (encabezado `Date` del servicio del SAT, al que la red ya tiene acceso) para no depender del reloj de la PC; sin conexión se usa el reloj de la PC y el portal lo indica. Nada depende de un año fijo: al cambiar de año, las opciones y las carpetas `Reportes\<Año>\<MM Mes>` se ajustan solas (hay una prueba que simula 2027 y 2031).
+- **Mes que no es el vigente:** el portal avisa y pide marcar *"Sí, quiero conciliar &lt;mes&gt;"* antes de habilitar Procesar. Un recordatorio fijo indica que el TXT, los XML y el mes elegido deben coincidir.
+- **Archivos de otro mes:** si la mayoría de las fechas del TXT y de los XML no son del mes elegido, la conciliación se detiene **antes** de consultar al SAT y a SAP con *"Los archivos parecen ser de enero 2026 y elegiste febrero 2026…"* (portal y `.bat`). Sin esto, todas las facturas saldrían "Rechazar" por estar fuera del periodo.
+- **Confirmar no borra un mes ya registrado:** confirmar reemplaza lo que el historial tenía de ese mes. Si la nueva conciliación tiene menos de la mitad de los UUID ya registrados (por ejemplo, archivos equivocados), el historial no se toca y se avisa.
 - **Mientras procesa**, un aviso azul recuerda que cambiar de página o cerrar la pestaña detiene la conciliación. No se bloquea nada (se puede hacer scroll para ver el avance): si alguien da clic en otra página del menú o en "Cerrar el portal", el navegador pregunta si de verdad quiere salir; al cerrar o recargar la pestaña, el navegador muestra su aviso de "¿Salir del sitio?". La decisión es del usuario.
 - **Logo:** guarda el logo de la empresa como `portal/recursos/logo.png` (ver `portal/recursos/LEEME.md`); aparece arriba del título y del menú.
 

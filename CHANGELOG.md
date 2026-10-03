@@ -1,5 +1,23 @@
 # Historial de cambios
 
+## [1.13.0] - 2026-10-03
+
+### Agregado
+- **Aviso de mes no vigente:** si el mes elegido no es el actual, el portal lo avisa y pide confirmar
+  ("Sí, quiero conciliar …") antes de habilitar Procesar. Recordatorio fijo: el TXT, los XML y el mes elegido deben
+  coincidir.
+- **Detección de archivos de otro mes:** si la mayoría de las fechas del TXT y de los XML no son del mes elegido, la
+  conciliación se detiene antes de consultar al SAT y a SAP, y dice de qué mes parecen ser (portal y `.bat`). Antes,
+  todas las facturas salían "Rechazar" por estar fuera del periodo, lo que hacía pensar que había que pedir
+  refacturación.
+- **Candado del historial:** confirmar ya no reemplaza un mes ya registrado con una conciliación que tenga menos de la
+  mitad de sus UUID (se perdía la protección contra doble pago de ese mes).
+- Prueba que simula el cambio de año (2027, 2031): opciones de año y mes dinámicas.
+
+### Cambiado
+- El menú del portal solo muestra **Conciliador Automático**. Catálogo de Proveedores e Historial de UUID se quitan
+  del menú (Contabilidad no los usa); el motor sigue usando el catálogo y el historial igual.
+
 ## [1.12.0] - 2026-10-01
 
 ### Cambiado
