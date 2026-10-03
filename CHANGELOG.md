@@ -1,5 +1,17 @@
 # Historial de cambios
 
+## [1.16.0] - 2026-10-03
+
+### Agregado
+- Edición TXT: **filtros y orden** para la tabla.
+  - Botones rápidos **Pendientes de revisar** (oculta lo Cruzado, ordena por gravedad) y **Para corregir** (problemas en
+    el TXT o posible ID equivocado).
+  - Botón **Filtros y orden** (embudo): estatus en modo Mostrar solo / Ocultar, líneas con problemas / posible ID
+    equivocado / editadas / folio sin formatear, Tax, rango de monto y orden (archivo, gravedad, médico, monto,
+    problemas primero).
+  - Leyenda con los filtros activos ("Mostrando X de N líneas · …") y Quitar filtros. La descarga aclara que el TXT
+    lleva todas las líneas, sin importar los filtros.
+
 ## [1.15.3] - 2026-10-03
 
 ### Cambiado

@@ -325,6 +325,59 @@ def socket_que_no_contesta():
     return mudo
 
 
+class TestFiltrosDeEdicionTxt(unittest.TestCase):
+    """Filtros y orden de la tabla de Edición TXT (solo lo que se ve; el TXT siempre lleva todo)."""
+
+    def tabla(self):
+        import pandas as pd
+        filas = [
+            {"Línea": 1, "Estatus": "Cruzado", "Médico": "ZETA", "Tax": "E0", "Monto": "1000", "IDProveedor": "1",
+             "Folio": "A1", "Referencia": "A1_Q", "Problemas del TXT": "", "Sugerencia": "", "_editada": False,
+             "_sin_folio": True},
+            {"Línea": 2, "Estatus": "Rechazar", "Médico": "ALFA", "Tax": "F2", "Monto": "50,000.00", "IDProveedor": "2",
+             "Folio": "A2", "Referencia": "A2_Q", "Problemas del TXT": "", "Sugerencia": "Posible ID", "_editada": True,
+             "_sin_folio": False},
+            {"Línea": 3, "Estatus": "Cruzado con observaciones", "Médico": "BETA", "Tax": "E0", "Monto": "xx",
+             "IDProveedor": "3", "Folio": "A3", "Referencia": "A3_Q", "Problemas del TXT": "Importe inválido",
+             "Sugerencia": "", "_editada": False, "_sin_folio": True},
+            {"Línea": 4, "Estatus": "Cruzado (pago quebrado)", "Médico": "GAMA", "Tax": "E0", "Monto": "300",
+             "IDProveedor": "4", "Folio": "A4", "Referencia": "A4_Q", "Problemas del TXT": "", "Sugerencia": "",
+             "_editada": False, "_sin_folio": False},
+        ]
+        return pd.DataFrame(filas)
+
+    def lineas(self, **cambios):
+        from portal import filtros
+        vista, activos = filtros.aplicar(self.tabla(), {**filtros.VACIOS, **cambios})
+        return vista["Línea"].tolist(), activos
+
+    def test_sin_filtros_muestra_todo_en_orden_del_archivo(self):
+        self.assertEqual(self.lineas(), ([1, 2, 3, 4], []))
+
+    def test_pendientes_de_revisar_oculta_los_cruzados_y_ordena_por_gravedad(self):
+        from portal import filtros
+        vista, activos = filtros.aplicar(self.tabla(), filtros.PENDIENTES)
+        self.assertEqual(vista["Línea"].tolist(), [2, 3])            # Rechazar antes que Con observaciones
+        self.assertIn("Ocultar", activos[0])
+
+    def test_para_corregir(self):
+        from portal import filtros
+        vista, _ = filtros.aplicar(self.tabla(), filtros.PARA_CORREGIR)
+        self.assertEqual(sorted(vista["Línea"]), [2, 3])             # posible ID equivocado o problema en el TXT
+
+    def test_filtros_y_ordenes(self):
+        self.assertEqual(self.lineas(f_estatus=["Rechazar"])[0], [2])
+        self.assertEqual(self.lineas(f_tax="F2")[0], [2])
+        self.assertEqual(self.lineas(f_min=500.0)[0], [1, 2])         # el monto inválido no pasa
+        self.assertEqual(self.lineas(f_max=500.0)[0], [4])
+        self.assertEqual(self.lineas(f_con=["Editadas"])[0], [2])
+        self.assertEqual(self.lineas(f_buscar="beta")[0], [3])
+        self.assertEqual(self.lineas(f_orden="Médico (A-Z)")[0], [2, 3, 4, 1])
+        self.assertEqual(self.lineas(f_orden="Monto (mayor a menor)")[0], [2, 1, 4, 3])
+        self.assertEqual(self.lineas(f_orden="Problemas primero")[0], [3, 2, 1, 4])
+        self.assertEqual(self.lineas(f_estatus=["Rechazar"], f_buscar="nadie")[0], [])
+
+
 class TestJavaScriptDelPortal(unittest.TestCase):
     """st.html limpia el HTML con DOMPurify y BORRA en silencio un <script> cuyo texto contenga etiquetas ("<div",
     "</p"...). Si alguien edita estos scripts y mete una etiqueta literal, el aviso dejaría de funcionar sin error."""

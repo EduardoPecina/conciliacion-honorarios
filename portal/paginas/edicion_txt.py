@@ -17,6 +17,7 @@ from honorarios.config import ARCHIVO_CATALOGO, CODIGOS_IMPUESTO_TXT, CONFIG
 from honorarios.entradas import NOMBRES_MES, leer_catalogo
 from honorarios.servicio import consultar_sap_faltantes, ids_sin_consultar_en_sap, revalidar
 from honorarios.utilidades import ErrorUsuario, guardar_seguro, importe_txt, normalizar_id
+from portal import filtros
 from portal.trabajo import guardar, ofrecer_continuar
 
 ss = st.session_state
@@ -234,8 +235,10 @@ for n, valores in sorted(e["lineas"].items()):
                   **dict(zip(txt_sap.COLUMNAS, valores)),
                   "Problemas del TXT": " · ".join(por_linea.get(n, [])),
                   "Sugerencia": sugerencias.get(n, ("", ""))[1],
-                  "Motivo del estatus": r.get("MotivoRechazo") or r.get("Observaciones", "")})
-tabla = pd.DataFrame(filas, columns=AUXILIARES + txt_sap.COLUMNAS + NOTAS)
+                  "Motivo del estatus": r.get("MotivoRechazo") or r.get("Observaciones", ""),
+                  "_editada": any(linea == n for linea, _ in editadas),
+                  "_sin_folio": not folios.es_folio_generado(valores[2])})
+tabla = pd.DataFrame(filas, columns=AUXILIARES + txt_sap.COLUMNAS + NOTAS + ["_editada", "_sin_folio"])
 
 c = st.columns(4)
 c[0].metric("Líneas", f"{len(tabla):,}")
@@ -272,19 +275,46 @@ b[1].button("Formatear folios", on_click=formatear_folios, disabled=not concilia
                  "(\"A1893      Q18-2026\" -> \"7KQ2M9XHRT_Q18-2026\"). "
                  + ("" if conciliacion else "Disponible después de procesar el mes en Conciliador Automático."))
 
-f = st.columns([2, 1, 2])
-estatus_elegidos = f[0].multiselect("Estatus", sorted(tabla["Estatus"].unique()), placeholder="Todos")
-solo_problemas = f[1].checkbox("Solo con problemas")
-buscar = f[2].text_input("Buscar (médico, ID, folio, referencia)")
-vista = tabla
-if estatus_elegidos:
-    vista = vista[vista["Estatus"].isin(estatus_elegidos)]
-if solo_problemas:
-    vista = vista[(vista["Problemas del TXT"] != "") | (vista["Sugerencia"] != "")]
-if buscar:
-    texto = buscar.strip().lower()
-    vista = vista[vista[["Médico", "IDProveedor", "Folio", "Referencia"]].apply(
-        lambda fila: any(texto in str(v).lower() for v in fila), axis=1)]
+# Filtros y orden: solo cambian lo que se VE (el TXT descargado siempre lleva todas las líneas)
+for clave, valor in filtros.VACIOS.items():
+    ss.setdefault(clave, list(valor) if isinstance(valor, list) else valor)
+
+
+def poner_filtros(valores):
+    for clave, valor in valores.items():
+        ss[clave] = list(valor) if isinstance(valor, list) else valor
+
+
+vista, activos = filtros.aplicar(tabla, {clave: ss[clave] for clave in filtros.VACIOS})
+f = st.columns([1.3, 1.3, 1.1, 2.3])
+with f[0].popover(f"Filtros y orden{f' ({len(activos)})' if activos else ''}", icon=":material/filter_alt:",
+                  width="stretch"):
+    st.markdown("**Estatus**")
+    st.segmented_control("Modo", filtros.MODOS, key="f_modo", label_visibility="collapsed", required=True)
+    st.multiselect("Estatus", [e for e in filtros.GRAVEDAD if e in set(tabla["Estatus"])], key="f_estatus",
+                   placeholder="Todos", label_visibility="collapsed")
+    st.multiselect("Solo líneas con", list(filtros.CON), key="f_con", placeholder="Cualquiera",
+                   help="Muestra las líneas que tengan al menos una de las opciones elegidas.")
+    st.segmented_control("Tax", filtros.TAX, key="f_tax", required=True)
+    m = st.columns(2)
+    m[0].number_input("Monto desde $", min_value=0.0, step=1000.0, value=None, key="f_min", placeholder="Sin mínimo")
+    m[1].number_input("Monto hasta $", min_value=0.0, step=1000.0, value=None, key="f_max", placeholder="Sin máximo")
+    st.selectbox("Ordenar por", filtros.ORDENES, key="f_orden",
+                 help="También puedes ordenar con clic en el encabezado de cualquier columna.")
+f[1].button("Pendientes de revisar", icon=":material/pending_actions:", width="stretch",
+            on_click=poner_filtros, args=(filtros.PENDIENTES,),
+            help="Oculta las líneas Cruzado y ordena de la más grave a la menos grave.")
+f[2].button("Para corregir", icon=":material/build:", width="stretch", on_click=poner_filtros,
+            args=(filtros.PARA_CORREGIR,), help="Solo líneas con problemas en el TXT o con posible ID equivocado.")
+f[3].text_input("Buscar", key="f_buscar", placeholder="Buscar médico, ID, folio o referencia",
+                label_visibility="collapsed")
+if activos:
+    a = st.columns([6, 1])
+    a[0].caption(f"Mostrando **{len(vista):,} de {len(tabla):,}** líneas · " + " · ".join(activos))
+    a[1].button("Quitar filtros", on_click=poner_filtros, args=(filtros.VACIOS,), type="tertiary")
+else:
+    st.caption(f"Mostrando las {len(tabla):,} líneas · orden: {ss.f_orden.lower()}")
+vista = vista.drop(columns=["_editada", "_sin_folio"])
 ss.etxt_vista = vista["Línea"].tolist()
 
 if editar:
@@ -332,7 +362,8 @@ else:
               else nombre_txt.rsplit(".", 1)[0] + "_corregido.txt")
     st.download_button("Descargar TXT", txt_sap.escribir(txt, e["lineas"]), file_name=nombre, mime="text/plain",
                        type="primary", width="stretch", on_click=registrar_descarga)
-    st.caption("Mismo formato que el TXT original: 11 columnas separadas por tabulador, sin encabezados. "
+    st.caption(f"Lleva **todas las líneas ({len(e['lineas']):,})**, sin importar los filtros de la tabla. "
+               "Mismo formato que el TXT original: 11 columnas separadas por tabulador, sin encabezados. "
                + ("Al descargar se guarda una copia y la bitácora de cambios en la carpeta del mes."
                   if salida else "Sin conciliación no se guarda copia ni bitácora: procesa el mes para tenerlas."))
 
