@@ -30,7 +30,7 @@ class TestInstalador(unittest.TestCase):
     def test_instala_estructura_simple(self):
         self.assertEqual(self.instalar(), 0)
         self.assertEqual(sorted(p.name for p in self.raiz.iterdir()),
-                         ["LEEME.txt", "Reportes", "_Configuracion", "_Programa"])
+                         ["LEEME.txt", "Reportes", "_Configuracion", "_Programa", "instalacion.log"])
         self.assertTrue((self.raiz / "_Programa" / "portal" / "app.py").exists())
         self.assertFalse((self.raiz / "_Programa" / ".git").exists())
         self.assertIn("CatalogoProveedoresTM26.xlsx", (self.raiz / "LEEME.txt").read_text(encoding="utf-8-sig"))
@@ -64,7 +64,66 @@ class TestInstalador(unittest.TestCase):
                 mock.patch.object(instalar, "avisar") as avisar:
             self.assertEqual(instalar.instalar(sin_librerias=True, sin_accesos=True), 1)
         self.assertIn("Ciérralo", avisar.call_args.args[0])
-        self.assertFalse(self.raiz.exists())
+        self.assertFalse((self.raiz / "_Programa").exists())
+        self.assertIn("RESULTADO: NO se completó", (self.raiz / "instalacion.log").read_text(encoding="utf-8"))
+
+    # ---- Bitácora (instalacion.log)
+    def test_la_bitacora_registra_cada_instalacion(self):
+        self.instalar()
+        self.instalar()
+        texto = (self.raiz / "instalacion.log").read_text(encoding="utf-8")
+        self.assertEqual(texto.count("INSTALACIÓN "), 2, "cada instalación se agrega al final")
+        self.assertEqual(texto.count("RESULTADO: terminó bien"), 2)
+        self.assertIn(f"Versión del programa: {instalar.version_del_programa()}", texto)
+        self.assertIn("Python: ", texto)
+        self.assertNotEqual(instalar.version_del_programa(), "desconocida")
+
+    def test_lo_que_se_muestra_en_la_ventana_queda_en_la_bitacora(self):
+        import io
+        consola = io.StringIO()
+        with mock.patch.object(instalar, "portal_abierto", return_value=False), mock.patch("sys.stdout", consola):
+            instalar.instalar(sin_librerias=True, sin_accesos=True)
+            self.assertIs(sys.stdout, consola, "al terminar, la consola vuelve a ser la de antes")
+        texto = (self.raiz / "instalacion.log").read_text(encoding="utf-8")
+        self.assertIn("Instalando en:", consola.getvalue())
+        self.assertIn("Instalando en:", texto)
+        self.assertIn("Instalación terminada", texto)
+
+    def test_incluye_los_pasos_de_instalar_bat(self):
+        bat = Path(self.tmp.name) / "bat.log"
+        bat.write_text("INSTALAR.bat 03/10/2026\nPython 3.13 encontrado: py -3.13\n", encoding="utf-8")
+        with mock.patch.dict(os.environ, {"HONORARIOS_BITACORA_BAT": str(bat)}):
+            self.instalar()
+        texto = (self.raiz / "instalacion.log").read_text(encoding="utf-8")
+        self.assertIn("-- INSTALAR.bat --", texto)
+        self.assertIn("Python 3.13 encontrado: py -3.13", texto)
+
+    def test_un_error_inesperado_queda_registrado(self):
+        with mock.patch.object(instalar, "portal_abierto", return_value=False), mock.patch("builtins.print"), \
+                mock.patch.object(instalar, "crear_estructura", side_effect=RuntimeError("disco lleno")), \
+                mock.patch.object(instalar, "avisar") as avisar:
+            self.assertEqual(instalar.instalar(sin_librerias=True, sin_accesos=True), 1)
+        texto = (self.raiz / "instalacion.log").read_text(encoding="utf-8")
+        self.assertIn("RuntimeError: disco lleno", texto)
+        self.assertIn("RESULTADO: NO se completó", texto)
+        self.assertTrue(avisar.call_args.kwargs.get("error"))
+
+    def test_los_errores_piden_mandar_la_bitacora(self):
+        with mock.patch("builtins.print") as impreso:
+            instalar.avisar("Algo falló.", error=True)
+            instalar.avisar("Todo bien.")
+        self.assertIn("instalacion.log", impreso.call_args_list[0].args[0])
+        self.assertNotIn("instalacion.log", impreso.call_args_list[1].args[0])
+
+    def test_la_bitacora_no_crece_sin_limite(self):
+        self.raiz.mkdir(parents=True)
+        bitacora = self.raiz / "instalacion.log"
+        bitacora.write_text(("\n" + "=" * 78 + "\nINSTALACIÓN vieja\n" + "x" * 1000) * 3000, encoding="utf-8")
+        self.instalar()
+        texto = bitacora.read_text(encoding="utf-8")
+        self.assertLess(len(texto.encode("utf-8")), instalar.TAMANO_MAXIMO)
+        self.assertTrue(texto.startswith("====="), "se corta en el inicio de una instalación")
+        self.assertIn("RESULTADO: terminó bien", texto)
 
 
 class TestRespaldoDeLaActualizacion(unittest.TestCase):
@@ -157,12 +216,21 @@ class TestVersionesFijas(unittest.TestCase):
         texto = (self.RAIZ / "INSTALAR.bat").read_text(encoding="ascii")
         self.assertIn("py -3.13", texto)
         self.assertIn("Python313", texto)
-        with mock.patch("subprocess.run", return_value=mock.Mock(returncode=0)) as pip:
+        with mock.patch.object(instalar, "ejecutar", return_value=0) as pip, mock.patch("builtins.print"):
             self.assertTrue(instalar.instalar_librerias())
         comando = pip.call_args.args[0]
         self.assertIn("-c", comando)
         self.assertTrue(comando[comando.index("-c") + 1].endswith("requirements-lock.txt"))
         self.assertIn("--only-binary=:all:", comando)
+        self.assertIn("HONORARIOS_BITACORA_BAT", texto, "INSTALAR.bat anota sus pasos para la bitácora")
+
+    def test_ejecutar_muestra_y_registra_la_salida_de_pip(self):
+        import io
+        consola = io.StringIO()
+        with mock.patch("sys.stdout", consola):
+            codigo = instalar.ejecutar([sys.executable, "-c", "print('Successfully installed algo-1.0')"])
+        self.assertEqual(codigo, 0)
+        self.assertIn("Successfully installed algo-1.0", consola.getvalue())
 
 
 if __name__ == "__main__":

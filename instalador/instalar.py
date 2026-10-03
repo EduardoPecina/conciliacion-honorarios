@@ -16,13 +16,18 @@ Uso manual (pruebas):  python instalador/instalar.py [--sin-librerias] [--sin-ac
 """
 
 import argparse
+import getpass
 import os
+import platform
+import re
 import shutil
 import socket
 import stat
 import subprocess
 import sys
 import time
+import traceback
+from datetime import datetime
 from pathlib import Path
 
 ORIGEN = Path(__file__).resolve().parents[1]              # la carpeta del ZIP (o del repositorio)
@@ -30,6 +35,11 @@ NOMBRE_CARPETA = "Honorarios"
 NOMBRE_ACCESO = "Portal de Honorarios"
 CATALOGO = "CatalogoProveedoresTM26.xlsx"
 NO_COPIAR = shutil.ignore_patterns(".git", ".github", "__pycache__", "*.pyc", "portal.log", "*.tmp")
+
+BITACORA = "instalacion.log"                      # en la carpeta Honorarios: todo lo que muestra la ventana negra
+TAMANO_MAXIMO = 2_000_000                         # bytes; si crece más, se conservan las instalaciones más recientes
+PIDE_BITACORA = (f"\n\nSi necesitas ayuda, manda el archivo {BITACORA} (carpeta Honorarios de tu Escritorio) a "
+                 "quien mantiene el programa: ahí quedó el detalle de lo que pasó.")
 
 LEEME = f"""PORTAL DE HONORARIOS
 ====================
@@ -51,11 +61,115 @@ CARPETAS
 ACTUALIZAR
   Cierra el portal y vuelve a correr INSTALAR.bat de la versión nueva. Tu catálogo, tu historial y tus
   reportes no se tocan.
+
+SI ALGO FALLA AL INSTALAR
+  Manda el archivo instalacion.log (está en esta carpeta) a quien mantiene el programa.
 """
+
+
+# ------------------------------------------------------------------ Bitácora
+class _Doble:
+    """Escribe en la ventana negra y en la bitácora a la vez (si una falla, la otra sigue)."""
+
+    def __init__(self, *destinos):
+        self.destinos = destinos
+
+    def write(self, texto):
+        for destino in self.destinos:
+            try:
+                destino.write(texto)
+                destino.flush()
+            except (OSError, ValueError, UnicodeError):
+                pass
+        return len(texto)
+
+    def flush(self):
+        pass
+
+
+class Bitacora:
+    """Copia a Honorarios\\instalacion.log todo lo que el instalador muestra en la ventana negra (incluido lo que
+    imprime pip), con un encabezado por instalación. Si un usuario tiene un problema, manda este archivo y se sabe
+    exactamente qué pasó, aunque haya cerrado la ventana. Cada instalación se agrega al final (historial)."""
+
+    def __init__(self, ruta):
+        self.ruta = ruta
+
+    def __enter__(self):
+        self.ruta.parent.mkdir(parents=True, exist_ok=True)
+        self._recortar()
+        self.archivo = open(self.ruta, "a", encoding="utf-8")
+        self._salida, self._errores = sys.stdout, sys.stderr
+        sys.stdout = _Doble(self._salida, self.archivo)
+        sys.stderr = _Doble(self._errores, self.archivo)
+        return self
+
+    def __exit__(self, *_):
+        sys.stdout, sys.stderr = self._salida, self._errores
+        self.archivo.close()
+
+    def solo_archivo(self, texto):
+        self.archivo.write(texto if texto.endswith("\n") else texto + "\n")
+        self.archivo.flush()
+
+    def _recortar(self):
+        """Si el archivo es muy grande, conserva solo las instalaciones más recientes."""
+        try:
+            if self.ruta.stat().st_size <= TAMANO_MAXIMO:
+                return
+            texto = self.ruta.read_text(encoding="utf-8", errors="replace")[-TAMANO_MAXIMO // 2:]
+            inicio = texto.find("\n=====")
+            self.ruta.write_text(texto[inicio + 1:] if inicio >= 0 else texto, encoding="utf-8")
+        except OSError:
+            pass
+
+
+def version_del_programa():
+    try:
+        texto = (ORIGEN / "honorarios" / "__init__.py").read_text(encoding="utf-8")
+        return re.search(r'__version__ = "([^"]+)"', texto).group(1)
+    except (OSError, AttributeError):
+        return "desconocida"
+
+
+def encabezado(raiz):
+    return "\n".join([
+        "=" * 78,
+        f"INSTALACIÓN {datetime.now():%d/%m/%Y %H:%M:%S}",
+        f"Versión del programa: {version_del_programa()}  (desde {ORIGEN})",
+        f"Python: {sys.version.split()[0]}  ({sys.executable})",
+        f"Windows: {platform.platform()}",
+        f"Usuario: {getpass.getuser()}",
+        f"Carpeta: {raiz}",
+        "=" * 78,
+    ])
+
+
+def pasos_de_instalar_bat():
+    """Lo que INSTALAR.bat anotó antes de llamar a este programa (búsqueda o instalación de Python)."""
+    ruta = os.environ.get("HONORARIOS_BITACORA_BAT")
+    if not ruta or not Path(ruta).exists():
+        return ""
+    try:
+        return Path(ruta).read_text(encoding="utf-8", errors="replace").strip()
+    except OSError:
+        return ""
+
+
+def ejecutar(comando):
+    """Corre un comando mostrando su salida en la ventana y en la bitácora. Devuelve el código de salida."""
+    entorno = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
+    with subprocess.Popen(comando, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                          text=True, encoding="utf-8", errors="replace", env=entorno) as proceso:
+        for linea in proceso.stdout:
+            print(linea, end="")
+        return proceso.wait()
 
 
 # ------------------------------------------------------------------ Windows
 def avisar(mensaje, titulo="Instalador - Portal de Honorarios", error=False):
+    if error:
+        mensaje += PIDE_BITACORA
     print(("ERROR: " if error else "") + mensaje)
     if sys.platform == "win32":
         import ctypes
@@ -105,9 +219,9 @@ def instalar_librerias():
     print("Revisando librerías (pandas, openpyxl, streamlit, pywin32) en las versiones probadas...")
     comando = [sys.executable, "-m", "pip", "install", "-r", str(ORIGEN / "requirements-portal.txt"),
                "-c", str(ORIGEN / "requirements-lock.txt"), "--only-binary=:all:",
-               "--disable-pip-version-check", "--retries", "10", "--timeout", "60"]
+               "--disable-pip-version-check", "--progress-bar", "off", "--retries", "10", "--timeout", "60"]
     for intento in (1, 2):
-        if subprocess.run(comando).returncode == 0:
+        if ejecutar(comando) == 0:
             return True
         print(f"La instalación de librerías falló (intento {intento} de 2). Reintentando...")
     return False
@@ -209,13 +323,36 @@ def crear_accesos(raiz, programa):
         "    acceso.Description = 'Abre el Portal de Honorarios en el navegador'\n"
         "    acceso.Save()\n")
     rutas = [str(raiz.parent / f"{NOMBRE_ACCESO}.lnk"), str(raiz / f"{NOMBRE_ACCESO}.lnk")]
-    resultado = subprocess.run([sys.executable, "-c", codigo, str(destino), argumentos, str(programa),
-                                str(icono or ""), *rutas])
-    return resultado.returncode == 0
+    return ejecutar([sys.executable, "-c", codigo, str(destino), argumentos, str(programa),
+                     str(icono or ""), *rutas]) == 0
 
 
 def instalar(sin_librerias=False, sin_accesos=False):
+    """Instala o actualiza, dejando todo registrado en Honorarios\\instalacion.log."""
     raiz = escritorio() / NOMBRE_CARPETA
+    try:
+        bitacora = Bitacora(raiz / BITACORA).__enter__()
+    except OSError:                                   # sin bitácora se instala igual
+        return _instalar(raiz, sin_librerias, sin_accesos)
+    try:
+        bitacora.solo_archivo("\n" + encabezado(raiz))
+        bat = pasos_de_instalar_bat()
+        if bat:
+            bitacora.solo_archivo("-- INSTALAR.bat --\n" + bat + "\n-- Instalador --")
+        try:
+            resultado = _instalar(raiz, sin_librerias, sin_accesos)
+        except Exception:                             # noqa: BLE001 - cualquier error inesperado queda registrado
+            bitacora.solo_archivo(traceback.format_exc())
+            avisar("La instalación se detuvo por un error inesperado.", error=True)
+            resultado = 1
+        bitacora.solo_archivo(f"RESULTADO: {'terminó bien' if resultado == 0 else 'NO se completó'} "
+                              f"({datetime.now():%d/%m/%Y %H:%M:%S})")
+        return resultado
+    finally:
+        bitacora.__exit__()
+
+
+def _instalar(raiz, sin_librerias, sin_accesos):
     programa = raiz / "_Programa"
     print(f"Instalando en: {raiz}")
 
@@ -231,8 +368,7 @@ def instalar(sin_librerias=False, sin_accesos=False):
         return 1
     if not sin_librerias and not instalar_librerias():
         avisar("No se pudieron instalar las librerías de Python (¿sin internet o la red las bloquea?).\n\n"
-               "Vuelve a intentarlo; si sigue fallando, toma captura de la ventana y compártela con quien "
-               "mantiene el programa.", error=True)
+               "Vuelve a intentarlo en unos minutos.", error=True)
         return 1
     actualizacion = programa.exists()
     try:
