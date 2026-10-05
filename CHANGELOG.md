@@ -1,5 +1,20 @@
 # Historial de cambios
 
+## [1.17.1] - 2026-10-05
+
+### Corregido
+- Edición TXT: **a veces un filtro no se podía quitar o "revivía"**. Dos causas:
+  - La lista de estatus del panel solo ofrecía los estatus presentes en la tabla: "Pendientes de revisar" en un mes
+    sin líneas Cruzado dejaba un filtro activo pero invisible en el panel. Ahora ofrece siempre todos los estatus,
+    con su número de líneas.
+  - Si el panel se había abierto, sus controles conservaban los valores de ese momento y, en la siguiente acción,
+    volvían a poner filtros ya quitados con los botones. Ahora los filtros se guardan aparte y el panel se vuelve a
+    crear con los valores actuales cada vez que un botón los cambia. Además se conservan al cambiar de página.
+
+### Agregado
+- Barra de filtros activos arriba de la tabla: cada filtro es un botón con ✕ para quitar solo ese, y **Quitar todos
+  los filtros** siempre visible.
+
 ## [1.17.0] - 2026-10-03
 
 ### Agregado

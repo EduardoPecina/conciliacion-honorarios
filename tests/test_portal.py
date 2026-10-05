@@ -358,7 +358,32 @@ class TestFiltrosDeEdicionTxt(unittest.TestCase):
         from portal import filtros
         vista, activos = filtros.aplicar(self.tabla(), filtros.PENDIENTES)
         self.assertEqual(vista["Línea"].tolist(), [2, 3])            # Rechazar antes que Con observaciones
-        self.assertIn("Ocultar", activos[0])
+        self.assertIn("Ocultar", activos[0][0])
+        self.assertIn("Orden: Gravedad del estatus", [texto for texto, _ in activos])
+
+    def test_cada_filtro_se_puede_quitar_solo(self):
+        from portal import filtros
+        elegidos = {**filtros.VACIOS, "f_modo": "Ocultar", "f_estatus": ["Cruzado"], "f_tax": "E0", "f_min": 100.0,
+                    "f_buscar": "a", "f_orden": "Médico (A-Z)", "f_con": ["Editadas"], "f_max": 9e9}
+        _, activos = filtros.aplicar(self.tabla(), elegidos)
+        self.assertEqual(len(activos), 7)
+        for texto, quitar in activos:
+            with self.subTest(filtro=texto):
+                _, quedan = filtros.aplicar(self.tabla(), {**elegidos, **quitar})
+                self.assertEqual(len(quedan), 6)
+                self.assertNotIn(texto, [t for t, _ in quedan])
+        _, ninguno = filtros.aplicar(self.tabla(), filtros.VACIOS)
+        self.assertEqual(ninguno, [], "Quitar todos los filtros deja la tabla completa")
+
+    def test_estatus_que_no_hay_en_el_mes_se_puede_quitar(self):
+        """El error que se encontró: "Pendientes de revisar" con un mes sin líneas Cruzado dejaba el filtro activo
+        pero invisible en la lista (solo mostraba los estatus del mes) y no se podía quitar."""
+        from portal import filtros
+        sin_cruzados = self.tabla()[~self.tabla()["Estatus"].isin(filtros.CRUZADOS_LIMPIOS)]
+        _, activos = filtros.aplicar(sin_cruzados, filtros.PENDIENTES)
+        self.assertTrue(activos)
+        self.assertTrue(set(filtros.PENDIENTES["f_estatus"]) <= set(filtros.GRAVEDAD),
+                        "la lista del panel siempre ofrece todos los estatus")
 
     def test_para_corregir(self):
         from portal import filtros

@@ -90,6 +90,7 @@ if ss.get("etxt", {}).get("huella") != huella:          # TXT nuevo: se empieza 
     txt = txt_sap.leer(datos)
     ss.etxt = {"huella": huella, "txt": txt, "lineas": {n: list(v) for n, v in txt.lineas.items()},
                "bitacora": [], "claves": {}, "version": 0}
+    ss.pop("filtros", None)                               # otro TXT: la tabla empieza sin filtros
     if borrador and borrador.exists():
         try:
             guardado = json.loads(borrador.read_text(encoding="utf-8"))
@@ -275,45 +276,70 @@ b[1].button("Formatear folios", on_click=formatear_folios, disabled=not concilia
                  "(\"A1893      Q18-2026\" -> \"7KQ2M9XHRT_Q18-2026\"). "
                  + ("" if conciliacion else "Disponible después de procesar el mes en Conciliador Automático."))
 
-# Filtros y orden: solo cambian lo que se VE (el TXT descargado siempre lleva todas las líneas)
-for clave, valor in filtros.VACIOS.items():
-    ss.setdefault(clave, list(valor) if isinstance(valor, list) else valor)
+# Filtros y orden: solo cambian lo que se VE (el TXT descargado siempre lleva todas las líneas).
+# Los valores viven en ss.filtros, no en los controles: cuando un botón los cambia (Pendientes de revisar, Para
+# corregir, ✕ de un filtro, Quitar todos), sube ss.filtros_ver y los controles del panel se crean de nuevo con otra
+# clave. Si se guardaran en los controles, uno que estuvo abierto y luego cerrado se quedaba con su valor viejo y,
+# en la siguiente acción, lo volvía a poner (un filtro ya quitado "revivía").
+ss.setdefault("filtros", {c: list(v) if isinstance(v, list) else v for c, v in filtros.VACIOS.items()})
+ss.setdefault("filtros_ver", 0)
 
 
 def poner_filtros(valores):
-    for clave, valor in valores.items():
-        ss[clave] = list(valor) if isinstance(valor, list) else valor
+    ss.filtros.update({c: list(v) if isinstance(v, list) else v for c, v in valores.items()})
+    ss.filtros_ver += 1                                  # controles nuevos con los valores nuevos
 
 
-vista, activos = filtros.aplicar(tabla, {clave: ss[clave] for clave in filtros.VACIOS})
+def tomar_filtro(clave):
+    """Un control del panel cambió: su valor pasa a ss.filtros."""
+    valor = ss[f"{clave}_{ss.filtros_ver}"]
+    ss.filtros[clave] = list(valor) if isinstance(valor, list) else valor
+
+
+def control(clave):
+    return {"key": f"{clave}_{ss.filtros_ver}", "on_change": tomar_filtro, "args": (clave,)}
+
+
+fi = ss.filtros
+vista, activos = filtros.aplicar(tabla, fi)
 f = st.columns([1.3, 1.3, 1.1, 2.3])
 with f[0].popover(f"Filtros y orden{f' ({len(activos)})' if activos else ''}", icon=":material/filter_alt:",
                   width="stretch"):
     st.markdown("**Estatus**")
-    st.segmented_control("Modo", filtros.MODOS, key="f_modo", label_visibility="collapsed", required=True)
-    st.multiselect("Estatus", [e for e in filtros.GRAVEDAD if e in set(tabla["Estatus"])], key="f_estatus",
-                   placeholder="Todos", label_visibility="collapsed")
-    st.multiselect("Solo líneas con", list(filtros.CON), key="f_con", placeholder="Cualquiera",
-                   help="Muestra las líneas que tengan al menos una de las opciones elegidas.")
-    st.segmented_control("Tax", filtros.TAX, key="f_tax", required=True)
+    st.segmented_control("Modo", filtros.MODOS, default=fi["f_modo"], required=True, label_visibility="collapsed",
+                         **control("f_modo"))
+    # Siempre TODOS los estatus (con cuántas líneas tiene cada uno): si la lista dependiera de lo que hay en la
+    # tabla, un filtro con un estatus que no aparece ese mes quedaría activo pero invisible y no se podría quitar.
+    conteo = tabla["Estatus"].value_counts()
+    st.multiselect("Estatus", filtros.GRAVEDAD, default=fi["f_estatus"], placeholder="Todos",
+                   label_visibility="collapsed", format_func=lambda e: f"{e} ({int(conteo.get(e, 0))})",
+                   **control("f_estatus"))
+    st.multiselect("Solo líneas con", list(filtros.CON), default=fi["f_con"], placeholder="Cualquiera",
+                   help="Muestra las líneas que tengan al menos una de las opciones elegidas.", **control("f_con"))
+    st.segmented_control("Tax", filtros.TAX, default=fi["f_tax"], required=True, **control("f_tax"))
     m = st.columns(2)
-    m[0].number_input("Monto desde $", min_value=0.0, step=1000.0, value=None, key="f_min", placeholder="Sin mínimo")
-    m[1].number_input("Monto hasta $", min_value=0.0, step=1000.0, value=None, key="f_max", placeholder="Sin máximo")
-    st.selectbox("Ordenar por", filtros.ORDENES, key="f_orden",
-                 help="También puedes ordenar con clic en el encabezado de cualquier columna.")
+    m[0].number_input("Monto desde $", min_value=0.0, step=1000.0, value=fi["f_min"], placeholder="Sin mínimo",
+                      **control("f_min"))
+    m[1].number_input("Monto hasta $", min_value=0.0, step=1000.0, value=fi["f_max"], placeholder="Sin máximo",
+                      **control("f_max"))
+    st.selectbox("Ordenar por", filtros.ORDENES, index=filtros.ORDENES.index(fi["f_orden"]),
+                 help="También puedes ordenar con clic en el encabezado de cualquier columna.", **control("f_orden"))
 f[1].button("Pendientes de revisar", icon=":material/pending_actions:", width="stretch",
             on_click=poner_filtros, args=(filtros.PENDIENTES,),
             help="Oculta las líneas Cruzado y ordena de la más grave a la menos grave.")
 f[2].button("Para corregir", icon=":material/build:", width="stretch", on_click=poner_filtros,
             args=(filtros.PARA_CORREGIR,), help="Solo líneas con problemas en el TXT o con posible ID equivocado.")
-f[3].text_input("Buscar", key="f_buscar", placeholder="Buscar médico, ID, folio o referencia",
-                label_visibility="collapsed")
-if activos:
-    a = st.columns([6, 1])
-    a[0].caption(f"Mostrando **{len(vista):,} de {len(tabla):,}** líneas · " + " · ".join(activos))
-    a[1].button("Quitar filtros", on_click=poner_filtros, args=(filtros.VACIOS,), type="tertiary")
-else:
-    st.caption(f"Mostrando las {len(tabla):,} líneas · orden: {ss.f_orden.lower()}")
+f[3].text_input("Buscar", value=fi["f_buscar"], placeholder="Buscar médico, ID, folio o referencia",
+                label_visibility="collapsed", **control("f_buscar"))
+# Filtros activos, siempre a la vista: cada uno con su ✕ para quitar solo ese, y "Quitar todos los filtros"
+with st.container(horizontal=True, vertical_alignment="center", gap="small"):
+    st.markdown(f"Mostrando **{len(vista):,} de {len(tabla):,}** líneas" if activos
+                else f"Mostrando **todas las líneas ({len(tabla):,})**, sin filtros", width="content")
+    for texto, quitar in activos:
+        st.button(texto, icon=":material/close:", key="quitar_" + "_".join(sorted(quitar)), on_click=poner_filtros,
+                  args=(quitar,), help="Quitar solo este filtro")
+    st.button("Quitar todos los filtros", icon=":material/filter_alt_off:", key="quitar_todos", type="primary",
+              on_click=poner_filtros, args=(filtros.VACIOS,), disabled=not activos)
 vista = vista.drop(columns=["_editada", "_sin_folio"])
 ss.etxt_vista = vista["Línea"].tolist()
 

@@ -32,31 +32,36 @@ def monto(texto):
 
 def aplicar(tabla, f):
     """tabla: DataFrame de Edición TXT (con las columnas auxiliares _editada y _sin_folio).
-    f: valores de los filtros (claves de VACIOS). Devuelve (vista ordenada, [descripción de cada filtro activo])."""
+    f: valores de los filtros (claves de VACIOS).
+    Devuelve (vista ordenada, activos): activos = [(descripción, valores para quitar SOLO ese filtro)], en el
+    orden en que se aplican. El portal muestra cada uno con su botón para quitarlo."""
     vista, activos = tabla, []
     if f["f_estatus"]:
         dentro = vista["Estatus"].isin(f["f_estatus"])
         vista = vista[dentro if f["f_modo"] == "Mostrar solo" else ~dentro]
-        activos.append(f"{'Solo' if f['f_modo'] == 'Mostrar solo' else 'Ocultar'}: {', '.join(f['f_estatus'])}")
+        activos.append((f"{'Solo' if f['f_modo'] == 'Mostrar solo' else 'Ocultar'}: {', '.join(f['f_estatus'])}",
+                        {"f_estatus": [], "f_modo": VACIOS["f_modo"]}))
     if f["f_con"]:
         vista = vista[vista.apply(lambda fila: any(CON[c](fila) for c in f["f_con"]), axis=1)] if len(vista) else vista
-        activos.append("Con: " + " o ".join(f["f_con"]))
+        activos.append(("Con: " + " o ".join(f["f_con"]), {"f_con": []}))
     if f["f_tax"] != "Ambos":
         vista = vista[vista["Tax"].str.strip().str.upper() == f["f_tax"]]
-        activos.append(f"Tax {f['f_tax']}")
+        activos.append((f"Tax {f['f_tax']}", {"f_tax": VACIOS["f_tax"]}))
     montos = pd.to_numeric(vista["Monto"].map(monto), errors="coerce")       # inválidos: NaN (no pasan el filtro)
     if f["f_min"] is not None:
         vista, montos = vista[montos >= f["f_min"]], montos[montos >= f["f_min"]]
-        activos.append(f"Monto ≥ ${f['f_min']:,.2f}")
+        activos.append((f"Monto ≥ ${f['f_min']:,.2f}", {"f_min": None}))
     if f["f_max"] is not None:
         vista = vista[montos <= f["f_max"]]
-        activos.append(f"Monto ≤ ${f['f_max']:,.2f}")
+        activos.append((f"Monto ≤ ${f['f_max']:,.2f}", {"f_max": None}))
     if f["f_buscar"].strip():
         texto = f["f_buscar"].strip().lower()
         columnas = ["Médico", "IDProveedor", "Folio", "Referencia"]
         vista = vista[vista[columnas].apply(lambda fila: any(texto in str(v).lower() for v in fila), axis=1)] \
             if len(vista) else vista
-        activos.append(f"Búsqueda: \"{f['f_buscar'].strip()}\"")
+        activos.append((f"Búsqueda: \"{f['f_buscar'].strip()}\"", {"f_buscar": ""}))
+    if f["f_orden"] != VACIOS["f_orden"]:
+        activos.append((f"Orden: {f['f_orden']}", {"f_orden": VACIOS["f_orden"]}))
     return ordenar(vista, f["f_orden"]), activos
 
 
