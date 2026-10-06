@@ -220,10 +220,42 @@ class TestTrabajoDeVariosDias(unittest.TestCase):
         campos = {f.name: getattr(self.conciliacion, f.name) for f in servicio.fields(self.conciliacion)}
         campos["campo_de_una_version_futura"] = 1
         del campos["consultado"]                          # campo que una versión vieja no tenía
-        danado.write_bytes(pickle.dumps({"programa": "0.0", "guardado": "", "txt": ("a.txt", b""),
-                                         "conciliacion": campos}))
+        danado.write_bytes(servicio.firmar(pickle.dumps({"programa": "0.0", "guardado": "", "txt": ("a.txt", b""),
+                                                         "conciliacion": campos})))
         conciliacion, _, _ = servicio.cargar_trabajo(danado)
         self.assertEqual(conciliacion.consultado, "")
+
+    def test_solo_abre_trabajos_firmados_en_esta_computadora(self):
+        import os
+        import pickle
+        txt = ("Honorarios.txt", b"x")
+        self.assertTrue(servicio.guardar_trabajo(self.conciliacion, self.carpeta, txt))
+        ruta = servicio.ruta_trabajo(self.carpeta, ANIO, MES)
+        firmado = ruta.read_bytes()
+        self.assertTrue(firmado.startswith(servicio.ENCABEZADO_TRABAJO))
+
+        class Trampa:                                     # lo que un atacante metería en un pickle
+            def __reduce__(self):
+                return (os.system, ("echo hackeado",))
+        casos = {
+            "sin firma (pickle suelto)": pickle.dumps(Trampa()),
+            "modificado después de firmar": firmado[:-5] + b"XXXXX",
+            "firma de otra computadora": servicio.ENCABEZADO_TRABAJO + b"\0" * 32 + pickle.dumps(Trampa()),
+        }
+        for nombre, contenido in casos.items():
+            with self.subTest(nombre):
+                ruta.write_bytes(contenido)
+                with mock.patch("os.system") as ejecutado, self.assertRaises(servicio.ErrorUsuario):
+                    servicio.cargar_trabajo(ruta)
+                ejecutado.assert_not_called()             # nunca se llega a leer el contenido
+        ruta.write_bytes(firmado)
+        self.assertEqual(servicio.cargar_trabajo(ruta)[1], txt)
+
+    def test_la_clave_se_crea_una_vez_y_no_cambia(self):
+        clave = servicio.clave_de_esta_computadora()
+        self.assertEqual(len(clave), 32)
+        self.assertEqual(servicio.clave_de_esta_computadora(), clave)
+        self.assertNotIn("OneDrive", str(servicio.ruta_clave()))
 
     def test_actualizar_sat_detecta_una_cancelacion_nueva(self):
         uuid = next(f["UUID"] for f in self.conciliacion.resultado if f["Linea"] == 1)

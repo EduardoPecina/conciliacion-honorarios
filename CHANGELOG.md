@@ -1,5 +1,19 @@
 # Historial de cambios
 
+## [1.18.0] - 2026-10-06
+
+### Seguridad
+- **Librerías con huella SHA-256:** nuevo `requirements-instalar.txt` (generado con `instalador/generar_lock.py` desde
+  `requirements-lock.txt`) con la huella de cada instalador publicado en PyPI. El instalador usa `--require-hashes`:
+  si un archivo descargado no coincide byte por byte, la instalación se detiene. Verificado con los 42 instaladores
+  reales de Windows + Python 3.13, y comprobado que una huella alterada detiene la instalación.
+- **Trabajo guardado firmado (HMAC-SHA256):** "Continuar donde te quedaste" solo abre archivos firmados en esa misma
+  computadora, con una clave de 256 bits guardada fuera de OneDrive (`%LOCALAPPDATA%\Honorarios`). La firma se
+  comprueba antes de leer el contenido: un archivo modificado, sin firma o de otra computadora no se abre. Los
+  trabajos guardados con versiones anteriores (sin firma) no se pueden continuar: hay que volver a procesar el mes.
+- README, "Datos y seguridad": resumen de las conexiones (todo por HTTPS verificado; el portal solo en localhost) y
+  de las protecciones.
+
 ## [1.17.1] - 2026-10-05
 
 ### Corregido

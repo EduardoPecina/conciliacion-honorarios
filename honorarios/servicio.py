@@ -4,7 +4,11 @@ Aquí no hay reglas de negocio (esas viven en reglas.py y cruce.py): solo se enc
 leer -> consultar SAT -> consultar SAP -> cruzar -> generar Excel, y se avisa el avance con funciones que
 cada interfaz decide cómo mostrar (print en la consola, mensajes en el portal)."""
 
+import hashlib
+import hmac
+import os
 import pickle
+import secrets
 from dataclasses import dataclass, field, fields, replace
 from datetime import datetime
 from pathlib import Path
@@ -200,6 +204,56 @@ def ruta_trabajo(carpeta, anio, mes):
     return Path(carpeta) / f"Trabajo_{anio}-{mes:02d}.pkl"
 
 
+# El trabajo guardado va FIRMADO (HMAC-SHA256) con una clave que solo existe en esta computadora, guardada fuera de
+# OneDrive (%LOCALAPPDATA%\\Honorarios). Al continuar, si la firma no coincide (archivo modificado, puesto por otra
+# persona o guardado en otra computadora) NO se abre: el formato pickle podría ejecutar código si alguien lo alterara.
+ENCABEZADO_TRABAJO = b"HONORARIOS-TRABAJO-FIRMADO-1\n"
+
+
+def ruta_clave():
+    if os.environ.get("HONORARIOS_CLAVE"):                     # para pruebas
+        return Path(os.environ["HONORARIOS_CLAVE"])
+    base = os.environ.get("LOCALAPPDATA") or Path.home() / ".config"
+    return Path(base) / "Honorarios" / "clave_trabajo.bin"
+
+
+def clave_de_esta_computadora():
+    """Clave secreta de 256 bits para firmar el trabajo guardado; se crea la primera vez."""
+    ruta = ruta_clave()
+    try:
+        clave = ruta.read_bytes()
+        if len(clave) == 32:
+            return clave
+    except OSError:
+        pass
+    clave = secrets.token_bytes(32)
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    ruta.write_bytes(clave)
+    try:
+        os.chmod(ruta, 0o600)                                   # solo el usuario (en Windows, AppData ya es suyo)
+    except OSError:
+        pass
+    return clave
+
+
+def firmar(cuerpo):
+    return ENCABEZADO_TRABAJO + hmac.new(clave_de_esta_computadora(), cuerpo, hashlib.sha256).digest() + cuerpo
+
+
+def verificar(datos):
+    """-> el cuerpo, solo si la firma es de esta computadora y el archivo no se modificó. ErrorUsuario si no."""
+    if not datos.startswith(ENCABEZADO_TRABAJO):
+        raise ErrorUsuario("El trabajo guardado es de una versión anterior del programa o no lo escribió este "
+                           "programa, y por seguridad no se abre. Vuelve a procesar el mes.")
+    firma = datos[len(ENCABEZADO_TRABAJO):len(ENCABEZADO_TRABAJO) + 32]
+    cuerpo = datos[len(ENCABEZADO_TRABAJO) + 32:]
+    esperada = hmac.new(clave_de_esta_computadora(), cuerpo, hashlib.sha256).digest()
+    if not hmac.compare_digest(firma, esperada):
+        raise ErrorUsuario("El trabajo guardado no se pudo verificar: se guardó en otra computadora o el archivo "
+                           "se modificó. Por seguridad no se abre. Vuelve a procesar el mes.")
+    return cuerpo
+
+
 def guardar_trabajo(conciliacion, carpeta, txt_original):
     """Guarda todo lo del mes (resultado, lo consultado al SAT y a SAP, el TXT original, la bitácora) para poder
     continuar otro día sin volver a procesar. Se guarda en la carpeta del mes; si falla, no detiene nada."""
@@ -208,7 +262,8 @@ def guardar_trabajo(conciliacion, carpeta, txt_original):
     destino = ruta_trabajo(carpeta, conciliacion.anio, conciliacion.mes)
     try:
         destino.parent.mkdir(parents=True, exist_ok=True)
-        guardar_seguro(destino, lambda tmp: tmp.write_bytes(pickle.dumps(datos, protocol=pickle.HIGHEST_PROTOCOL)))
+        firmado = firmar(pickle.dumps(datos, protocol=pickle.HIGHEST_PROTOCOL))
+        guardar_seguro(destino, lambda tmp: tmp.write_bytes(firmado))
     except OSError:
         return False
     return True
@@ -226,11 +281,15 @@ def trabajos_guardados(raiz=REPORTES, limite=3):
 
 
 def cargar_trabajo(ruta):
-    """-> (conciliacion, txt_original, carpeta). Solo lee archivos que escribió este programa (carpeta Reportes).
-    Si el trabajo es de una versión con otros campos, toma los que coinciden (los nuevos quedan con su valor
-    por omisión). ErrorUsuario si no se puede recuperar."""
+    """-> (conciliacion, txt_original, carpeta). Solo abre archivos firmados por este programa en esta computadora
+    (la firma se comprueba ANTES de leer el contenido). Si el trabajo es de una versión con otros campos, toma los
+    que coinciden (los nuevos quedan con su valor por omisión). ErrorUsuario si no se puede recuperar."""
     try:
-        datos = pickle.loads(Path(ruta).read_bytes())
+        cuerpo = verificar(Path(ruta).read_bytes())
+    except OSError:
+        raise ErrorUsuario("No se pudo leer el trabajo guardado. Vuelve a procesar el mes.")
+    try:
+        datos = pickle.loads(cuerpo)
         guardados = datos["conciliacion"]
         conocidos = {f.name for f in fields(Conciliacion)}
         conciliacion = Conciliacion(**{k: v for k, v in guardados.items() if k in conocidos})
