@@ -25,6 +25,7 @@ import socket
 import stat
 import subprocess
 import sys
+import tempfile
 import time
 import traceback
 from datetime import datetime
@@ -253,6 +254,39 @@ def respaldos(destino):
     return sorted(p for p in destino.parent.glob(destino.name + "_anterior*") if p.is_dir())
 
 
+class ProgramaIncompleto(Exception):
+    """La copia del programa no quedó completa: se dejó la versión anterior (o nada, si era la primera vez)."""
+
+
+def archivos_del_programa(carpeta):
+    """Rutas relativas de los archivos que se copian (las mismas reglas que NO_COPIAR)."""
+    archivos = set()
+    for actual, carpetas, nombres in os.walk(carpeta):
+        ignorados = NO_COPIAR(actual, carpetas + nombres)
+        carpetas[:] = [c for c in carpetas if c not in ignorados]
+        base = Path(actual).relative_to(carpeta)
+        archivos.update((base / n).as_posix() for n in nombres if n not in ignorados)
+    return archivos
+
+
+def faltantes(destino, esperados=None):
+    """Archivos del programa que no están en destino (vacío si quedó completo). esperados: los del ZIP."""
+    esperados = archivos_del_programa(ORIGEN) if esperados is None else esperados
+    hay = archivos_del_programa(destino) if destino.is_dir() else set()
+    return sorted(esperados - hay)
+
+
+def corre_desde_el_zip(origen=None):
+    """True si INSTALAR.bat se abrió directo dentro del ZIP (sin "Extraer todo"): Windows lo corre desde una carpeta
+    temporal (...\\Temp\\<algo>_conciliacion-honorarios-main.zip.123\\...) que puede borrar en cualquier momento."""
+    origen = Path(origen or ORIGEN)
+    try:
+        origen.resolve().relative_to(Path(tempfile.gettempdir()).resolve())
+    except ValueError:
+        return False
+    return any(re.search(r"\.zip(\.\d+)?$", parte, re.IGNORECASE) for parte in origen.parts)
+
+
 def copiar_programa(destino):
     """Copia el programa a Honorarios\\_Programa. Al actualizar, la versión anterior se reemplaza completa
     (así no quedan archivos viejos). Si el origen ya es el destino (se corrió desde _Programa), no copia.
@@ -268,12 +302,23 @@ def copiar_programa(destino):
         anterior, n = destino.with_name(f"{destino.name}_anterior_{n}"), n + 1
     if destino.exists():
         destino.rename(anterior)             # si el portal o un archivo está abierto, Windows no deja: PermissionError
+    esperados = archivos_del_programa(ORIGEN)
+    print(f"Copiando el programa ({len(esperados)} archivos) a {destino.name}...")
     try:
         shutil.copytree(ORIGEN, destino, ignore=NO_COPIAR)
+        faltan = faltantes(destino, esperados)
+        if faltan:
+            raise ProgramaIncompleto(f"Faltan {len(faltan)} archivos en {destino.name} después de copiar "
+                                     f"(por ejemplo: {', '.join(faltan[:5])}).")
     except Exception:
+        if destino.exists() and anterior.exists():
+            borrar_carpeta(destino, intentos=3)                 # copia a medias: no se deja en lugar de la buena
         if anterior.exists() and not destino.exists():
             anterior.rename(destino)         # algo falló: se deja la versión anterior como estaba
+            print(f"Se dejó la versión anterior en {destino.name}.")
         raise
+    print(f"Programa copiado y revisado: {len(esperados)} archivos completos.")
+    # El respaldo se borra solo con la versión nueva ya revisada
     if not borrar_carpeta(anterior):
         print(f"OneDrive todavía usa {anterior.name}: se borrará sola la próxima vez que abras el portal.")
 
@@ -364,6 +409,12 @@ def _instalar(raiz, sin_librerias, sin_accesos):
                f"{sys.version_info.major}.{sys.version_info.minor}).\n\nUsa INSTALAR.bat: busca Python {version} y, "
                "si no está, lo instala solo para tu usuario.", error=True)
         return 1
+    if corre_desde_el_zip():
+        avisar("Abriste INSTALAR.bat directo dentro del ZIP, sin descomprimirlo. Así Windows lo corre desde una "
+               "carpeta temporal y la copia del programa puede quedar incompleta.\n\nCierra esta ventana, da clic "
+               "derecho en el ZIP → \"Extraer todo...\" y corre INSTALAR.bat de la carpeta que se crea.",
+               error=True)
+        return 1
     if portal_abierto():
         avisar("El Portal de Honorarios está abierto.\n\nCiérralo (botón \"Cerrar el portal\") y vuelve a "
                "correr INSTALAR.bat.", error=True)
@@ -381,7 +432,20 @@ def _instalar(raiz, sin_librerias, sin_accesos):
                "Excel, una ventana de esa carpeta u OneDrive sincronizando).\n\nCiérralos y vuelve a correr "
                "INSTALAR.bat.", error=True)
         return 1
+    except ProgramaIncompleto as error:
+        avisar(f"La copia del programa no quedó completa: {error}\n\nNo se cambió nada de tu versión anterior. "
+               "Vuelve a correr INSTALAR.bat (con OneDrive sincronizado y sin ventanas de la carpeta _Programa "
+               "abiertas).", error=True)
+        return 1
     accesos = sin_accesos or sys.platform != "win32" or crear_accesos(raiz, programa)
+
+    time.sleep(0 if sin_accesos else 3)     # OneDrive alcanza a tocar la carpeta recién copiada: se revisa de nuevo
+    faltan = faltantes(programa)
+    if faltan:
+        avisar(f"Después de copiar, la carpeta _Programa perdió {len(faltan)} archivos (¿OneDrive sincronizando?)."
+               "\n\nEspera un minuto a que OneDrive termine y vuelve a correr INSTALAR.bat.", error=True)
+        return 1
+    print("Revisión final: _Programa completo.")
 
     falta_catalogo = not (raiz / "_Configuracion" / CATALOGO).exists()
     mensaje = (f"{'Actualización' if actualizacion else 'Instalación'} terminada.\n\n"

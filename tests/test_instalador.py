@@ -52,6 +52,13 @@ class TestInstalador(unittest.TestCase):
         self.assertFalse(viejo.exists(), "al actualizar se reemplaza el programa completo")
         self.assertFalse((self.raiz / "_Programa_anterior").exists())
 
+    def test_dentro_del_zip_no_instala(self):
+        with mock.patch.object(instalar, "corre_desde_el_zip", return_value=True), \
+                mock.patch.object(instalar, "avisar") as aviso:
+            self.assertEqual(self.instalar(), 1)
+        self.assertIn("Extraer todo", aviso.call_args.args[0])
+        self.assertFalse((self.raiz / "_Programa").exists())
+
     def test_actualizar_quita_el_acceso_del_desinstalador_retirado(self):
         self.instalar()
         acceso_viejo = self.raiz / "Desinstalar Portal de Honorarios.lnk"
@@ -157,6 +164,37 @@ class TestRespaldoDeLaActualizacion(unittest.TestCase):
             instalar.copiar_programa(destino)                     # antes: FileExistsError al renombrar
         self.assertTrue((self.raiz / "_Programa_anterior_2").exists())
         self.assertTrue((destino / "portal" / "app.py").exists())
+
+    def test_una_copia_incompleta_deja_la_version_anterior(self):
+        destino = self.programa("_Programa", archivos=("honorarios/__init__.py", "portal/app.py", "VIEJO.txt"))
+        origen = self.programa("zip_nuevo")
+
+        def copia_vacia(_origen, hacia, **_):
+            hacia.mkdir()                                         # lo que se vio en OneDrive: _Programa con 0 elementos
+        with mock.patch.object(instalar, "ORIGEN", origen), mock.patch("shutil.copytree", copia_vacia), \
+                mock.patch("builtins.print"):
+            with self.assertRaises(instalar.ProgramaIncompleto):
+                instalar.copiar_programa(destino)
+        self.assertTrue((destino / "VIEJO.txt").exists(), "se debe quedar la versión anterior completa")
+        self.assertEqual(instalar.respaldos(destino), [])
+
+    def test_la_copia_completa_queda_revisada(self):
+        destino = self.programa("_Programa")
+        origen = self.programa("zip_nuevo", archivos=("honorarios/__init__.py", "portal/app.py", "nuevo.py",
+                                                      "portal/__pycache__/x.pyc"))
+        with mock.patch.object(instalar, "ORIGEN", origen), mock.patch("builtins.print"):
+            instalar.copiar_programa(destino)
+            self.assertEqual(instalar.faltantes(destino), [])
+        self.assertTrue((destino / "nuevo.py").exists())
+        self.assertFalse((destino / "README.md").exists())
+        self.assertFalse((destino / "portal" / "__pycache__").exists())
+
+    def test_detecta_cuando_se_corre_dentro_del_zip(self):
+        temporal = Path(tempfile.gettempdir())
+        zip_abierto = temporal / "d08f8439_conciliacion-honorarios-main.zip.127" / "conciliacion-honorarios-main"
+        self.assertTrue(instalar.corre_desde_el_zip(zip_abierto))
+        self.assertFalse(instalar.corre_desde_el_zip(temporal / "conciliacion-honorarios-main"))
+        self.assertFalse(instalar.corre_desde_el_zip(Path.home() / "Downloads" / "conciliacion-honorarios-main"))
 
     def test_el_portal_borra_los_respaldos_que_quedaron(self):
         sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
