@@ -63,10 +63,11 @@ Honorarios/
 El portal corre en la computadora de cada persona (necesita su sesión de SAP GUI). Para instalarlo:
 
 1. **Quien mantiene el programa** descarga el ZIP de la rama `main` (GitHub → **Code → Download ZIP**) y lo comparte (correo, Teams, carpeta compartida). El repositorio es privado: Contabilidad no necesita cuenta de GitHub.
-2. **El usuario** descomprime el ZIP en cualquier lugar (por ejemplo, Descargas) y da doble clic en **`INSTALAR.bat`**:
+2. **El usuario** descomprime el ZIP (clic derecho → **Extraer todo...**) en cualquier lugar (por ejemplo, Descargas) y da doble clic en el **`INSTALAR.bat`** de la carpeta extraída (si se abre directo dentro del ZIP, el instalador se niega y pide extraerlo):
    - Si no tiene **Python 3.13** (la versión con la que el programa está probado), lo instala **solo para su usuario, sin permisos de administrador** (con `winget` o, si no está, con el instalador oficial de python.org), junto a cualquier otro Python que ya tenga la PC (ese no se toca). Si ya lo tiene, se lo salta.
    - Instala las librerías (pandas, openpyxl, streamlit, pywin32…) **en las versiones exactas probadas, comprobando la huella SHA-256 de cada archivo** (`requirements-instalar.txt`); las que ya estén, se las salta. Ver [Versiones fijas](#versiones-fijas).
    - Crea `Honorarios` en su **Escritorio** (el de OneDrive si Windows lo tiene ahí; la ruta se le pregunta a Windows, no se escribe a mano), con `_Configuracion`, `Reportes`, `_Programa` y `LEEME.txt`.
+   - Copia el programa a `_Programa` y **revisa que quedó completo** (archivo por archivo contra el ZIP). Si algo falta, deja la versión anterior y lo avisa.
    - Crea el acceso directo **"Portal de Honorarios"** (con el logo de Nova) en el Escritorio y en `Honorarios`. Abre el portal sin ventana negra.
 3. **El usuario copia el Excel del catálogo** (`CatalogoProveedoresTM26.xlsx`), que le pasa quien mantiene el programa, a `Honorarios\_Configuracion`. **Ese catálogo lo mantiene cada usuario**: los médicos nuevos se dan de alta en su Excel.
 4. Doble clic en **"Portal de Honorarios"**.
