@@ -1,5 +1,18 @@
 # Historial de cambios
 
+## [1.18.1] - 2026-10-06
+
+### Corregido
+- **Una actualización dejó `_Programa` vacío y el acceso directo sin funcionar**, y aun así el instalador dijo
+  "terminó bien". Ahora el instalador **revisa la copia**: compara archivo por archivo `_Programa` contra el ZIP.
+  - Si falta algo, **regresa la versión anterior** (el respaldo `_Programa_anterior` solo se borra cuando la versión
+    nueva ya está revisada) y lo avisa.
+  - Al final vuelve a revisar unos segundos después (por si OneDrive tocó la carpeta) y, si faltan archivos, pide
+    volver a correr INSTALAR.bat en lugar de decir que terminó bien.
+  - `instalacion.log` registra cuántos archivos se copiaron y el resultado de cada revisión.
+- **INSTALAR.bat abierto directo dentro del ZIP** (sin "Extraer todo"): Windows lo corre desde una carpeta temporal
+  (`...\Temp\...zip.123\...`). Ahora el instalador lo detecta y pide extraer el ZIP primero.
+
 ## [1.18.0] - 2026-10-06
 
 ### Seguridad
