@@ -65,7 +65,7 @@ El portal corre en la computadora de cada persona (necesita su sesión de SAP GU
 1. **Quien mantiene el programa** descarga el ZIP de la rama `main` (GitHub → **Code → Download ZIP**) y lo comparte (correo, Teams, carpeta compartida). El repositorio es privado: Contabilidad no necesita cuenta de GitHub.
 2. **El usuario** descomprime el ZIP en cualquier lugar (por ejemplo, Descargas) y da doble clic en **`INSTALAR.bat`**:
    - Si no tiene **Python 3.13** (la versión con la que el programa está probado), lo instala **solo para su usuario, sin permisos de administrador** (con `winget` o, si no está, con el instalador oficial de python.org), junto a cualquier otro Python que ya tenga la PC (ese no se toca). Si ya lo tiene, se lo salta.
-   - Instala las librerías (pandas, openpyxl, streamlit, pywin32…) **en las versiones exactas probadas** (`requirements-lock.txt`); las que ya estén, se las salta. Ver [Versiones fijas](#versiones-fijas).
+   - Instala las librerías (pandas, openpyxl, streamlit, pywin32…) **en las versiones exactas probadas, comprobando la huella SHA-256 de cada archivo** (`requirements-instalar.txt`); las que ya estén, se las salta. Ver [Versiones fijas](#versiones-fijas).
    - Crea `Honorarios` en su **Escritorio** (el de OneDrive si Windows lo tiene ahí; la ruta se le pregunta a Windows, no se escribe a mano), con `_Configuracion`, `Reportes`, `_Programa` y `LEEME.txt`.
    - Crea el acceso directo **"Portal de Honorarios"** (con el logo de Nova) en el Escritorio y en `Honorarios`. Abre el portal sin ventana negra.
 3. **El usuario copia el Excel del catálogo** (`CatalogoProveedoresTM26.xlsx`), que le pasa quien mantiene el programa, a `Honorarios\_Configuracion`. **Ese catálogo lo mantiene cada usuario**: los médicos nuevos se dan de alta en su Excel.
@@ -93,12 +93,12 @@ El portal corre en la computadora de cada persona (necesita su sesión de SAP GU
 Para que una PC instalada dentro de años funcione igual que una instalada hoy, **nada se instala "en la versión más nueva"**:
 
 - **Python 3.13.** `INSTALAR.bat` busca Python 3.13 y, si no está, lo instala para el usuario (aunque la PC tenga otro Python más nuevo). Los accesos directos y los `.bat` usan ese Python. El instalador se niega a correr con otra versión.
-- **Librerías:** `requirements-lock.txt` fija las versiones **exactas** de todo lo que se instala (40 librerías, incluidas las dependencias de las dependencias). El instalador usa `pip install -r requirements-portal.txt -c requirements-lock.txt --only-binary=:all:`: solo instaladores precompilados de esas versiones, que PyPI conserva para siempre. Todas se verificaron para Windows de 64 bits con Python 3.13.
+- **Librerías:** `requirements-lock.txt` fija las versiones **exactas** de todo lo que se instala (42 librerías, incluidas las dependencias de las dependencias). De ahí se genera `requirements-instalar.txt`, que agrega la **huella SHA-256** de cada instalador publicado en PyPI. El instalador usa `pip install -r requirements-instalar.txt --require-hashes --only-binary=:all:`: solo instaladores precompilados de esas versiones (que PyPI conserva para siempre), y si un archivo descargado no coincide byte por byte con su huella (alterado en el camino o sustituido), la instalación se detiene. Todas se verificaron para Windows de 64 bits con Python 3.13.
 - **Pruebas:** `tests/test_instalador.py` falla si el entorno de pruebas tiene versiones distintas a las fijadas, o si se pide una librería que no está fijada.
 
 **Actualizar versiones (a propósito, nunca solo).** Python 3.13 recibe correcciones de seguridad hasta octubre de 2029; seguir usándolo después no rompe nada, pero conviene planear el cambio:
 1. En un entorno limpio con la versión nueva de Python, instala las librerías nuevas y corre todas las pruebas y el portal con datos reales.
-2. Regenera `requirements-lock.txt` con esas versiones (comprobando que existan para Windows: `pip download --platform win_amd64 --python-version 3.X --only-binary=:all: -r requirements-lock.txt`).
+2. Regenera `requirements-lock.txt` con esas versiones (comprobando que existan para Windows: `pip download --platform win_amd64 --python-version 3.X --only-binary=:all: -r requirements-lock.txt`) y después las huellas: `python instalador/generar_lock.py` (escribe `requirements-instalar.txt`; una prueba falla si quedan desfasados).
 3. Cambia `PYTHON_PROBADO` en `instalador/instalar.py`, la versión en `INSTALAR.bat`, `EJECUTAR_PORTAL.bat` y `EJECUTAR.bat`, y publica la versión como cualquier corrección.
 
 ## Instalación para desarrollo (con git)
@@ -388,7 +388,12 @@ python tests/datos_prueba.py C:\ruta\destino
 - El `.gitignore` bloquea `.xml`, `.txt`, `.xlsx`, `.csv` y demás archivos de datos. **Nunca subas facturas, TXT, catálogos ni reportes reales.**
 - Antes de cada commit revisa `git status`: solo deben aparecer archivos `.py`, `.md`, `.bat`, `.toml`, `LICENSE` o `.txt` de configuración del repo.
 - El portal (`.streamlit/config.toml`) no envía estadísticas de uso a Streamlit. Lo que se sube se guarda en una carpeta temporal que se borra al terminar; el Excel queda en `Honorarios/Reportes/<Año>/<MM Mes>/`.
-- La única conexión a internet es al servicio oficial del SAT (`consultaqr.facturaelectronica.sat.gob.mx`), en cada corrida, y envía únicamente los datos del código QR de cada factura (ver [Estatus en el SAT](#estatus-en-el-sat)); nada del TXT ni del catálogo sale de la computadora. La otra integración es la consulta obligatoria, de solo lectura, a SAP GUI con la sesión de quien concilia.
+- **Todo lo que sale a internet va por HTTPS con el certificado verificado** (Python lo comprueba en cada conexión): el SAT, PyPI y python.org. El portal usa `http://localhost`, que nunca sale de la computadora (`address = "localhost"`: nadie de la red puede abrirlo) y tiene activa la protección XSRF de Streamlit.
+- Los XML se leen con un lector protegido contra XML malicioso (sin entidades externas, protección contra "billion laughs"); un ZIP subido no puede escribir fuera de su carpeta.
+- **Trabajo guardado firmado:** `Trabajo_AAAA-MM.pkl` lleva una firma HMAC-SHA256 con una clave de 256 bits que solo existe en esa computadora (`%LOCALAPPDATA%\Honorarios\clave_trabajo.bin`, fuera de OneDrive). Antes de leerlo se comprueba la firma; si el archivo se modificó, lo puso otra persona o viene de otra computadora, no se abre (el formato podría ejecutar código si alguien lo alterara).
+- **Librerías con huella:** el instalador rechaza cualquier archivo que no coincida con su huella SHA-256 (ver [Versiones fijas](#versiones-fijas)).
+- No se guardan contraseñas ni credenciales en ningún lado; SAP se usa en solo lectura con la sesión de quien concilia.
+- La única conexión a internet durante la conciliación es al servicio oficial del SAT (`consultaqr.facturaelectronica.sat.gob.mx`), en cada corrida, y envía únicamente los datos del código QR de cada factura (ver [Estatus en el SAT](#estatus-en-el-sat)); nada del TXT ni del catálogo sale de la computadora. La otra integración es la consulta obligatoria, de solo lectura, a SAP GUI con la sesión de quien concilia.
 
 ## Licencia
 

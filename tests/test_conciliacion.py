@@ -16,6 +16,7 @@ from pathlib import Path
 # La carpeta de datos de prueba se define ANTES de importar el programa (config lee la ruta al cargar).
 _TMP = tempfile.TemporaryDirectory()
 os.environ["HONORARIOS_RAIZ"] = str(Path(_TMP.name) / "Honorarios")
+os.environ["HONORARIOS_CLAVE"] = str(Path(_TMP.name) / "clave_trabajo.bin")   # la clave de firma, fuera del perfil
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))

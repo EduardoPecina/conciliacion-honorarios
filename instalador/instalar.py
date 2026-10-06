@@ -214,11 +214,13 @@ PYTHON_PROBADO = (3, 13)                                  # el mismo que instala
 
 
 def instalar_librerias():
-    """pip install de requirements-portal.txt con las versiones EXACTAS de requirements-lock.txt (si ya están, solo
-    lo confirma). Solo instaladores precompilados: nunca intenta compilar. Reintenta por la red corporativa."""
+    """pip install de requirements-instalar.txt: las versiones EXACTAS de requirements-lock.txt, cada una con la
+    huella SHA-256 de sus instaladores (--require-hashes: si un archivo descargado no coincide byte por byte, se
+    detiene). Si ya están, solo lo confirma. Solo instaladores precompilados: nunca intenta compilar. Reintenta por
+    la red corporativa."""
     print("Revisando librerías (pandas, openpyxl, streamlit, pywin32) en las versiones probadas...")
-    comando = [sys.executable, "-m", "pip", "install", "-r", str(ORIGEN / "requirements-portal.txt"),
-               "-c", str(ORIGEN / "requirements-lock.txt"), "--only-binary=:all:",
+    comando = [sys.executable, "-m", "pip", "install", "-r", str(ORIGEN / "requirements-instalar.txt"),
+               "--require-hashes", "--only-binary=:all:",
                "--disable-pip-version-check", "--progress-bar", "off", "--retries", "10", "--timeout", "60"]
     for intento in (1, 2):
         if ejecutar(comando) == 0:

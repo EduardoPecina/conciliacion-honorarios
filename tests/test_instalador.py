@@ -219,10 +219,23 @@ class TestVersionesFijas(unittest.TestCase):
         with mock.patch.object(instalar, "ejecutar", return_value=0) as pip, mock.patch("builtins.print"):
             self.assertTrue(instalar.instalar_librerias())
         comando = pip.call_args.args[0]
-        self.assertIn("-c", comando)
-        self.assertTrue(comando[comando.index("-c") + 1].endswith("requirements-lock.txt"))
+        self.assertTrue(comando[comando.index("-r") + 1].endswith("requirements-instalar.txt"))
+        self.assertIn("--require-hashes", comando)
         self.assertIn("--only-binary=:all:", comando)
         self.assertIn("HONORARIOS_BITACORA_BAT", texto, "INSTALAR.bat anota sus pasos para la bitácora")
+
+    def test_las_huellas_corresponden_a_las_versiones_fijadas(self):
+        """requirements-instalar.txt (con huellas) debe tener exactamente las versiones de requirements-lock.txt.
+        Si falla: python instalador/generar_lock.py"""
+        texto = (self.RAIZ / "requirements-instalar.txt").read_text(encoding="utf-8")
+        bloques = re.findall(r"^([A-Za-z0-9_.-]+)==([^ ;\\\n]+)[^\n]*\n((?:\s+--hash=sha256:[0-9a-f]{64}.*\n?)+)",
+                             texto, flags=re.M)
+        con_huellas = {nombre.lower(): (version, len(re.findall("--hash", huellas)))
+                       for nombre, version, huellas in bloques}
+        self.assertEqual({n: v for n, (v, _) in con_huellas.items()}, self.lock())
+        for nombre, (_, cuantas) in con_huellas.items():
+            with self.subTest(libreria=nombre):
+                self.assertGreater(cuantas, 0)
 
     def test_ejecutar_muestra_y_registra_la_salida_de_pip(self):
         import io
