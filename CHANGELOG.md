@@ -1,5 +1,14 @@
 # Historial de cambios
 
+## [1.19.1] - 2026-10-16
+
+### Cambiado
+- **INSTALAR.bat ya funciona aunque se abra directo dentro del ZIP**, sin "Extraer todo". Antes el instalador se
+  detenía y pedía extraerlo. Ahora copia el programa a `%LOCALAPPDATA%\Honorarios\Instalador` (fuera de la
+  carpeta temporal, que Windows puede borrar, y fuera de OneDrive), revisa que la copia quedó completa y sigue
+  desde ahí, en la misma ventana. `instalacion.log` lo anota. Solo si el ZIP no se extrajo completo pide extraerlo
+  a mano.
+
 ## [1.19.0] - 2026-10-16
 
 ### Cambiado

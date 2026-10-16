@@ -287,6 +287,54 @@ def corre_desde_el_zip(origen=None):
     return any(re.search(r"\.zip(\.\d+)?$", parte, re.IGNORECASE) for parte in origen.parts)
 
 
+# Lo mínimo que debe traer la carpeta del ZIP para poder instalar
+ESENCIALES = ("INSTALAR.bat", "EJECUTAR_PORTAL.bat", "requirements-instalar.txt", "instalador/instalar.py",
+              "honorarios/__init__.py", "portal/app.py", "portal/iniciar.py")
+
+
+def carpeta_estable():
+    """Adónde se copia el instalador cuando se abre dentro del ZIP: en AppData del usuario, fuera de la carpeta
+    temporal (Windows la puede borrar) y fuera de OneDrive."""
+    if os.environ.get("HONORARIOS_INSTALADOR"):               # para pruebas
+        return Path(os.environ["HONORARIOS_INSTALADOR"])
+    base = os.environ.get("LOCALAPPDATA") or Path.home() / ".local" / "share"
+    return Path(base) / "Honorarios" / "Instalador"
+
+
+def anotar_en_bitacora_bat(texto):
+    """Agrega una línea a la bitácora de INSTALAR.bat (el instalador la copia a instalacion.log)."""
+    ruta = os.environ.get("HONORARIOS_BITACORA_BAT")
+    if ruta:
+        try:
+            with open(ruta, "a", encoding="utf-8") as archivo:
+                archivo.write(texto + "\n")
+        except OSError:
+            pass
+
+
+def instalar_desde_el_zip(argumentos):
+    """INSTALAR.bat se abrió dentro del ZIP: se copia la carpeta a un lugar fijo (carpeta_estable), se revisa que la
+    copia quedó completa y se corre el instalador desde ahí, en la misma ventana. Devuelve su código de salida.
+    Si no se puede (el ZIP no se extrajo completo, o no se pudo copiar), pide extraer el ZIP a mano."""
+    destino = carpeta_estable() / ORIGEN.name
+    print(f"Abriste INSTALAR.bat dentro del ZIP: se copia el programa a {destino} y se instala desde ahí...")
+    try:
+        if not all((ORIGEN / esencial).is_file() for esencial in ESENCIALES):
+            raise ProgramaIncompleto("el ZIP no se extrajo completo")
+        if destino.exists() and not borrar_carpeta(destino, intentos=3):
+            raise ProgramaIncompleto(f"no se pudo borrar la copia anterior de {destino}")
+        shutil.copytree(ORIGEN, destino, ignore=NO_COPIAR)
+        faltan = sorted(archivos_del_programa(ORIGEN) - archivos_del_programa(destino))
+        if faltan:
+            raise ProgramaIncompleto(f"faltan {len(faltan)} archivos en la copia")
+    except (OSError, ProgramaIncompleto) as error:
+        anotar_en_bitacora_bat(f"Abierto dentro del ZIP; no se pudo copiar a {destino}: {error}")
+        return None
+    anotar_en_bitacora_bat(f"Abierto dentro del ZIP: se copió a {destino} y se instala desde ahí")
+    return subprocess.call([sys.executable, str(destino / "instalador" / "instalar.py"), *argumentos],
+                           cwd=destino)
+
+
 def copiar_programa(destino):
     """Copia el programa a Honorarios\\_Programa. Al actualizar, la versión anterior se reemplaza completa
     (así no quedan archivos viejos). Si el origen ya es el destino (se corrió desde _Programa), no copia.
@@ -409,11 +457,10 @@ def _instalar(raiz, sin_librerias, sin_accesos):
                f"{sys.version_info.major}.{sys.version_info.minor}).\n\nUsa INSTALAR.bat: busca Python {version} y, "
                "si no está, lo instala solo para tu usuario.", error=True)
         return 1
-    if corre_desde_el_zip():
-        avisar("Abriste INSTALAR.bat directo dentro del ZIP, sin descomprimirlo. Así Windows lo corre desde una "
-               "carpeta temporal y la copia del programa puede quedar incompleta.\n\nCierra esta ventana, da clic "
-               "derecho en el ZIP → \"Extraer todo...\" y corre INSTALAR.bat de la carpeta que se crea.",
-               error=True)
+    if corre_desde_el_zip():                    # solo si no se pudo copiar a un lugar fijo (instalar_desde_el_zip)
+        avisar("Abriste INSTALAR.bat directo dentro del ZIP y no se pudo copiar el programa a un lugar seguro para "
+               "instalarlo.\n\nCierra esta ventana, da clic derecho en el ZIP → \"Extraer todo...\" y corre "
+               "INSTALAR.bat de la carpeta que se crea.", error=True)
         return 1
     if portal_abierto():
         avisar("El Portal de Honorarios está abierto.\n\nCiérralo (botón \"Cerrar el portal\") y vuelve a "
@@ -467,4 +514,8 @@ if __name__ == "__main__":
     opciones.add_argument("--sin-librerias", action="store_true", help="no correr pip (pruebas)")
     opciones.add_argument("--sin-accesos", action="store_true", help="no crear accesos directos (pruebas)")
     argumentos = opciones.parse_args()
+    if corre_desde_el_zip():
+        codigo = instalar_desde_el_zip(sys.argv[1:])
+        if codigo is not None:
+            sys.exit(codigo)
     sys.exit(instalar(argumentos.sin_librerias, argumentos.sin_accesos))
