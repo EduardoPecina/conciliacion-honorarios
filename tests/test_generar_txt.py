@@ -1,5 +1,6 @@
-"""Pruebas de Generar TXT: lectura del Excel aprobado (sin editar nada), folios rastreables de 16 caracteres, TXT con el
-formato del original y la hoja "TXT para SAP" del Excel de la conciliación. Datos inventados, sin internet.
+"""Pruebas de Generar TXT: lectura del Excel aprobado (sin editar nada), folios rastreables de 16 caracteres, la
+Referencia que arma el portal, TXT con el formato del original y la hoja "TXT para SAP" del Excel de la conciliación.
+Datos inventados, sin internet.
 
     python -m unittest discover -s tests -v
 """
@@ -25,9 +26,8 @@ from honorarios.entradas import obtener_rutas  # noqa: E402
 from honorarios.utilidades import ErrorUsuario  # noqa: E402
 
 ANIO, MES = datos_prueba.ANIO, datos_prueba.MES
-# Una línea como queda en Excel al pegar el TXT: Excel convierte la fecha, el monto, el 1 y los IDs en números
-COMO_EN_EXCEL = [datetime(2026, 9, 29), 145362, "A1893", 9096, "X", "E0", 1, 32635079, "50E03158", "T",
-                 "A1893      Q18-2026"]
+# Una línea como queda en Excel (columnas A a J): Excel convierte la fecha, el monto, el 1 y los IDs en números
+COMO_EN_EXCEL = [datetime(2026, 9, 29), 145362, "A1893", 9096, "X", "E0", 1, 32635079, "50E03158", "T"]
 
 
 def excel(*filas, hoja="Hoja1", antes=None):
@@ -49,34 +49,33 @@ def excel(*filas, hoja="Hoja1", antes=None):
 
 def linea(**valores):
     base = dict(zip(txt_sap.COLUMNAS, ["29.09.2026", "145362", "A1893", "9096.00", "X", "E0", "001", "32635079",
-                                       "50E03158", "T", "A1893      Q18-2026"]))
+                                       "50E03158", "T", ""]))
     return {"Fila": 2, **base, **valores}
 
 
 class TestExcelAprobado(unittest.TestCase):
     def test_regresa_lo_que_excel_cambia_al_formato_del_txt(self):
-        hoja, lineas, problemas = txt_sap.leer_excel(excel(txt_sap.COLUMNAS, COMO_EN_EXCEL))
+        hoja, lineas, problemas = txt_sap.leer_excel(excel(txt_sap.COLUMNAS_EXCEL, COMO_EN_EXCEL))
         self.assertEqual(problemas, [])
         self.assertEqual([lineas[0][c] for c in txt_sap.COLUMNAS],
                          ["29.09.2026", "145362", "A1893", "9096.00", "X", "E0", "001", "32635079", "50E03158", "T",
-                          "A1893      Q18-2026"])
+                          ""], "la Referencia no se captura: se arma al formatear")
         self.assertEqual(lineas[0]["Fila"], 2)
 
     def test_encabezado_opcional_filas_vacias_y_columnas_de_apoyo(self):
-        con_apoyo = COMO_EN_EXCEL + ["Cruzado", "DR. PRUEBA", 7]       # L, M, N: no se leen
+        con_apoyo = COMO_EN_EXCEL + ["A1893      Q18-2026", "Cruzado", 7]   # K en adelante: no se lee
         _, lineas, problemas = txt_sap.leer_excel(excel(COMO_EN_EXCEL, [], [None] * 11, con_apoyo))
         self.assertEqual((len(lineas), problemas), (2, []))
         self.assertEqual([l["Fila"] for l in lineas], [1, 4])
         self.assertNotIn("Estatus", lineas[1])
 
     def test_lee_la_hoja_txt_para_sap_del_excel_de_la_conciliacion(self):
-        hoja, lineas, _ = txt_sap.leer_excel(excel(txt_sap.COLUMNAS, COMO_EN_EXCEL, hoja="TXT para SAP",
+        hoja, lineas, _ = txt_sap.leer_excel(excel(txt_sap.COLUMNAS_EXCEL, COMO_EN_EXCEL, hoja="TXT para SAP",
                                                    antes="Resumen"))
         self.assertEqual((hoja, len(lineas)), ("TXT para SAP", 1))
 
     def test_texto_con_formato_del_txt_tambien_sirve(self):
-        valores = ["29.09.2026", "145362", "A1893", "9,096.00", "x", "e0", "001", "32635079", "50E03158", "t",
-                   "A1893      Q18-2026"]
+        valores = ["29.09.2026", "145362", "A1893", "9,096.00", "x", "e0", "001", "32635079", "50E03158", "t"]
         _, lineas, problemas = txt_sap.leer_excel(excel(valores))
         self.assertEqual(problemas, [])
         self.assertEqual([lineas[0][c] for c in ("Monto", "X", "Tax", "PM")], ["9096.00", "X", "E0", "T"])
@@ -85,7 +84,7 @@ class TestExcelAprobado(unittest.TestCase):
         malas = [
             ("Fecha", "31.02.2026"), ("IDProveedor", None), ("Folio", ""), ("Monto", -5), ("Monto", "mil"),
             ("Monto", 10.555), ("X", "Y"), ("Tax", "E1"), ("1", 2), ("Centro de Costo", None),
-            ("Cuenta Contable", 5e31), ("PM", "C"), ("Referencia", "A1893\tQ18"),
+            ("Cuenta Contable", 5e31), ("PM", "C"), ("Folio", "A18\t93"),
         ]
         filas = []
         for columna, valor in malas:
@@ -104,8 +103,8 @@ class TestExcelAprobado(unittest.TestCase):
         with self.assertRaises(ErrorUsuario):
             txt_sap.leer_excel(b"no es un excel")
         with self.assertRaises(ErrorUsuario) as e:
-            txt_sap.leer_excel(excel(txt_sap.COLUMNAS))
-        self.assertIn("de la A a la K", str(e.exception))
+            txt_sap.leer_excel(excel(txt_sap.COLUMNAS_EXCEL))
+        self.assertIn("de la A a la J", str(e.exception))
 
     def test_misma_factura_repetida_se_avisa(self):
         lineas = [linea(Fila=2), linea(Fila=3), linea(Fila=4, Monto="100.00")]
@@ -121,11 +120,11 @@ class TestFoliosRastreables(unittest.TestCase):
         self.assertTrue(all(c in folios.ALFABETO for c in folio[8:]))
         self.assertIsNone(previo)
 
-    def test_quincena_de_la_referencia_o_de_la_fecha(self):
-        self.assertEqual(folios.quincena("29.09.2026", "A1      Q18-2026"), (2026, 18))
-        self.assertEqual(folios.quincena("29.09.2026", "sin quincena"), (2026, 18))
-        self.assertEqual(folios.quincena("15.01.2027"), (2027, 1))
-        self.assertEqual(folios.quincena("16.12.2026"), (2026, 24))
+    def test_quincena_de_la_fecha(self):
+        for fecha, esperada in (("29.09.2026", "Q18-2026"), ("16.09.2026", "Q18-2026"), ("15.09.2026", "Q17-2026"),
+                                ("01.10.2026", "Q19-2026"), ("15.01.2027", "Q01-2027"), ("31.12.2026", "Q24-2026")):
+            with self.subTest(fecha):
+                self.assertEqual(folios.texto_quincena(fecha), esperada)
 
     def test_id_corto_o_con_letras(self):
         self.assertEqual(folios.cola_del_id("7"), "0007")
@@ -172,18 +171,19 @@ class TestFoliosRastreables(unittest.TestCase):
         generados = {folios.formatear_folios([linea(Folio=f"F{i}")], {})[0][0] for i in range(100_000)}
         self.assertEqual(len(generados), 100_000, "100 mil facturas del mismo proveedor y quincena: ninguna se repite")
 
-    def test_referencia_con_el_folio_nuevo(self):
-        formateada, _ = txt_sap.formatear([linea()], {})
-        folio = formateada[0]["Folio"]
-        self.assertEqual(formateada[0]["Referencia"], f"{folio}_Q18-2026")
-        self.assertEqual(len(formateada[0]["Referencia"]), 25)
-        self.assertEqual(formateada[0]["FolioOriginal"], "A1893")
+    def test_la_referencia_la_arma_el_portal_con_el_folio_y_la_quincena(self):
+        formateadas, _ = txt_sap.formatear([linea(), linea(Fila=3, Fecha="01.10.2026", Folio="B1")], {})
+        folio = formateadas[0]["Folio"]
+        self.assertEqual(formateadas[0]["Referencia"], f"{folio}_Q18-2026")
+        self.assertEqual(len(formateadas[0]["Referencia"]), 25)
+        self.assertEqual(formateadas[0]["FolioOriginal"], "A1893")
+        self.assertTrue(formateadas[1]["Referencia"].endswith("_Q19-2026"), "cada línea, la quincena de su fecha")
+        self.assertEqual(txt_sap.quincenas(formateadas), {"Q18-2026": 1, "Q19-2026": 1})
 
 
 class TestTxtParaSap(unittest.TestCase):
     def test_mismo_formato_que_el_txt_original(self):
-        formateadas, _ = txt_sap.formatear([linea(), linea(Fila=3, IDProveedor="152091", Folio="7",
-                                                           Referencia="7      Q18-2026")], {})
+        formateadas, _ = txt_sap.formatear([linea(), linea(Fila=3, IDProveedor="152091", Folio="7")], {})
         datos = txt_sap.escribir(formateadas)
         renglones = datos.split(b"\r\n")
         self.assertEqual(renglones[-1], b"", "cada línea termina en CRLF")
@@ -221,7 +221,8 @@ class TestTxtParaSap(unittest.TestCase):
 
     def test_plantilla_vacia(self):
         hoja = load_workbook(BytesIO(txt_sap.plantilla()))["TXT para SAP"]
-        self.assertEqual([c.value for c in hoja[1]], txt_sap.COLUMNAS)
+        self.assertEqual([c.value for c in hoja[1]], txt_sap.COLUMNAS_EXCEL)
+        self.assertNotIn("Referencia", txt_sap.COLUMNAS_EXCEL)
 
 
 class TestHojaTxtParaSap(unittest.TestCase):
@@ -238,18 +239,18 @@ class TestHojaTxtParaSap(unittest.TestCase):
     def test_trae_todas_las_lineas_del_txt_tal_cual(self):
         hoja = load_workbook(self.conciliacion.destino)["TXT para SAP"]
         filas = list(hoja.iter_rows(values_only=True))
-        self.assertEqual(list(filas[0]), txt_sap.COLUMNAS + ["Estatus", "Médico", "Línea"])
+        self.assertEqual(list(filas[0]), txt_sap.COLUMNAS_EXCEL + ["Estatus", "Médico", "Línea"])
         originales = txt_sap.lineas_del_txt(self.rutas["txt"].read_bytes())
         self.assertEqual(len(filas) - 1, len(originales))
         for fila in filas[1:]:
-            self.assertEqual(list(fila[:11]), originales[fila[13]], "A a K: el TXT tal cual, como texto")
+            self.assertEqual(list(fila[:10]), originales[fila[12]][:10], "A a J: el TXT tal cual, como texto")
         self.assertEqual(hoja["A2"].number_format, "@")
 
     def test_dejar_solo_lo_aprobado_y_subirlo(self):
         libro = load_workbook(self.conciliacion.destino)
         hoja = libro["TXT para SAP"]
         for r in range(hoja.max_row, 1, -1):                         # el analista borra lo que no se paga
-            if not str(hoja.cell(r, 12).value).startswith("Cruzado"):
+            if not str(hoja.cell(r, 11).value).startswith("Cruzado"):
                 hoja.delete_rows(r)
         salida = BytesIO()
         libro.save(salida)
@@ -260,6 +261,7 @@ class TestHojaTxtParaSap(unittest.TestCase):
         self.assertEqual(problemas, [])
         self.assertEqual(len({(l["IDProveedor"], l["Folio"]) for l in formateadas}), len(formateadas))
         self.assertTrue(all(len(l["Folio"]) == 16 for l in formateadas))
+        self.assertTrue(all(l["Referencia"] == f"{l['Folio']}_Q18-2026" for l in formateadas))
 
 
 class TestTrabajoDeVariosDias(unittest.TestCase):

@@ -1,5 +1,18 @@
 # Historial de cambios
 
+## [1.20.0] - 2026-10-16
+
+### Cambiado
+- **Generar TXT: la Referencia ya no se captura, la arma el portal.** El Excel de la conciliación no la mostraba, así
+  que al armar el Excel con la plantilla quedaba vacía y la Referencia salía solo con el folio. Ahora "Formatear
+  folios" la arma siempre: el folio nuevo y la quincena de la fecha, `26185113K7Q3MXP4_Q18-2026`, con la misma
+  estructura que la del TXT original (`A1893      Q18-2026`).
+  - El Excel lleva solo las columnas **A a J** (Fecha … PM). La plantilla ya no trae Referencia; si un Excel la trae
+    en la K, no se lee. En el TXT sigue saliendo la Referencia como columna 11, porque SAP espera las 11 columnas.
+  - Hoja "TXT para SAP" del Excel de la conciliación: columnas A a J y, de apoyo, Estatus, Médico y Línea (K a M).
+  - La vista previa muestra la quincena y avisa si las fechas del Excel son de más de una.
+  - El folio también toma la quincena de la fecha. Para un mismo Excel, los folios son los mismos que antes.
+
 ## [1.19.1] - 2026-10-16
 
 ### Cambiado
