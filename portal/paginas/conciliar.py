@@ -244,12 +244,16 @@ resumen = st.session_state.get("resumen_pendientes")
 if resumen:
     cruzaron = [c for c in resumen["cambios"] if c["Ahora"].startswith("Cruzado")]
     (st.success if cruzaron else st.info)(
-        f"Se agregaron **{resumen['nuevas']} XML nuevos**: **{len(cruzaron)} línea(s) pasaron a Cruzado**."
+        (f"Se agregaron **{resumen['nuevas']} XML nuevos**" if resumen["nuevas"] else "Se volvió a buscar")
+        + (f" y **{len(resumen.get('altas', []))} proveedor(es) nuevos en el catálogo** "
+           f"({', '.join(resumen['altas'])})" if resumen.get("altas") else "")
+        + f": **{len(cruzaron)} línea(s) pasaron a Cruzado**."
         + (f" {resumen['sin_linea']} XML no encontraron línea pendiente (hoja 'XML sin TXT' del Excel)."
            if resumen["sin_linea"] else "")
         + (f" {len(resumen['ya_estaban'])} ya estaban en el mes (mismo UUID) y se ignoraron."
            if resumen["ya_estaban"] else "")
-        + (f" {len(resumen['errores'])} no se pudieron leer (hoja 'Errores XML')." if resumen["errores"] else ""))
+        + (f" {len(resumen['errores'])} no se pudieron leer (hoja 'Errores XML')." if resumen["errores"] else "")
+        + (f" SAP: {resumen['sap']}." if resumen.get("sap") else ""))
     if resumen["cambios"]:
         st.dataframe(pd.DataFrame(resumen["cambios"]), hide_index=True, width="stretch",
                      column_config={"Importe": st.column_config.NumberColumn(format="$%,.2f")})
@@ -260,28 +264,45 @@ if not sin_cruzar:
     st.success("No hay líneas pendientes: todas cruzaron.")
 else:
     ya_cruzadas = sum(1 for f in conciliacion.resultado if es_cruzada(f))
+    por_estatus_pendiente = pd.Series([f["Estatus"] for f in sin_cruzar]).value_counts()
     st.write(f"Las **{ya_cruzadas:,} líneas ya cruzadas no se tocan**. Sube **solo los XML nuevos** (refacturas de "
              f"las rechazadas o los XML que no habían llegado) y el portal los busca entre las **{len(sin_cruzar):,} "
-             "líneas pendientes**, con las mismas reglas.")
-    st.caption("Solo se consultan al SAT los XML nuevos (se necesita internet; SAP no). Una refactura puede venir "
-               "fechada hasta el mes siguiente: queda Cruzado con observaciones. Un XML que ya estaba en el mes "
-               "(mismo UUID) se ignora.")
+             "líneas pendientes**, con las mismas reglas: "
+             + ", ".join(f"{n:,} {estatus}" for estatus, n in por_estatus_pendiente.items()) + ".")
+    de_catalogo = sum(n for estatus, n in por_estatus_pendiente.items() if "catálogo" in estatus)
+    sin_id = int(por_estatus_pendiente.get("Línea sin IDProveedor", 0))
+    if de_catalogo or sin_id:
+        st.caption((f"Las {de_catalogo} de catálogo cruzan cuando se corrige el catálogo en _Configuracion: el "
+                    "portal lo vuelve a leer al buscar, y si su XML ya había llegado no hace falta subir nada. "
+                    if de_catalogo else "")
+                   + (f"Las {sin_id} sin IDProveedor no pueden cruzar: el TXT no dice a quién pagarle (se corrige "
+                      "con quien manda el TXT)." if sin_id else ""))
+    st.caption("Solo se consultan al SAT los XML nuevos (se necesita internet). SAP solo si hay médicos nuevos en el "
+               "catálogo (ábrelo antes). Una refactura puede venir fechada hasta el mes siguiente: queda Cruzado con "
+               "observaciones. Un XML que ya estaba en el mes (mismo UUID) se ignora.")
     st.session_state.setdefault("pendientes_ver", 0)
     nuevos = st.file_uploader("XML nuevos (sueltos o en .zip)", type=["xml", "zip"], accept_multiple_files=True,
                               key=f"pendientes_{st.session_state['pendientes_ver']}")
-    if st.button("Buscar en las líneas pendientes", type="primary", disabled=not nuevos):
+    if st.button("Buscar en las líneas pendientes", type="primary",
+                 help="Con XML nuevos los busca entre las líneas pendientes. Sin XML, vuelve a buscar con el catálogo "
+                      "actualizado (para los médicos que se dieron de alta después)."):
+        fallo = None
         with st.status("Buscando en las líneas pendientes...", expanded=True) as estado:
             barra = st.progress(0.0, text="Consulta al SAT")
+            barra_sap = st.progress(0.0, text="Consulta a SAP (solo si hay médicos nuevos en el catálogo)")
             try:
                 with tempfile.TemporaryDirectory() as tmp:
                     # La subcarpeta queda en el nombre del XML (hoja Detalle): se sabe en qué vuelta llegó
                     carpeta = Path(tmp) / f"Pendientes {datetime.now():%d-%m-%Y %H%M}"
-                    preparar_xmls(carpeta, [(x.name, x.getvalue()) for x in nuevos])
+                    if nuevos:
+                        preparar_xmls(carpeta, [(x.name, x.getvalue()) for x in nuevos])
                     rutas_xml = sorted(r for r in carpeta.rglob("*") if r.suffix.lower() == ".xml")
                     nueva, resumen = agregar_pendientes(
-                        conciliacion, rutas_xml, Path(tmp), avisar=st.write,
+                        conciliacion, rutas_xml, Path(tmp), avisar=st.write, carpeta=st.session_state["salida"],
                         progreso_sat=lambda hechas, total: barra.progress(hechas / total,
-                                                                          text=f"Consulta al SAT: {hechas}/{total}"))
+                                                                          text=f"Consulta al SAT: {hechas}/{total}"),
+                        progreso_sap=lambda hechas, total, id_prov: barra_sap.progress(
+                            hechas / total, text=f"Consulta a SAP: {hechas}/{total} (proveedor {id_prov})"))
                 st.session_state["conciliacion"] = nueva
                 st.session_state["resumen_pendientes"] = resumen
                 st.session_state["pendientes_ver"] += 1          # el cargador queda vacío para la siguiente vuelta
@@ -289,11 +310,13 @@ else:
                 estado.update(label="Listo", state="complete", expanded=False)
             except ErrorUsuario as e:
                 estado.update(label="No se agregó nada", state="error")
-                st.error(str(e))
+                fallo = str(e)
             except Exception as e:                               # noqa: BLE001 - se muestra al usuario
                 estado.update(label="Error inesperado", state="error")
-                st.error(f"Error inesperado: {type(e).__name__}: {e}\n\n"
+                fallo = (f"Error inesperado: {type(e).__name__}: {e}\n\n"
                          "Toma captura de este mensaje y compártela con quien mantiene el programa.")
+        if fallo:
+            st.error(fallo)                                      # fuera del cuadro de avance: siempre a la vista
         if st.session_state.get("conciliacion") is not conciliacion:
             st.rerun()                                           # Excel y números con lo nuevo
 

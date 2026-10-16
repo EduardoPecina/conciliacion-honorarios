@@ -1,5 +1,18 @@
 # Historial de cambios
 
+## [1.21.1] - 2026-10-16
+
+### Cambiado
+- Facturas pendientes: **la página desglosa las líneas pendientes por estatus** ("156 líneas pendientes: 137 Sin
+  XML, 11 Rechazar, …") y explica cuáles dependen del catálogo y cuáles del TXT.
+- **El catálogo se vuelve a leer en cada búsqueda:** un médico dado de alta después de procesar el mes ya cruza. Si
+  su XML ya había llegado, se puede buscar **sin subir XML**. Sus códigos de SAP se consultan en ese momento (solo
+  los que faltaban; lo demás se reusa). Si SAP no está abierto, la línea queda Cruzado con observaciones.
+
+### Corregido
+- Si la búsqueda de pendientes no agregaba nada, el motivo quedaba escondido dentro del cuadro de avance. Ahora se
+  ve siempre.
+
 ## [1.21.0] - 2026-10-16
 
 ### Agregado

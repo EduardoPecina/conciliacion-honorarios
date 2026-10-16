@@ -177,45 +177,75 @@ def lineas_pendientes(conciliacion):
 
 
 def agregar_pendientes(conciliacion, rutas_xml, carpeta_xml, avisar=print, progreso_sat=progreso_en_consola,
-                       consultar_sat=consultar_estados, ahora=None):
-    """Segunda vuelta del mes: refacturas y XML que no habían llegado.
+                       consultar_sat=consultar_estados, ahora=None, carpeta=None,
+                       progreso_sap=progreso_sap_en_consola, consultar_sap=consultar_sap):
+    """Segunda vuelta del mes: refacturas, XML que no habían llegado y médicos dados de alta después.
 
-    Las líneas que ya cruzaron (y sus facturas) NO se tocan. Los XML nuevos se consultan en el SAT (solo esos) y
-    se buscan, con las mismas reglas, entre las líneas pendientes, junto con las facturas del mes que ninguna línea
-    cruzada usa (si el médico mandó una factura nueva, el cruce prefiere la válida a la que se rechazó). Lo
-    consultado a SAP se reusa. Una factura agregada puede venir fechada hasta el mes siguiente (reglas.py).
+    Las líneas que ya cruzaron (y sus facturas) NO se tocan. El catálogo se vuelve a leer: un médico dado de alta
+    después de procesar ya cuenta. Los XML nuevos se consultan en el SAT (solo esos) y se buscan, con las mismas
+    reglas, entre las líneas pendientes, junto con las facturas del mes que ninguna línea cruzada usa (si el médico
+    mandó una factura nueva, el cruce prefiere la válida a la que se rechazó). Lo consultado a SAP se reusa; solo los
+    proveedores que nunca se consultaron (los nuevos en el catálogo) se consultan, si se da la carpeta del mes y SAP
+    está abierto. Una factura agregada puede venir fechada hasta el mes siguiente (reglas.py).
+    Se puede correr sin XML nuevos: así cruzan las líneas cuyo médico se acaba de dar de alta en el catálogo.
     -> (conciliación actualizada, resumen). ErrorUsuario si no hay nada nuevo o no hay conexión con el SAT."""
     ahora = ahora or datetime.now()
     e = conciliacion.entradas
-    nuevas, errores = leer_xmls(rutas_xml, carpeta_xml)
+    nuevas, errores = leer_xmls(rutas_xml, carpeta_xml) if rutas_xml else ([], [])
     del_mes = {f["UUID"] for f in e["facturas"] if f["UUID"]}
     ya_estaban = [f["ArchivoXML"] for f in nuevas if f["UUID"] and f["UUID"] in del_mes]
     nuevas = [{**f, "Agregada": ahora.strftime("%d/%m/%Y")} for f in nuevas
               if not (f["UUID"] and f["UUID"] in del_mes)]
-    resumen = {"leidos": len(rutas_xml), "nuevas": len(nuevas), "ya_estaban": ya_estaban, "errores": errores,
-               "cambios": [], "sin_linea": 0}
-    if not nuevas:
-        raise ErrorUsuario("Ningún XML nuevo: " + (f"los {len(ya_estaban)} ya estaban en la conciliación del mes "
-                                                     "(mismo UUID)" if ya_estaban else "no se pudo leer ninguno")
-                           + ". Sube solo las refacturas o los XML que faltaban.")
 
-    avisar(f"Consultando en el SAT {len({f['UUID'] for f in nuevas if f['UUID']}):,} facturas nuevas...")
-    estados_nuevos, _ = consultar_sat(nuevas, progreso=progreso_sat, avisar=avisar)
-    if estados_nuevos and all(c.get("SinConexion") for c in estados_nuevos.values()):
-        raise ErrorUsuario("No hubo conexión con el SAT: no se agregó nada. Vuelve a intentarlo en unos minutos.")
-    estados_sat = {**conciliacion.estados_sat, **estados_nuevos}
-
-    avisar("Buscando en las líneas pendientes...")
+    try:
+        catalogo = leer_catalogo(e["ruta_catalogo"])                     # el de hoy, con las altas nuevas
+    except OSError:
+        avisar("No se pudo leer el catálogo: se usa el que se leyó al procesar el mes.")
+        catalogo = e["catalogo"]
+    antes_en_catalogo = set(e["catalogo"]["IDProveedor"])
     fijas = [f for f in conciliacion.resultado if es_cruzada(f)]
-    usadas = {i for f in fijas for i in f.get("_grupo", ())}
-    uuid_pagados = {e["facturas"][i]["UUID"] for i in usadas} - {""}
     lineas_fijas = {f["Linea"] for f in fijas}
     pendientes = [l for l in e["lineas"] if l["Linea"] not in lineas_fijas]
+    altas = sorted({l["IDProveedor"] for l in pendientes
+                    if l["IDProveedor"] in set(catalogo["IDProveedor"]) - antes_en_catalogo})
+    cambio_catalogo = not catalogo.equals(e["catalogo"])
+    resumen = {"leidos": len(rutas_xml), "nuevas": len(nuevas), "ya_estaban": ya_estaban, "errores": errores,
+               "cambios": [], "sin_linea": 0, "altas": altas, "sap": ""}
+    if not nuevas and not cambio_catalogo:
+        raise ErrorUsuario(("Ningún XML nuevo: " + (f"los {len(ya_estaban)} ya estaban en la conciliación del mes "
+                                                      "(mismo UUID)" if ya_estaban else "no se pudo leer ninguno")
+                            if rutas_xml else "No hay nada nuevo")
+                           + ". Sube solo las refacturas o los XML que faltaban; sin XML, la búsqueda sirve cuando "
+                             "se corrigió el catálogo.")
+
+    estados_sat = conciliacion.estados_sat
+    if nuevas:
+        avisar(f"Consultando en el SAT {len({f['UUID'] for f in nuevas if f['UUID']}):,} facturas nuevas...")
+        estados_nuevos, _ = consultar_sat(nuevas, progreso=progreso_sat, avisar=avisar)
+        if estados_nuevos and all(c.get("SinConexion") for c in estados_nuevos.values()):
+            raise ErrorUsuario("No hubo conexión con el SAT: no se agregó nada. Vuelve a intentarlo en unos minutos.")
+        estados_sat = {**estados_sat, **estados_nuevos}
+
+    # Proveedores de las líneas pendientes que nunca se consultaron en SAP (los nuevos en el catálogo)
+    sap = e["sap"]
+    sin_sap = sorted({l["IDProveedor"] for l in pendientes if l["IDProveedor"] in set(catalogo["IDProveedor"])}
+                     - set(sap or {}))
+    if sin_sap and carpeta is not None:
+        avisar(f"Consultando en SAP {len(sin_sap)} proveedor(es) que no se habían consultado...")
+        consultados, resumen["sap"] = consultar_sap(sorted(set(sap or {}) | set(sin_sap)), Path(carpeta),
+                                                    conciliacion.anio, conciliacion.mes, True,
+                                                    progreso=progreso_sap, avisar=avisar)
+        if consultados is not None:
+            sap = {**(sap or {}), **consultados}
+
+    avisar("Buscando en las líneas pendientes...")
+    usadas = {i for f in fijas for i in f.get("_grupo", ())}
+    uuid_pagados = {e["facturas"][i]["UUID"] for i in usadas} - {""}
     facturas = e["facturas"] + nuevas
     # Ni las facturas de las líneas cruzadas ni sus copias (mismo UUID) pueden cruzar otra línea: sería pago doble
     disponibles = [i for i in range(len(facturas)) if i not in usadas and facturas[i]["UUID"] not in uuid_pagados]
-    filas, sobrantes = conciliar(pendientes, e["catalogo"], [facturas[i] for i in disponibles],
-                                 conciliacion.anio, conciliacion.mes, e["sap"], e["historial"], estados_sat)
+    filas, sobrantes = conciliar(pendientes, catalogo, [facturas[i] for i in disponibles],
+                                 conciliacion.anio, conciliacion.mes, sap, e["historial"], estados_sat)
     copias = [x for x in conciliacion.sobrantes if x["UUID"] and x["UUID"] in uuid_pagados]
     sobrantes = copias + sobrantes                       # siguen en "XML sin TXT" con su motivo
     for fila in filas:                                   # índices de las facturas disponibles -> de todas
@@ -230,13 +260,15 @@ def agregar_pendientes(conciliacion, rutas_xml, carpeta_xml, avisar=print, progr
     resumen["sin_linea"] = sum(1 for s_ in sobrantes if s_["UUID"] in nuevas_uuid)
     cruzaron = sum(1 for c in resumen["cambios"] if c["Ahora"].startswith("Cruzado"))
     vuelta = len(conciliacion.agregadas) + 2
-    texto = (f"{len(nuevas)} XML agregados el {ahora:%d/%m/%Y %H:%M}: {cruzaron} línea(s) pasaron a Cruzado, "
-             f"{resumen['sin_linea']} XML sin línea pendiente")
+    texto = (f"{len(nuevas)} XML agregados el {ahora:%d/%m/%Y %H:%M}"
+             + (f" y {len(altas)} proveedor(es) nuevos en el catálogo" if altas else "")
+             + f": {cruzaron} línea(s) pasaron a Cruzado, {resumen['sin_linea']} XML sin línea pendiente")
     return replace(conciliacion,
                    resultado=sorted(fijas + filas, key=lambda f: f["Linea"]), sobrantes=sobrantes,
                    errores_xml=conciliacion.errores_xml + errores, estados_sat=estados_sat,
                    estados={**conciliacion.estados, f"Facturas pendientes (vuelta {vuelta})": texto},
-                   entradas={**e, "facturas": facturas, "n_xml": e["n_xml"] + len(rutas_xml)},
+                   entradas={**e, "facturas": facturas, "n_xml": e["n_xml"] + len(rutas_xml), "catalogo": catalogo,
+                             "sap": sap},
                    agregadas=conciliacion.agregadas + [{"Fecha": f"{ahora:%d/%m/%Y %H:%M}", "Resultado": texto}],
                    version=conciliacion.version + 1), resumen
 
