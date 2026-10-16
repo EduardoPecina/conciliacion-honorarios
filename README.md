@@ -197,11 +197,11 @@ El botón **Descargar Excel** de Conciliador Automático siempre da el reporte *
 
 El TXT para SAP **ya no se edita en el portal**: se genera desde un Excel con **solo las líneas listas para pagar**. Lo que sigue en revisión no detiene a lo demás: se queda fuera y se paga después, cuando esté listo. El analista lleva su propio control de lo pendiente, en coordinación con las áreas involucradas.
 
-1. **Excel de la conciliación → hoja "TXT para SAP".** Trae las líneas del TXT original con sus 11 columnas tal cual (A a K, como texto) y, de apoyo, Estatus, Médico y Línea (L a N). El analista filtra por Estatus y deja solo lo que se va a pagar: Cruzado, Cruzado (pago quebrado), Cruzado con observaciones… lo que él considere correcto.
-2. **Generar TXT → subir ese Excel.** Puede ser el mismo Excel de la conciliación (se lee la hoja "TXT para SAP") o uno nuevo con la plantilla de la página. Se leen solo las columnas **A a K**, en el orden del TXT: Fecha, IDProveedor, Folio, Monto, X, Tax, 1, Centro de Costo, Cuenta Contable, PM, Referencia. El encabezado es opcional.
+1. **Excel de la conciliación → hoja "TXT para SAP".** Trae las líneas del TXT original con sus columnas tal cual (A a J, como texto) y, de apoyo, Estatus, Médico y Línea (K a M). El analista filtra por Estatus y deja solo lo que se va a pagar: Cruzado, Cruzado (pago quebrado), Cruzado con observaciones… lo que él considere correcto.
+2. **Generar TXT → subir ese Excel.** Puede ser el mismo Excel de la conciliación (se lee la hoja "TXT para SAP") o uno nuevo con la plantilla de la página. Se leen solo las columnas **A a J**, en el orden del TXT: Fecha, IDProveedor, Folio, Monto, X, Tax, 1, Centro de Costo, Cuenta Contable, PM. El encabezado es opcional. **La Referencia no se captura:** la arma el portal (ver abajo).
 3. **El portal revisa, no edita.** Si una celda no sirve, dice en qué fila y columna, y no deja generar el TXT hasta que se corrija **en el Excel**: fecha inválida, monto vacío, negativo o con más de 2 decimales, Tax distinto de E0/F2, X, 1 o PM distintos de X, 1 y T, IDProveedor, folio, centro de costo o cuenta vacíos, una cuenta que Excel convirtió en número (5E+31), tabuladores o caracteres raros. Avisa, sin bloquear, si un IDProveedor no está en el catálogo o si dos filas son la misma factura (mismo ID, folio, monto y fecha: ¿pago doble?).
 4. **Vista previa** con el médico (del catálogo), el total de líneas y el monto total, para compararlos con el Excel.
-5. **Formatear folios** (obligatorio antes de descargar): cambia el Folio y la Referencia de cada línea.
+5. **Formatear folios** (obligatorio antes de descargar): pone el folio único y arma la Referencia de cada línea. La vista previa muestra la quincena (de la fecha) y avisa si las fechas son de más de una quincena.
 6. **Descargar TXT:** el mismo formato que el TXT original: 11 columnas separadas por tabulador, **sin encabezados**, saltos de línea de Windows (CRLF), ANSI. Lo que Excel cambia al abrir un TXT se regresa a como va en el TXT: fecha `29.09.2026`, monto `9096.00` (2 decimales, sin comas), columna 1 como `001`. Al descargar, los folios quedan en `_Configuracion\HistorialFolios.csv` y se guardan una copia del TXT y el **control de folios** (Excel: de qué folio original salió cada folio nuevo) en `Reportes\<Año>\<MM Mes>\`. El control también se puede descargar.
 
 #### Folios únicos y rastreables ("Formatear folios")
@@ -212,7 +212,7 @@ SAP rechaza una línea si el proveedor repite un folio que ya usó, aunque sea d
 26 18 5113 K7Q3MXP4   →   26185113K7Q3MXP4
 │  │   │      └─ 8 caracteres calculados con la factura (huella SHA-256 de IDProveedor + folio original + monto + fecha)
 │  │   └─ últimos 4 caracteres del IDProveedor
-│  └─ quincena (Q18), de la Referencia; si no la trae, de la fecha
+│  └─ quincena de la fecha (Q18)
 └─ año (2026)
 ```
 
@@ -220,7 +220,7 @@ SAP rechaza una línea si el proveedor repite un folio que ya usó, aunque sea d
 - **Misma factura → mismo folio**, siempre y en cualquier computadora. Si una línea que ya se cargó a SAP se vuelve a mandar, SAP la rechaza por folio repetido: **no se paga dos veces**. Si el portal ve que ese folio ya se había generado, lo avisa (con la fecha y el Excel). Un folio que ya tiene este formato se conserva: volver a subir un Excel ya formateado da el mismo TXT.
 - Pago quebrado en partes iguales (líneas idénticas): cada repetición agrega su número de parte, así no chocan entre sí.
 - 32^8 ≈ 1.1 × 10^12 combinaciones **por proveedor y por quincena** (32 símbolos que no se confunden: sin 0/O ni 1/I). Además, antes de aceptar un folio se comprueba contra los demás del archivo y contra `HistorialFolios.csv`; si chocara con el de otra factura, se recalcula.
-- **La Referencia se actualiza junto con el folio:** `A1893      Q18-2026` → `26185113K7Q3MXP4_Q18-2026` (25 caracteres): el folio nuevo y lo demás que escribió quien manda el TXT, unidos con guion bajo y sin espacios.
+- **La Referencia la arma el portal** (la columna 11 del TXT): el folio nuevo y la quincena de la fecha, unidos con guion bajo y sin espacios: `26185113K7Q3MXP4_Q18-2026` (25 caracteres). Es la estructura de la Referencia del TXT original (`A1893      Q18-2026`: folio, espacios y quincena), con el folio nuevo. Quincena: del 1 al 15 de cada mes es la primera, del 16 al fin la segunda (Q01 = 1 al 15 de enero, Q18 = 16 al 30 de septiembre).
 - El largo está en `LONGITUD_FOLIO` (`honorarios/config.py`).
 
 ### Arquitectura: una regla

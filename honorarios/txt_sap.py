@@ -1,11 +1,12 @@
 """TXT de pagos para SAP, generado desde el Excel de las líneas aprobadas (página Generar TXT).
 
-El analista arma un Excel solo con las líneas listas para pagar, con las 11 columnas del TXT en su orden (A a K):
-Fecha, IDProveedor, Folio, Monto, X, Tax, 1, Centro de Costo, Cuenta Contable, PM, Referencia. La hoja "TXT para SAP"
-del Excel de la conciliación ya trae esas columnas: basta con dejar ahí las líneas que se van a pagar.
+El analista arma un Excel solo con las líneas listas para pagar, con las primeras 10 columnas del TXT en su orden
+(A a J): Fecha, IDProveedor, Folio, Monto, X, Tax, 1, Centro de Costo, Cuenta Contable, PM. La hoja "TXT para SAP" del
+Excel de la conciliación ya trae esas columnas: basta con dejar ahí las líneas que se van a pagar. La Referencia (la
+columna 11 del TXT) no se captura: la arma el portal con el folio nuevo y la quincena de la fecha.
 
 El portal NO edita nada: lee el Excel, revisa cada celda y, si algo no sirve, dice en qué fila y columna para que se
-corrija en el Excel. Solo cambian el Folio y la Referencia, juntos, con "Formatear folios" (ver folios.py).
+corrija en el Excel. Solo pone el Folio único y la Referencia, con "Formatear folios" (ver folios.py).
 
 El TXT sale con el formato del TXT original: 11 columnas separadas por tabulador, sin encabezado, saltos de línea de
 Windows (CRLF), codificación ANSI. Lo que Excel cambia al abrir un TXT se regresa a como va en el TXT: la fecha a
@@ -27,13 +28,15 @@ from .config import CODIGOS_IMPUESTO_TXT
 from .entradas import es_encabezado_txt
 from .utilidades import ErrorUsuario, importe_txt, normalizar_id
 
-# Nombres que ve el usuario (mismo orden que el TXT y que las columnas A a K del Excel)
+# Las 11 columnas del TXT, en su orden
 COLUMNAS = ["Fecha", "IDProveedor", "Folio", "Monto", "X", "Tax", "1", "Centro de Costo", "Cuenta Contable",
             "PM", "Referencia"]
-LETRAS = dict(zip(COLUMNAS, "ABCDEFGHIJK"))
+COLUMNAS_EXCEL = COLUMNAS[:-1]                 # las que se capturan en el Excel (A a J); la Referencia la arma el portal
+LETRAS = dict(zip(COLUMNAS_EXCEL, "ABCDEFGHIJ"))
 # Columnas que en el TXT de SAP llevan siempre el mismo valor
 FIJOS = {"X": "X", "1": "001", "PM": "T"}
-# Separa el folio del resto de la Referencia al formatear: "A1893      Q18-2026" -> "26185113K7Q3MXP4_Q18-2026".
+# Referencia = folio nuevo + separador + quincena: "26185113K7Q3MXP4_Q18-2026" (en el TXT original venía
+# "A1893      Q18-2026": el folio, espacios y la quincena)
 SEPARADOR_REFERENCIA = "_"
 HOJA_PARA_TXT = "TXT para SAP"                 # hoja del Excel de la conciliación con las columnas del TXT
 SALTO = "\r\n"
@@ -126,8 +129,6 @@ def _valor(columna, v):
     if columna == "Tax":
         texto = _texto(v).upper()
         return texto, None if texto in CODIGOS_IMPUESTO_TXT else f"'{texto}' no es válido: debe ser E0 (sin IVA) o F2 (con IVA)"
-    if columna == "Referencia":
-        return (v if isinstance(v, str) else _texto(v)), None  # se respetan sus espacios (ahí termina el folio)
     # Una cuenta como 50E03158 Excel la puede leer como número en notación científica: ya no es la cuenta (las
     # cuentas de SAP miden hasta 10 caracteres)
     if columna == "Cuenta Contable" and _es_numero(v) and (not float(v).is_integer() or abs(v) >= 1e10):
@@ -139,10 +140,11 @@ def _valor(columna, v):
 
 def leer_excel(datos):
     """bytes del Excel -> (nombre de la hoja leída, líneas, problemas).
-    líneas: [{"Fila": fila del Excel, "Fecha": ..., ..., "Referencia": ...}] con los valores como van en el TXT.
+    líneas: [{"Fila": fila del Excel, "Fecha": ..., ..., "PM": ..., "Referencia": ""}] con los valores como van en el
+    TXT (la Referencia se arma al formatear los folios).
     problemas: [(fila, columna, texto)]; si hay alguno, el TXT no se genera. Se lee la hoja "TXT para SAP" si el
     libro la tiene (el Excel de la conciliación) y si no, la hoja que estaba abierta al guardar. Solo las columnas A
-    a K; un encabezado en la primera fila y las filas vacías se saltan."""
+    a J (lo que haya a la derecha no se lee); un encabezado en la primera fila y las filas vacías se saltan."""
     try:
         libro = load_workbook(BytesIO(datos), data_only=True)
     except Exception:                                          # noqa: BLE001 - cualquier archivo que no es Excel
@@ -150,7 +152,7 @@ def leer_excel(datos):
                            "vuelve a subirlo.")
     hoja = libro[HOJA_PARA_TXT] if HOJA_PARA_TXT in libro.sheetnames else libro.active
     lineas, problemas, primera = [], [], True
-    for celdas in hoja.iter_rows(min_row=1, max_row=hoja.max_row, min_col=1, max_col=len(COLUMNAS)):
+    for celdas in hoja.iter_rows(min_row=1, max_row=hoja.max_row, min_col=1, max_col=len(COLUMNAS_EXCEL)):
         valores = [c.value for c in celdas]
         if all(v is None or str(v).strip() == "" for v in valores):
             continue
@@ -160,7 +162,7 @@ def leer_excel(datos):
             if isinstance(valores[0], str) and es_encabezado_txt([valores[0]]):
                 continue
         linea = {"Fila": fila}
-        for columna, v in zip(COLUMNAS, valores):
+        for columna, v in zip(COLUMNAS_EXCEL, valores):
             linea[columna], problema = _valor(columna, v)
             if problema is None and PROHIBIDOS.search(linea[columna]):
                 problema = "Tiene un tabulador o un salto de línea dentro de la celda"
@@ -171,10 +173,10 @@ def leer_excel(datos):
                     problema = "Tiene un carácter que el TXT no admite (¿símbolo raro?)"
             if problema:
                 problemas.append((fila, columna, problema))
-        lineas.append(linea)
+        lineas.append({**linea, "Referencia": ""})
     if not lineas:
-        raise ErrorUsuario(f"La hoja «{hoja.title}» no tiene líneas. Las columnas deben ir de la A a la K, en el "
-                           "orden del TXT: " + ", ".join(COLUMNAS) + ".")
+        raise ErrorUsuario(f"La hoja «{hoja.title}» no tiene líneas. Las columnas deben ir de la A a la J, en el "
+                           "orden del TXT: " + ", ".join(COLUMNAS_EXCEL) + ".")
     return hoja.title, lineas, problemas
 
 
@@ -187,27 +189,25 @@ def misma_factura_repetida(lineas):
     return [filas for filas in grupos.values() if len(filas) > 1]
 
 
-def referencia_con_folio(referencia, folio_actual, folio_nuevo):
-    """La Referencia empieza con el folio ("A1893      Q18-2026"). Al formatear queda el folio nuevo y lo demás que
-    escribió quien manda el TXT, unidos con guion bajo y sin espacios: "26185113K7Q3MXP4_Q18-2026". Si la referencia
-    no empezaba con el folio, el folio nuevo se le antepone igual; si estaba vacía, queda solo el folio.
-    Formatear otra vez da lo mismo (no se acumulan guiones)."""
-    referencia = referencia.strip()
-    resto = referencia[len(folio_actual):] if folio_actual and referencia.startswith(folio_actual) else referencia
-    partes = resto.replace(SEPARADOR_REFERENCIA, " ").split()
-    return SEPARADOR_REFERENCIA.join([folio_nuevo] + partes)
+def referencia(folio, fecha):
+    """Referencia del TXT: el folio nuevo y la quincena de la fecha, unidos con guion bajo y sin espacios:
+    "26185113K7Q3MXP4_Q18-2026" (como la del TXT original, "A1893      Q18-2026", con el folio nuevo)."""
+    return f"{folio}{SEPARADOR_REFERENCIA}{folios.texto_quincena(fecha)}"
+
+
+def quincenas(lineas):
+    """{"Q18-2026": líneas} según la fecha de cada línea."""
+    return Counter(folios.texto_quincena(l["Fecha"]) for l in lineas)
 
 
 def formatear(lineas, registrados):
-    """Pone a cada línea su folio único (folios.py) y la Referencia con ese folio.
-    -> (líneas formateadas, problemas). Cada línea formateada guarda también FolioOriginal, ReferenciaOriginal,
-    Clave y Previo (el registro si ese folio ya se había generado antes)."""
+    """Pone a cada línea su folio único (folios.py) y su Referencia (folio nuevo + quincena).
+    -> (líneas formateadas, problemas). Cada línea formateada guarda también FolioOriginal, Clave y Previo (el
+    registro si ese folio ya se había generado antes)."""
     salida = []
     for linea, (folio, clave, previo) in zip(lineas, folios.formatear_folios(lineas, registrados)):
-        salida.append({**linea, "Folio": folio,
-                       "Referencia": referencia_con_folio(linea["Referencia"], linea["Folio"], folio),
-                       "FolioOriginal": linea["Folio"], "ReferenciaOriginal": linea["Referencia"],
-                       "Clave": clave, "Previo": previo})
+        salida.append({**linea, "Folio": folio, "Referencia": referencia(folio, linea["Fecha"]),
+                       "FolioOriginal": linea["Folio"], "Clave": clave, "Previo": previo})
     # Un folio ya formateado se conserva: si el Excel trae dos veces la misma línea ya formateada, chocarían
     por_folio = defaultdict(list)
     for linea in salida:
@@ -227,7 +227,7 @@ def escribir(lineas):
 def registros_de(lineas, archivo):
     """Lo que se guarda en HistorialFolios.csv al descargar el TXT (rastreo del folio nuevo al original)."""
     return [{"Folio": l["Folio"], "Clave": l["Clave"], "IDProveedor": normalizar_id(l["IDProveedor"]),
-             "Periodo": "Q{1:02d}-{0}".format(*folios.quincena(l["Fecha"], l["ReferenciaOriginal"])),
+             "Periodo": folios.texto_quincena(l["Fecha"]),
              "Linea": l["Fila"], "FolioOriginal": l["FolioOriginal"], "Monto": l["Monto"], "Fecha": l["Fecha"],
              "Archivo": archivo}
             for l in lineas]
@@ -237,10 +237,7 @@ def periodo(lineas):
     """(año, mes, "Q18-2026") que más se repite en las líneas: para nombrar el TXT y guardar su copia."""
     meses = Counter(datetime.strptime(l["Fecha"], "%d.%m.%Y").strftime("%Y-%m") for l in lineas)
     anio, mes = map(int, meses.most_common(1)[0][0].split("-"))
-    quincenas = Counter("Q{1:02d}-{0}".format(*folios.quincena(l["Fecha"], l.get("ReferenciaOriginal",
-                                                                               l["Referencia"])))
-                        for l in lineas)
-    return anio, mes, quincenas.most_common(1)[0][0]
+    return anio, mes, quincenas(lineas).most_common(1)[0][0]
 
 
 def _libro_en_bytes(libro):
@@ -250,14 +247,14 @@ def _libro_en_bytes(libro):
 
 
 def plantilla():
-    """Excel vacío con las columnas A a K del TXT (en formato texto, para que Excel no cambie lo que se escriba)."""
+    """Excel vacío con las columnas A a J (en formato texto, para que Excel no cambie lo que se escriba)."""
     libro = Workbook()
     hoja = libro.active
     hoja.title = HOJA_PARA_TXT
-    hoja.append(COLUMNAS)
-    for i, columna in enumerate(COLUMNAS, start=1):
+    hoja.append(COLUMNAS_EXCEL)
+    for i, columna in enumerate(COLUMNAS_EXCEL, start=1):
         letra = get_column_letter(i)
-        hoja.column_dimensions[letra].width = 22 if columna == "Referencia" else 14
+        hoja.column_dimensions[letra].width = 16
         hoja.column_dimensions[letra].number_format = "@"
         hoja.cell(1, i).font = Font(bold=True, color="FFFFFF")
         hoja.cell(1, i).fill = PatternFill("solid", fgColor="305496")
@@ -271,13 +268,13 @@ def control_de_folios(lineas, nombres):
     hoja = libro.active
     hoja.title = "Control de folios"
     encabezados = ["Fila del Excel", "Médico", "IDProveedor", "Folio original", "Folio nuevo", "Monto", "Fecha",
-                   "Tax", "Referencia original", "Referencia nueva", "Folio generado antes"]
+                   "Tax", "Referencia", "Folio generado antes"]
     hoja.append(encabezados)
     for l in lineas:
         previo = l.get("Previo")
         hoja.append([l["Fila"], nombres.get(normalizar_id(l["IDProveedor"]), ""), l["IDProveedor"],
                      l["FolioOriginal"], l["Folio"], float(l["Monto"]), l["Fecha"], l["Tax"],
-                     l["ReferenciaOriginal"].strip(), l["Referencia"],
+                     l["Referencia"],
                      f"Sí, el {previo['Registrado']}" if previo else ""])
         hoja.cell(hoja.max_row, 6).number_format = "#,##0.00"
     for i, encabezado in enumerate(encabezados, start=1):

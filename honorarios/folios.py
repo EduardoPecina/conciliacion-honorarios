@@ -7,7 +7,7 @@ portal mide 16 caracteres (lo más que acepta SAP) y se lee así:
     │  │   │      └─ 8 caracteres calculados con la factura (huella SHA-256 de IDProveedor + folio original +
     │  │   │         monto + fecha): misma factura -> mismo folio, siempre y en cualquier computadora
     │  │   └─ últimos 4 caracteres del IDProveedor
-    │  └─ quincena (Q18), de la Referencia; si no la trae, de la fecha
+    │  └─ quincena de la fecha (Q18: del 16 al fin de septiembre; Q01 es del 1 al 15 de enero)
     └─ año (2026)
 
 - Rastreable: con solo verlo se sabe la quincena y el proveedor; HistorialFolios.csv guarda además el folio original,
@@ -33,7 +33,6 @@ from .utilidades import guardar_seguro, normalizar_id
 # 32 símbolos sin los que se confunden al leer o dictar: sin 0/O ni 1/I.
 ALFABETO = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
 LARGO_HUELLA = LONGITUD_FOLIO - 8                     # año (2) + quincena (2) + IDProveedor (4) + huella
-PATRON_QUINCENA = re.compile(r"Q(\d{1,2})\s*-\s*(\d{4})", re.IGNORECASE)
 COLUMNAS = ["Folio", "Clave", "IDProveedor", "Periodo", "Linea", "Registrado", "FolioOriginal", "Monto", "Fecha",
             "Usuario", "Archivo"]
 
@@ -48,13 +47,16 @@ def huella(clave, longitud=LARGO_HUELLA):
     return "".join(simbolos)
 
 
-def quincena(fecha, referencia=""):
-    """(año, quincena 1-24): la de la Referencia ("Q18-2026") si la trae; si no, la de la fecha (DD.MM.AAAA)."""
-    m = PATRON_QUINCENA.search(referencia or "")
-    if m and 1 <= int(m.group(1)) <= 24:
-        return int(m.group(2)), int(m.group(1))
+def quincena(fecha):
+    """(año, quincena 1-24) de una fecha DD.MM.AAAA: del 1 al 15 es la primera del mes, del 16 al fin la segunda."""
     dia = datetime.strptime(fecha, "%d.%m.%Y")
     return dia.year, (dia.month - 1) * 2 + (1 if dia.day <= 15 else 2)
+
+
+def texto_quincena(fecha):
+    """"Q18-2026": como la escriben en la Referencia del TXT."""
+    anio, q = quincena(fecha)
+    return f"Q{q:02d}-{anio}"
 
 
 def cola_del_id(id_proveedor):
@@ -62,8 +64,8 @@ def cola_del_id(id_proveedor):
     return limpio[-4:].rjust(4, "0")
 
 
-def prefijo(id_proveedor, fecha, referencia=""):
-    anio, q = quincena(fecha, referencia)
+def prefijo(id_proveedor, fecha):
+    anio, q = quincena(fecha)
     return f"{anio % 100:02d}{q:02d}{cola_del_id(id_proveedor)}"
 
 
@@ -80,7 +82,7 @@ def clave_de(linea):
 
 
 def formatear_folios(lineas, registrados):
-    """lineas: [{"IDProveedor", "Folio", "Monto", "Fecha", "Referencia"}] (valores ya como van en el TXT).
+    """lineas: [{"IDProveedor", "Folio", "Monto", "Fecha"}] (valores ya como van en el TXT).
     registrados: cargar_folios(). Devuelve, en el mismo orden, [(folio, clave, registro previo o None)].
     Ningún folio se repite entre sí ni con uno registrado de otra factura."""
     tomados = {f: r.get("Clave", "") for f, r in registrados.items()}
@@ -93,7 +95,7 @@ def formatear_folios(lineas, registrados):
             base = clave_de(linea)
             partes[base] = partes.get(base, 0) + 1
             clave = f"{base}#{partes[base]}"
-            inicio = prefijo(linea["IDProveedor"], linea["Fecha"], linea["Referencia"])
+            inicio = prefijo(linea["IDProveedor"], linea["Fecha"])
             sal, folio = "", inicio + huella(clave)
             while tomados.get(folio, clave) != clave:      # prácticamente imposible: se recalcula con sal
                 sal += "+"

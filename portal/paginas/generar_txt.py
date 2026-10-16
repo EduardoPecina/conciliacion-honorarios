@@ -23,11 +23,13 @@ st.caption("Del Excel con las líneas **listas para pagar** al TXT para SAP. El 
 with st.expander("¿Cómo armo el Excel?"):
     st.markdown(
         "1. Descarga el Excel de la conciliación en **Conciliador Automático** y abre la hoja **TXT para SAP**: trae "
-        "las líneas del TXT con sus 11 columnas y, de apoyo, el Estatus y el Médico.\n"
+        "las líneas del TXT con sus columnas y, de apoyo, el Estatus y el Médico.\n"
         "2. Deja solo las líneas listas para pagar (filtra por Estatus y borra las demás). Lo que sigue en revisión "
         "se queda fuera y se paga después, cuando esté listo.\n"
-        "3. Guarda y sube el Excel aquí. Se leen solo las columnas **A a K**, en este orden: "
-        + ", ".join(f"**{c}**" for c in txt_sap.COLUMNAS) + ". El encabezado es opcional.\n\n"
+        "3. Guarda y sube el Excel aquí. Se leen solo las columnas **A a J**, en este orden: "
+        + ", ".join(f"**{c}**" for c in txt_sap.COLUMNAS_EXCEL) + ". El encabezado es opcional.\n\n"
+        "La **Referencia** no se captura: la arma el portal al formatear los folios, con el folio nuevo y la quincena "
+        "de la fecha (`26185113K7Q3MXP4_Q18-2026`).\n\n"
         "Si armas un Excel nuevo, usa la plantilla (sus columnas ya están como texto: Excel no les quita los ceros).")
     st.download_button("Descargar plantilla vacía", txt_sap.plantilla(), file_name="Plantilla_TXT_SAP.xlsx",
                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
@@ -70,7 +72,7 @@ def medico(id_proveedor):
 
 def tabla_de_problemas(problemas):
     return pd.DataFrame([{"Fila": f, "Columna": f"{txt_sap.LETRAS[c]} · {c}", "Qué corregir": t}
-                         for f, c, t in sorted(problemas, key=lambda p: (p[0], txt_sap.COLUMNAS.index(p[1])))])
+                         for f, c, t in sorted(problemas, key=lambda p: (p[0], txt_sap.COLUMNAS_EXCEL.index(p[1])))])
 
 
 st.caption(f"Se leyó la hoja **«{g['hoja']}»** de {g['archivo']}.")
@@ -90,6 +92,13 @@ c[1].metric("Monto total", f"${total:,.2f}")
 c[2].metric("Proveedores", len({normalizar_id(l["IDProveedor"]) for l in lineas}))
 c[3].metric("Folios", "Formateados" if g["formateadas"] else "Por formatear")
 st.caption("Compara las líneas y el monto total con tu Excel antes de descargar.")
+por_quincena = txt_sap.quincenas(lineas)
+if len(por_quincena) == 1:
+    st.caption(f"Quincena (de la fecha): **{next(iter(por_quincena))}**. Va al final de la Referencia.")
+else:
+    st.warning(f"Las fechas son de {len(por_quincena)} quincenas: "
+               + ", ".join(f"**{q}** ({n} línea{'s' if n > 1 else ''})" for q, n in por_quincena.most_common())
+               + ". La Referencia de cada línea lleva la quincena de su fecha: revisa que las fechas sean correctas.")
 
 repetidas = txt_sap.misma_factura_repetida(g["lineas"])
 if repetidas:
@@ -118,22 +127,24 @@ st.button("Formatear folios", type="secondary" if g["formateadas"] else "primary
           disabled=bool(g["formateadas"]),
           help="Pone a cada línea un folio único de 16 caracteres que se puede rastrear: año y quincena, los últimos "
                "4 del IDProveedor y 8 caracteres calculados con la factura (misma factura = mismo folio; nunca se "
-               "repite). La Referencia cambia igual: folio nuevo y el resto unidos con guion bajo "
-               "(\"A1893      Q18-2026\" -> \"26185113K7Q3MXP4_Q18-2026\").")
+               "repite). También pone la Referencia: el folio nuevo y la quincena de la fecha, unidos con guion "
+               "bajo (\"26185113K7Q3MXP4_Q18-2026\").")
 
-# Fila, Médico y Folio original son de apoyo; después, las 11 columnas en el orden en que van en el TXT
+# Fila, Médico y Folio original son de apoyo; después, las columnas en el orden en que van en el TXT (la
+# Referencia aparece al formatear los folios)
+columnas = txt_sap.COLUMNAS if g["formateadas"] else txt_sap.COLUMNAS_EXCEL
 vista = pd.DataFrame([{"Fila": l["Fila"], "Médico": medico(l["IDProveedor"]),
                        **({"Folio original": l["FolioOriginal"]} if g["formateadas"] else {}),
-                       **{col: l[col] for col in txt_sap.COLUMNAS}} for l in lineas])
+                       **{col: l[col] for col in columnas}} for l in lineas])
 amarillo = "background-color: rgba(234, 179, 8, 0.28)"
 st.dataframe(vista.style.map(lambda _: amarillo, subset=["Folio", "Referencia"]) if g["formateadas"] else vista,
              hide_index=True, width="stretch",
              column_config={"Fila": st.column_config.NumberColumn("Fila", help="Fila de tu Excel", format="%d"),
                             "Folio": st.column_config.TextColumn("Folio", width="medium"),
                             "Referencia": st.column_config.TextColumn("Referencia", width="large")})
-st.caption("Fila, Médico" + (" y Folio original son" if g["formateadas"] else " son") + " de apoyo: no van en el TXT. "
+st.caption(("Fila, Médico y Folio original son" if g["formateadas"] else "Fila y Médico son") + " de apoyo: no van en el TXT. "
            + ("🟨 Folio y Referencia ya formateados." if g["formateadas"]
-              else "Formatea los folios para poder descargar el TXT."))
+              else "Formatea los folios: se ponen el folio único y la Referencia, y se habilita la descarga."))
 
 # ------------------------------------------------------------------ Descargar
 if not g["formateadas"]:
