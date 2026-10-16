@@ -24,7 +24,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.utils.datetime import from_excel
 
 from . import folios
-from .config import CODIGOS_IMPUESTO_TXT
+from .config import CODIGOS_IMPUESTO_TXT, LONGITUD_FOLIO, LONGITUD_REFERENCIA
 from .entradas import es_encabezado_txt
 from .utilidades import ErrorUsuario, importe_txt, normalizar_id
 
@@ -35,8 +35,8 @@ COLUMNAS_EXCEL = COLUMNAS[:-1]                 # las que se capturan en el Excel
 LETRAS = dict(zip(COLUMNAS_EXCEL, "ABCDEFGHIJ"))
 # Columnas que en el TXT de SAP llevan siempre el mismo valor
 FIJOS = {"X": "X", "1": "001", "PM": "T"}
-# Referencia = folio nuevo + separador + quincena: "26185113K7Q3MXP4_Q18-2026" (en el TXT original venía
-# "A1893      Q18-2026": el folio, espacios y la quincena)
+# Referencia = final del folio nuevo + separador + quincena, en 16 caracteres: "7Q3MXP4_Q18-2026" (en el TXT
+# original venía "A1893      Q18-2026": el folio, espacios y la quincena)
 SEPARADOR_REFERENCIA = "_"
 HOJA_PARA_TXT = "TXT para SAP"                 # hoja del Excel de la conciliación con las columnas del TXT
 SALTO = "\r\n"
@@ -190,9 +190,14 @@ def misma_factura_repetida(lineas):
 
 
 def referencia(folio, fecha):
-    """Referencia del TXT: el folio nuevo y la quincena de la fecha, unidos con guion bajo y sin espacios:
-    "26185113K7Q3MXP4_Q18-2026" (como la del TXT original, "A1893      Q18-2026", con el folio nuevo)."""
-    return f"{folio}{SEPARADOR_REFERENCIA}{folios.texto_quincena(fecha)}"
+    """Referencia del TXT, de LONGITUD_REFERENCIA (16) caracteres como máximo: el final del folio nuevo y la quincena
+    de la fecha, unidos con guion bajo: folio 26185113K7Q3MXP4 -> "7Q3MXP4_Q18-2026". Es la estructura de la del TXT
+    original ("A1893      Q18-2026": folio y quincena). Del folio van sus últimos caracteres porque son los que lo
+    distinguen (los primeros, año, quincena e ID, ya están en la quincena y en la línea); si cupiera completo, va
+    completo."""
+    quincena = folios.texto_quincena(fecha)
+    cabe = LONGITUD_REFERENCIA - len(SEPARADOR_REFERENCIA) - len(quincena)
+    return f"{folio[-cabe:]}{SEPARADOR_REFERENCIA}{quincena}"
 
 
 def quincenas(lineas):
@@ -201,7 +206,7 @@ def quincenas(lineas):
 
 
 def formatear(lineas, registrados):
-    """Pone a cada línea su folio único (folios.py) y su Referencia (folio nuevo + quincena).
+    """Pone a cada línea su folio único (folios.py) y su Referencia (final del folio nuevo + quincena).
     -> (líneas formateadas, problemas). Cada línea formateada guarda también FolioOriginal, Clave y Previo (el
     registro si ese folio ya se había generado antes)."""
     salida = []
@@ -215,6 +220,12 @@ def formatear(lineas, registrados):
     problemas = [(fila, "Folio", f"El folio {folio} está repetido para el mismo proveedor (filas "
                                  f"{', '.join(map(str, filas))}): SAP lo rechazaría. ¿Se copió la línea dos veces?")
                  for (_, folio), filas in por_folio.items() if len(filas) > 1 for fila in filas]
+    # Candado: nada más largo de lo que acepta SAP llega al TXT
+    for linea in salida:
+        for columna, maximo in (("Folio", LONGITUD_FOLIO), ("Referencia", LONGITUD_REFERENCIA)):
+            if len(linea[columna]) > maximo:
+                problemas.append((linea["Fila"], "Folio", f"La {columna} {linea[columna]} mide {len(linea[columna])} "
+                                                          f"caracteres y SAP acepta {maximo}"))
     return salida, problemas
 
 

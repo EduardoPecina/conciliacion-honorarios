@@ -28,8 +28,8 @@ with st.expander("¿Cómo armo el Excel?"):
         "se queda fuera y se paga después, cuando esté listo.\n"
         "3. Guarda y sube el Excel aquí. Se leen solo las columnas **A a J**, en este orden: "
         + ", ".join(f"**{c}**" for c in txt_sap.COLUMNAS_EXCEL) + ". El encabezado es opcional.\n\n"
-        "La **Referencia** no se captura: la arma el portal al formatear los folios, con el folio nuevo y la quincena "
-        "de la fecha (`26185113K7Q3MXP4_Q18-2026`).\n\n"
+        "La **Referencia** no se captura: la arma el portal al formatear los folios, con el final del folio nuevo y "
+        "la quincena de la fecha, en 16 caracteres (folio `26185113K7Q3MXP4` → Referencia `7Q3MXP4_Q18-2026`).\n\n"
         "Si armas un Excel nuevo, usa la plantilla (sus columnas ya están como texto: Excel no les quita los ceros).")
     st.download_button("Descargar plantilla vacía", txt_sap.plantilla(), file_name="Plantilla_TXT_SAP.xlsx",
                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
@@ -127,8 +127,8 @@ st.button("Formatear folios", type="secondary" if g["formateadas"] else "primary
           disabled=bool(g["formateadas"]),
           help="Pone a cada línea un folio único de 16 caracteres que se puede rastrear: año y quincena, los últimos "
                "4 del IDProveedor y 8 caracteres calculados con la factura (misma factura = mismo folio; nunca se "
-               "repite). También pone la Referencia: el folio nuevo y la quincena de la fecha, unidos con guion "
-               "bajo (\"26185113K7Q3MXP4_Q18-2026\").")
+               "repite). También pone la Referencia, de 16 caracteres: el final del folio nuevo y la quincena de la "
+               "fecha, unidos con guion bajo (folio 26185113K7Q3MXP4 -> Referencia 7Q3MXP4_Q18-2026).")
 
 # Fila, Médico y Folio original son de apoyo; después, las columnas en el orden en que van en el TXT (la
 # Referencia aparece al formatear los folios)
