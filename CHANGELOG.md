@@ -1,5 +1,15 @@
 # Historial de cambios
 
+## [1.20.1] - 2026-10-16
+
+### Corregido
+- **La Referencia medía 25 caracteres** (`26185113K7Q3MXP4_Q18-2026`) y SAP acepta 16. Ahora mide 16 como máximo: los
+  últimos 7 caracteres del folio nuevo (los que lo distinguen) y la quincena: folio `26185113K7Q3MXP4` → Referencia
+  `7Q3MXP4_Q18-2026`. El folio sigue siendo de 16 caracteres y no cambia.
+- Candado: antes de descargar, ningún Folio ni Referencia puede pasar de 16 caracteres (`LONGITUD_FOLIO` y
+  `LONGITUD_REFERENCIA` en `honorarios/config.py`). Si SAP confirma que la Referencia acepta más, se sube
+  `LONGITUD_REFERENCIA` y la Referencia vuelve a llevar el folio completo.
+
 ## [1.20.0] - 2026-10-16
 
 ### Cambiado

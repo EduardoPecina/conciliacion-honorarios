@@ -54,6 +54,9 @@ ARCHIVO_HISTORIAL = "HistorialUUID.csv"
 # el mismo proveedor ya usó, aunque sea de otro mes, y acepta hasta 16 caracteres: año (2) + quincena (2) +
 # IDProveedor (4) + huella de la factura (el resto).
 LONGITUD_FOLIO = 16
+# La Referencia (columna 11 del TXT) tampoco pasa de 16: si cabe el folio completo, lo lleva; si no, sus últimos
+# caracteres (los que lo distinguen) + "_" + la quincena. Si SAP confirma que acepta más, se sube aquí.
+LONGITUD_REFERENCIA = 16
 ARCHIVO_FOLIOS = "HistorialFolios.csv"
 
 MESES = ["01 Ene", "02 Feb", "03 Mar", "04 Abr", "05 May", "06 Jun",

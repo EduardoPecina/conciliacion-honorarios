@@ -167,6 +167,24 @@ class TestFoliosRastreables(unittest.TestCase):
         _, problemas = txt_sap.formatear([formateada[0], {**formateada[0], "Fila": 3}], {})
         self.assertEqual([(f, c) for f, c, _ in problemas], [(2, "Folio"), (3, "Folio")])
 
+    def test_nada_pasa_de_16_caracteres(self):
+        lineas = [linea(Fila=i, Folio=f"FOLIO-LARGO-DE-PROVEEDOR-{i}", IDProveedor=str(30165113 + i),
+                        Fecha=f"{1 + i % 28:02d}.{1 + i % 12:02d}.2026") for i in range(2000)]
+        formateadas, problemas = txt_sap.formatear(lineas, {})
+        self.assertEqual(problemas, [])
+        self.assertLessEqual(max(len(l["Folio"]) for l in formateadas), 16)
+        self.assertLessEqual(max(len(l["Referencia"]) for l in formateadas), 16)
+
+    def test_si_sap_aceptara_mas_la_referencia_lleva_el_folio_completo(self):
+        with mock.patch.object(txt_sap, "LONGITUD_REFERENCIA", 25):
+            self.assertEqual(txt_sap.referencia("26185113K7Q3MXP4", "29.09.2026"), "26185113K7Q3MXP4_Q18-2026")
+        self.assertEqual(txt_sap.referencia("26185113K7Q3MXP4", "29.09.2026"), "7Q3MXP4_Q18-2026")
+
+    def test_candado_de_largo(self):
+        with mock.patch.object(txt_sap, "LONGITUD_REFERENCIA", 30), mock.patch.object(txt_sap, "LONGITUD_FOLIO", 10):
+            _, problemas = txt_sap.formatear([linea()], {})
+        self.assertIn("SAP acepta 10", problemas[0][2])
+
     def test_millones_de_combinaciones_sin_repetir(self):
         generados = {folios.formatear_folios([linea(Folio=f"F{i}")], {})[0][0] for i in range(100_000)}
         self.assertEqual(len(generados), 100_000, "100 mil facturas del mismo proveedor y quincena: ninguna se repite")
@@ -174,8 +192,8 @@ class TestFoliosRastreables(unittest.TestCase):
     def test_la_referencia_la_arma_el_portal_con_el_folio_y_la_quincena(self):
         formateadas, _ = txt_sap.formatear([linea(), linea(Fila=3, Fecha="01.10.2026", Folio="B1")], {})
         folio = formateadas[0]["Folio"]
-        self.assertEqual(formateadas[0]["Referencia"], f"{folio}_Q18-2026")
-        self.assertEqual(len(formateadas[0]["Referencia"]), 25)
+        self.assertEqual(formateadas[0]["Referencia"], f"{folio[-7:]}_Q18-2026")
+        self.assertEqual(len(formateadas[0]["Referencia"]), 16, "lo más que acepta SAP")
         self.assertEqual(formateadas[0]["FolioOriginal"], "A1893")
         self.assertTrue(formateadas[1]["Referencia"].endswith("_Q19-2026"), "cada línea, la quincena de su fecha")
         self.assertEqual(txt_sap.quincenas(formateadas), {"Q18-2026": 1, "Q19-2026": 1})
@@ -192,7 +210,7 @@ class TestTxtParaSap(unittest.TestCase):
         self.assertEqual(len(campos), 11)
         f = formateadas[0]["Folio"]
         self.assertEqual(campos, ["29.09.2026", "145362", f, "9096.00", "X", "E0", "001", "32635079", "50E03158",
-                                  "T", f"{f}_Q18-2026"])
+                                  "T", f"{f[-7:]}_Q18-2026"])
         self.assertNotIn(b"\n", datos.replace(b"\r\n", b""))
 
     def test_registro_de_folios_para_rastrear(self):
@@ -261,7 +279,7 @@ class TestHojaTxtParaSap(unittest.TestCase):
         self.assertEqual(problemas, [])
         self.assertEqual(len({(l["IDProveedor"], l["Folio"]) for l in formateadas}), len(formateadas))
         self.assertTrue(all(len(l["Folio"]) == 16 for l in formateadas))
-        self.assertTrue(all(l["Referencia"] == f"{l['Folio']}_Q18-2026" for l in formateadas))
+        self.assertTrue(all(l["Referencia"] == f"{l['Folio'][-7:]}_Q18-2026" for l in formateadas))
 
 
 class TestTrabajoDeVariosDias(unittest.TestCase):
