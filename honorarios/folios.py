@@ -23,7 +23,9 @@ portal mide 16 caracteres (lo más que acepta SAP) y se lee así:
 import getpass
 import hashlib
 import re
+from collections import Counter
 from datetime import datetime
+from decimal import Decimal
 
 import pandas as pd
 
@@ -103,6 +105,29 @@ def formatear_folios(lineas, registrados):
         previo = registrados.get(folio) if registrados.get(folio, {}).get("Clave") == clave else None
         tomados[folio] = clave
         salida.append((folio, clave, previo))
+    return salida
+
+
+def ya_generados(lineas, registrados=None):
+    """Líneas del TXT original que ya salieron en un TXT descargado de Generar TXT.
+    lineas: filas de la conciliación ({"Linea", "IDProveedor", "Folio", "Importe", "Fecha"}).
+    -> {Linea: "16/10/2026 11:05 · Aprobadas.xlsx"}. Se reconocen por la misma clave que da el folio (ID, folio
+    original, monto y fecha); si el TXT trae líneas idénticas, la primera se compara con la primera, etc."""
+    registrados = cargar_folios() if registrados is None else registrados
+    por_clave = {r.get("Clave", ""): r for r in registrados.values()}
+    vistas, salida = Counter(), {}
+    for linea in sorted(lineas, key=lambda l: l["Linea"]):
+        try:
+            monto = f"{Decimal(str(linea['Importe'])):.2f}"
+        except Exception:                                  # noqa: BLE001 - importe inválido: no pudo ir en un TXT
+            continue
+        base = clave_de({"IDProveedor": str(linea["IDProveedor"]), "Folio": str(linea["Folio"]), "Monto": monto,
+                         "Fecha": str(linea["Fecha"])})
+        vistas[base] += 1
+        registro = por_clave.get(f"{base}#{vistas[base]}")
+        if registro:
+            salida[linea["Linea"]] = " · ".join(x for x in (registro.get("Registrado", ""),
+                                                            registro.get("Archivo", "")) if x)
     return salida
 
 

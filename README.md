@@ -193,6 +193,20 @@ La conciliación de un mes puede llevar días (revisar errores, esperar correcci
 
 El botón **Descargar Excel** de Conciliador Automático siempre da el reporte **actual**: si se actualizó el SAT o SAP, genera un Excel nuevo con los estatus actualizados (la hoja Info conserva el nombre y la huella SHA-256 del TXT original).
 
+### Facturas pendientes: refacturas y XML que faltaban (segunda vuelta)
+
+Las líneas que no cruzaron (Sin XML, Rechazar, Diferencia de importe, Detenida…) no detienen a las demás: lo que cruzó se paga con su TXT y lo pendiente se resuelve después, en el mismo mes. Cuando llegan las refacturas o los XML que faltaban:
+
+1. En **Conciliador Automático**, con el mes abierto (o con "Continuar donde te quedaste"), sección **Facturas pendientes**: se suben **solo los XML nuevos** (sueltos o en .zip) y se da clic en **Buscar en las líneas pendientes**.
+2. **Lo cruzado no se toca:** las líneas Cruzado, Cruzado (pago quebrado) y Cruzado con observaciones quedan igual, con su misma factura. Ni sus facturas ni copias de ellas (mismo UUID) pueden cruzar otra línea.
+3. Los XML nuevos se consultan en el SAT (solo esos; SAP se reusa) y se buscan, con las mismas reglas, entre las líneas pendientes, junto con las facturas del mes que ninguna línea cruzada usa. Si el médico mandó una factura nueva, el cruce prefiere la válida a la que se rechazó. Un XML que ya estaba en el mes (mismo UUID) se ignora. Sin conexión con el SAT no se agrega nada.
+4. **Fecha de la refactura:** un CFDI no se puede fechar hacia atrás, así que la refactura de septiembre llega con fecha de octubre. Una factura agregada como pendiente se acepta si es del periodo o del mes siguiente, y queda **Cruzado con observaciones** ("posterior al periodo: se aceptó porque se agregó como pendiente el …"). Más tarde, o en la primera vuelta, la regla es la de siempre: la factura debe ser del mes.
+5. El portal muestra qué líneas cambiaron (antes → ahora), el Excel se actualiza (la hoja Info registra cada vuelta) y el trabajo del mes queda guardado. El nombre del XML lleva la carpeta de la vuelta (`Pendientes 16-10-2026 1140/...`).
+6. **Para pagar lo nuevo:** en la hoja **TXT para SAP**, la columna **TXT generado** marca las líneas que ya salieron en un TXT (fecha y Excel). Dentro de cada estatus, primero va lo que todavía no tiene TXT. Se arma el Excel con las líneas Cruzado sin TXT generado y se sube en Generar TXT.
+7. Al terminar, **Confirmar conciliación** registra en el historial también los UUID nuevos.
+
+Generar TXT **no deja descargar** líneas que ya salieron en un TXT anterior (posible pago doble), salvo que se marque "La carga anterior a SAP falló y hay que mandarlas otra vez". Además, llevan el mismo folio: si en realidad sí se cargaron, SAP las rechaza.
+
 ### Generar TXT (el TXT que se carga a SAP)
 
 El TXT para SAP **ya no se edita en el portal**: se genera desde un Excel con **solo las líneas listas para pagar**. Lo que sigue en revisión no detiene a lo demás: se queda fuera y se paga después, cuando esté listo. El analista lleva su propio control de lo pendiente, en coordinación con las áreas involucradas.

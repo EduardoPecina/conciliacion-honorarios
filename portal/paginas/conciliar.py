@@ -1,20 +1,21 @@
 """Página Conciliador Automático: subir TXT y XML -> Procesar -> resumen -> Descargar Excel -> Confirmar."""
 
 import tempfile
+from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
-from honorarios.config import MESES, REPORTES
+from honorarios.config import ARCHIVO_FOLIOS, CONFIG, MESES, REPORTES
 from honorarios.entradas import NOMBRES_MES, rutas_en
 from honorarios.estado_sat import alerta_efos, describir
 from honorarios.reporte import ORDEN_ESTATUS, RESPONSABLE_POR_ESTATUS
-from honorarios.servicio import (AYUDA_REUSAR_SAP, actualizar_sap, actualizar_sat, conciliar_periodo,
-                                 dias_desde_consulta, fecha_consultas_sap, regenerar_reporte,
-                                 registrar_historial)
+from honorarios.servicio import (AYUDA_REUSAR_SAP, actualizar_sap, actualizar_sat, agregar_pendientes,
+                                 conciliar_periodo, dias_desde_consulta, es_cruzada, fecha_consultas_sap,
+                                 lineas_pendientes, regenerar_reporte, registrar_historial)
 from honorarios.utilidades import ErrorUsuario, fecha_actual
-from portal.archivos import preparar_carpeta
+from portal.archivos import preparar_carpeta, preparar_xmls
 from portal.estilo import aviso_al_salir, ruta_logo
 from portal.trabajo import guardar, ofrecer_continuar
 
@@ -85,6 +86,7 @@ procesar = st.button("Procesar", type="primary", disabled=not (txt and xmls and 
 # ------------------------------------------------------------------ 2. Proceso
 if procesar:
     st.session_state.pop("conciliacion", None)
+    st.session_state.pop("resumen_pendientes", None)
     aviso = st.empty()                                     # pregunta antes de salir de la página (no bloquea)
     with aviso:
         st.html(aviso_al_salir(True), unsafe_allow_javascript=True)
@@ -211,8 +213,17 @@ if conciliacion.sobrantes:
     st.caption(f"{len(conciliacion.sobrantes):,} XML sin línea en el TXT (hoja 'XML sin TXT' del Excel). "
                f"{len(conciliacion.errores_xml):,} XML no se pudieron leer (hoja 'Errores XML').")
 
-if st.session_state.get("excel_version") != conciliacion.version or not st.session_state.get("excel"):
-    # Hubo cambios (actualizar SAT o SAP): Excel nuevo con el resultado actual
+
+
+def txt_generado_despues_del_excel():
+    """Se descargó un TXT en Generar TXT después de hacer el Excel: su columna "TXT generado" ya no está al día."""
+    registro, excel = CONFIG / ARCHIVO_FOLIOS, Path(conciliacion.destino)
+    return registro.exists() and excel.exists() and registro.stat().st_mtime > excel.stat().st_mtime
+
+
+if (st.session_state.get("excel_version") != conciliacion.version or not st.session_state.get("excel")
+        or txt_generado_despues_del_excel()):
+    # Hubo cambios (actualizar SAT o SAP, facturas pendientes, un TXT generado): Excel nuevo con lo actual
     with st.spinner("Actualizando el Excel..."):
         conciliacion = regenerar_reporte(conciliacion, st.session_state["salida"], st.session_state["txt_original"])
         st.session_state["conciliacion"] = conciliacion
@@ -225,6 +236,66 @@ st.download_button("Descargar Excel", st.session_state["excel"], file_name=Path(
 st.info("**Para cargar a SAP:** en el Excel, hoja **TXT para SAP**, deja solo las líneas listas para pagar y "
         "súbelo en **Generar TXT**: ahí se formatean los folios y se descarga el TXT.")
 st.page_link("paginas/generar_txt.py", label="Ir a Generar TXT", icon="📄")
+
+# ------------------------------------------------------------------ 4. Facturas pendientes (segunda vuelta)
+st.divider()
+st.subheader("Facturas pendientes: refacturas y XML que faltaban")
+resumen = st.session_state.get("resumen_pendientes")
+if resumen:
+    cruzaron = [c for c in resumen["cambios"] if c["Ahora"].startswith("Cruzado")]
+    (st.success if cruzaron else st.info)(
+        f"Se agregaron **{resumen['nuevas']} XML nuevos**: **{len(cruzaron)} línea(s) pasaron a Cruzado**."
+        + (f" {resumen['sin_linea']} XML no encontraron línea pendiente (hoja 'XML sin TXT' del Excel)."
+           if resumen["sin_linea"] else "")
+        + (f" {len(resumen['ya_estaban'])} ya estaban en el mes (mismo UUID) y se ignoraron."
+           if resumen["ya_estaban"] else "")
+        + (f" {len(resumen['errores'])} no se pudieron leer (hoja 'Errores XML')." if resumen["errores"] else ""))
+    if resumen["cambios"]:
+        st.dataframe(pd.DataFrame(resumen["cambios"]), hide_index=True, width="stretch",
+                     column_config={"Importe": st.column_config.NumberColumn(format="$%,.2f")})
+        st.caption("El Excel de arriba ya está actualizado: en la hoja TXT para SAP, toma las líneas Cruzado que no "
+                   "tienen TXT generado y súbelas en Generar TXT.")
+sin_cruzar = lineas_pendientes(conciliacion)
+if not sin_cruzar:
+    st.success("No hay líneas pendientes: todas cruzaron.")
+else:
+    ya_cruzadas = sum(1 for f in conciliacion.resultado if es_cruzada(f))
+    st.write(f"Las **{ya_cruzadas:,} líneas ya cruzadas no se tocan**. Sube **solo los XML nuevos** (refacturas de "
+             f"las rechazadas o los XML que no habían llegado) y el portal los busca entre las **{len(sin_cruzar):,} "
+             "líneas pendientes**, con las mismas reglas.")
+    st.caption("Solo se consultan al SAT los XML nuevos (se necesita internet; SAP no). Una refactura puede venir "
+               "fechada hasta el mes siguiente: queda Cruzado con observaciones. Un XML que ya estaba en el mes "
+               "(mismo UUID) se ignora.")
+    st.session_state.setdefault("pendientes_ver", 0)
+    nuevos = st.file_uploader("XML nuevos (sueltos o en .zip)", type=["xml", "zip"], accept_multiple_files=True,
+                              key=f"pendientes_{st.session_state['pendientes_ver']}")
+    if st.button("Buscar en las líneas pendientes", type="primary", disabled=not nuevos):
+        with st.status("Buscando en las líneas pendientes...", expanded=True) as estado:
+            barra = st.progress(0.0, text="Consulta al SAT")
+            try:
+                with tempfile.TemporaryDirectory() as tmp:
+                    # La subcarpeta queda en el nombre del XML (hoja Detalle): se sabe en qué vuelta llegó
+                    carpeta = Path(tmp) / f"Pendientes {datetime.now():%d-%m-%Y %H%M}"
+                    preparar_xmls(carpeta, [(x.name, x.getvalue()) for x in nuevos])
+                    rutas_xml = sorted(r for r in carpeta.rglob("*") if r.suffix.lower() == ".xml")
+                    nueva, resumen = agregar_pendientes(
+                        conciliacion, rutas_xml, Path(tmp), avisar=st.write,
+                        progreso_sat=lambda hechas, total: barra.progress(hechas / total,
+                                                                          text=f"Consulta al SAT: {hechas}/{total}"))
+                st.session_state["conciliacion"] = nueva
+                st.session_state["resumen_pendientes"] = resumen
+                st.session_state["pendientes_ver"] += 1          # el cargador queda vacío para la siguiente vuelta
+                guardar()
+                estado.update(label="Listo", state="complete", expanded=False)
+            except ErrorUsuario as e:
+                estado.update(label="No se agregó nada", state="error")
+                st.error(str(e))
+            except Exception as e:                               # noqa: BLE001 - se muestra al usuario
+                estado.update(label="Error inesperado", state="error")
+                st.error(f"Error inesperado: {type(e).__name__}: {e}\n\n"
+                         "Toma captura de este mensaje y compártela con quien mantiene el programa.")
+        if st.session_state.get("conciliacion") is not conciliacion:
+            st.rerun()                                           # Excel y números con lo nuevo
 
 st.divider()
 st.subheader("Confirmar conciliación")
