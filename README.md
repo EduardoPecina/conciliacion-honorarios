@@ -167,7 +167,7 @@ Por ahora el portal solo acepta conexiones desde la misma computadora (`address 
 | Página | Qué hace |
 |---|---|
 | Conciliador Automático | Subir archivos → Procesar → resumen → Descargar Excel → Confirmar |
-| Edición TXT | Revisar y corregir el TXT, formatear folios únicos y descargar el TXT para SAP |
+| Generar TXT | Subir el Excel con las líneas aprobadas → revisar → Formatear folios → Descargar el TXT para SAP |
 
 Las páginas de Catálogo de Proveedores e Historial de UUID (`portal/paginas/catalogo.py` e `historial.py`) ya no se muestran en el menú porque Contabilidad no las usa. El catálogo y el historial se siguen usando igual en cada conciliación.
 
@@ -182,50 +182,46 @@ El portal corre en la computadora de cada usuario y usa **su** sesión de SAP GU
 
 ### Trabajo de varios días
 
-La conciliación de un mes puede llevar días (revisar errores, esperar correcciones). **El trabajo se guarda solo** en la carpeta del mes (`Reportes\<Año>\<MM Mes>\Trabajo_AAAA-MM.pkl`) cada vez que se procesa, se edita algo o se actualizan las consultas.
+La conciliación de un mes puede llevar días (revisar errores, esperar correcciones). **El trabajo se guarda solo** en la carpeta del mes (`Reportes\<Año>\<MM Mes>\Trabajo_AAAA-MM.pkl`) cada vez que se procesa o se actualizan las consultas.
 
-- Al abrir el portal aparece **"Continuar donde te quedaste"** con los últimos meses trabajados. Un clic recupera todo: el resultado, lo consultado al SAT y a SAP (sin volver a consultar), el TXT y los cambios de Edición TXT. El selector se mueve al mes recuperado.
+- Al abrir el portal aparece **"Continuar donde te quedaste"** con los últimos meses trabajados. Un clic recupera todo: el resultado, lo consultado al SAT y a SAP (sin volver a consultar) y el TXT. El selector se mueve al mes recuperado.
 - **Si pasaron días**, el SAT o SAP pudieron cambiar (una factura cancelada, una corrección de Customer Services). En el resultado, **"Consultas al SAT y a SAP"** muestra la fecha de la última consulta y los botones **Actualizar SAT** y **Actualizar SAP**; si tienen 1 día o más, un aviso pide actualizarlas antes de confirmar o descargar el TXT.
 - Para empezar el mes de cero, basta con subir los archivos y procesar (reemplaza el trabajo guardado de ese mes).
 - El archivo lo escribe y lo lee solo el programa; si está dañado o es de una versión muy distinta, el portal lo dice y se vuelve a procesar.
 
-### Excel con las ediciones
+### Excel actualizado
 
-El botón **Descargar Excel** de Conciliador Automático siempre da el reporte **actual**: si hubo cambios en Edición TXT (o se actualizó el SAT o SAP), genera un Excel nuevo con los estatus actualizados y la hoja **Cambios TXT** (la bitácora: línea, columna, valor anterior y nuevo, motivo, usuario y fecha). El TXT editado se guarda junto al Excel (`TXT_editado_AAAA-MM.txt`) y la hoja Info registra su nombre y su huella SHA-256. Edición TXT tiene un enlace directo al reporte.
+El botón **Descargar Excel** de Conciliador Automático siempre da el reporte **actual**: si se actualizó el SAT o SAP, genera un Excel nuevo con los estatus actualizados (la hoja Info conserva el nombre y la huella SHA-256 del TXT original).
 
-### Edición TXT
+### Generar TXT (el TXT que se carga a SAP)
 
-Después de procesar el mes en Conciliador Automático, **Edición TXT** muestra el TXT como tabla, una fila por línea, con columnas de apoyo que **no van en el TXT descargado**: Línea, Estatus (el del cruce), Médico (del catálogo), Problemas del TXT, Sugerencia y Motivo del estatus.
+El TXT para SAP **ya no se edita en el portal**: se genera desde un Excel con **solo las líneas listas para pagar**. Lo que sigue en revisión no detiene a lo demás: se queda fuera y se paga después, cuando esté listo. El analista lleva su propio control de lo pendiente, en coordinación con las áreas involucradas.
 
-| Columna | ¿Se edita? |
-|---|---|
-| Fecha, X, 1, PM | No: campos fijos que pide SAP |
-| Folio y Referencia | Solo con **"Formatear folios"** (la Referencia queda `FOLIO_resto`, sin espacios) |
-| IDProveedor, Monto, Tax (lista: E0 / F2), Centro de Costo, Cuenta Contable | Sí, con el interruptor **Editar** |
+1. **Excel de la conciliación → hoja "TXT para SAP".** Trae las líneas del TXT original con sus 11 columnas tal cual (A a K, como texto) y, de apoyo, Estatus, Médico y Línea (L a N). El analista filtra por Estatus y deja solo lo que se va a pagar: Cruzado, Cruzado (pago quebrado), Cruzado con observaciones… lo que él considere correcto.
+2. **Generar TXT → subir ese Excel.** Puede ser el mismo Excel de la conciliación (se lee la hoja "TXT para SAP") o uno nuevo con la plantilla de la página. Se leen solo las columnas **A a K**, en el orden del TXT: Fecha, IDProveedor, Folio, Monto, X, Tax, 1, Centro de Costo, Cuenta Contable, PM, Referencia. El encabezado es opcional.
+3. **El portal revisa, no edita.** Si una celda no sirve, dice en qué fila y columna, y no deja generar el TXT hasta que se corrija **en el Excel**: fecha inválida, monto vacío, negativo o con más de 2 decimales, Tax distinto de E0/F2, X, 1 o PM distintos de X, 1 y T, IDProveedor, folio, centro de costo o cuenta vacíos, una cuenta que Excel convirtió en número (5E+31), tabuladores o caracteres raros. Avisa, sin bloquear, si un IDProveedor no está en el catálogo o si dos filas son la misma factura (mismo ID, folio, monto y fecha: ¿pago doble?).
+4. **Vista previa** con el médico (del catálogo), el total de líneas y el monto total, para compararlos con el Excel.
+5. **Formatear folios** (obligatorio antes de descargar): cambia el Folio y la Referencia de cada línea.
+6. **Descargar TXT:** el mismo formato que el TXT original: 11 columnas separadas por tabulador, **sin encabezados**, saltos de línea de Windows (CRLF), ANSI. Lo que Excel cambia al abrir un TXT se regresa a como va en el TXT: fecha `29.09.2026`, monto `9096.00` (2 decimales, sin comas), columna 1 como `001`. Al descargar, los folios quedan en `_Configuracion\HistorialFolios.csv` y se guardan una copia del TXT y el **control de folios** (Excel: de qué folio original salió cada folio nuevo) en `Reportes\<Año>\<MM Mes>\`. El control también se puede descargar.
 
-- **Al editar, todo se recalcula solo:** el médico cambia con el ID y el estatus se vuelve a cruzar con las mismas reglas, usando lo ya consultado al SAT y a SAP (segundos). Si un ID nuevo no se había consultado en SAP, aparece un botón para consultar solo esos IDs.
-- **Problemas del TXT, por celda** (en rojo): fecha o importe inválidos, columnas de más o de menos, código de impuesto que no es E0/F2, ID fuera del catálogo, folio repetido para el mismo proveedor o ya usado en otro mes. Los que SAP rechazaría (fecha, importe, columnas, caracteres) **bloquean la descarga**. Las celdas editadas se ven en amarillo.
-- **Posibles ID equivocados (solo apoyo):** si una línea no encontró factura y hay una factura sin línea por el mismo importe, de otro proveedor del catálogo, el portal lo señala ("Posible ID equivocado: la factura … de DR. PÉREZ (ID 100245 en el catálogo) es por $12,500.00 y no tiene línea en el TXT. Verifica en SAP quién es el ID 34095…"). **El portal no cambia nada solo:** SAP le deposita a la cuenta bancaria del ID que va en el TXT, así que quien edita lo verifica en SAP. El botón **Editar línea** abre una ventana con los valores actuales de IDProveedor, Nombre (se busca en el catálogo al escribir el ID), Tax y Monto; al guardar, el cambio queda en la bitácora y la línea se vuelve a cruzar.
-- **Filtros y orden** (solo cambian lo que se ve; **el TXT descargado siempre lleva todas las líneas**):
-  - **Pendientes de revisar:** oculta las líneas Cruzado y ordena de la más grave a la menos grave.
-  - **Para corregir:** solo líneas con problemas en el TXT o con posible ID equivocado.
-  - **Filtros y orden** (botón con embudo): estatus en modo *Mostrar solo* u *Ocultar* (filtro negativo); líneas con problemas, posible ID equivocado, editadas o folio sin formatear; Tax E0/F2; monto desde/hasta; ordenar por orden del archivo, gravedad del estatus, médico, monto o problemas primero.
-  - Búsqueda por médico, ID, folio o referencia. El clic en el encabezado de una columna también ordena.
-  - **Arriba de la tabla siempre se ven los filtros activos**, cada uno como botón con ✕ para quitar solo ese ("Ocultar: Cruzado", "Tax F2", "Búsqueda: …", "Orden: …"), y **Quitar todos los filtros** (siempre visible; gris cuando no hay filtros). La lista de estatus del panel ofrece siempre todos los estatus con cuántas líneas tiene cada uno, aunque ese mes no haya ninguna.
-- **Bitácora:** cada cambio queda registrado (línea, columna, valor anterior, valor nuevo, motivo, usuario de Windows, fecha). Si se cierra el portal a media edición, los cambios se recuperan al volver (borrador `EdicionTXT_AAAA-MM.json` en la carpeta del mes).
-- **Descargar TXT:** mismo formato que el TXT original: 11 columnas separadas por tabulador, **sin encabezados**, misma codificación y mismos saltos de línea. Lo que no se editó sale idéntico, carácter por carácter. Al descargar se guardan en `Reportes\<Año>\<MM Mes>\` una copia (`TXT_SAP_AAAA-MM_<fecha>.txt`) y la bitácora (`BitacoraTXT_AAAA-MM.csv`).
-- Sin procesar el mes, Edición TXT permite subir un TXT para revisar y corregir solo su formato (sin estatus ni folios).
+#### Folios únicos y rastreables ("Formatear folios")
 
-#### Folios únicos ("Formatear folios")
+SAP rechaza una línea si el proveedor repite un folio que ya usó, aunque sea de otro mes, y acepta hasta 16 caracteres. El folio que pone el portal mide **16** y se lee:
 
-SAP rechaza el TXT si un proveedor repite un folio que ya usó, aunque haya sido en otro mes. El folio que pone el portal **no es aleatorio**: es una huella (SHA-256) del UUID de la factura con la que cruzó la línea, escrita con 32 símbolos que no se confunden (sin 0/O ni 1/I), de 10 caracteres (`LONGITUD_FOLIO` en `honorarios/config.py`).
+```
+26 18 5113 K7Q3MXP4   →   26185113K7Q3MXP4
+│  │   │      └─ 8 caracteres calculados con la factura (huella SHA-256 de IDProveedor + folio original + monto + fecha)
+│  │   └─ últimos 4 caracteres del IDProveedor
+│  └─ quincena (Q18), de la Referencia; si no la trae, de la fecha
+└─ año (2026)
+```
 
-- Misma factura → mismo folio siempre (reprocesar el mes no inventa folios, y pagar dos veces la misma factura también lo rechazaría SAP). Facturas distintas → folios distintos, en cualquier computadora.
-- Pago quebrado (varias líneas, una factura): cada línea agrega su número de parte, así no chocan entre sí.
-- **La Referencia se actualiza junto con el folio:** `A1893      Q18-2026` → `7KQ2M9XHRT_Q18-2026`. Queda el folio nuevo y lo demás que escribió quien manda el TXT, unidos con guion bajo y **sin espacios** (con el folio de 10 caracteres mide lo mismo que antes: 19). Si la referencia no empezaba con el folio, el folio nuevo se le antepone igual. Formatear otra vez no cambia nada.
-- Línea sin factura: código aleatorio criptográfico; si se vuelve a formatear, conserva el que ya tenía.
-- 32^10 ≈ 1.1 × 10^15 combinaciones. Con 300 folios al mes por 20 años, la probabilidad de que dos facturas del **mismo proveedor** coincidan es del orden de 1 en 200 mil millones. Además, antes de aceptar un folio se comprueba contra los del archivo y contra `_Configuracion\HistorialFolios.csv` (se llena al descargar); si chocara, se recalcula.
-- Si SAP aceptara menos de 10 caracteres, se cambia `LONGITUD_FOLIO`.
+- **Rastreable:** con solo ver el folio se sabe la quincena y el proveedor. `HistorialFolios.csv` y el control de folios guardan además el folio original, el monto, la fecha, el Excel de donde salió, quién lo generó y cuándo.
+- **Misma factura → mismo folio**, siempre y en cualquier computadora. Si una línea que ya se cargó a SAP se vuelve a mandar, SAP la rechaza por folio repetido: **no se paga dos veces**. Si el portal ve que ese folio ya se había generado, lo avisa (con la fecha y el Excel). Un folio que ya tiene este formato se conserva: volver a subir un Excel ya formateado da el mismo TXT.
+- Pago quebrado en partes iguales (líneas idénticas): cada repetición agrega su número de parte, así no chocan entre sí.
+- 32^8 ≈ 1.1 × 10^12 combinaciones **por proveedor y por quincena** (32 símbolos que no se confunden: sin 0/O ni 1/I). Además, antes de aceptar un folio se comprueba contra los demás del archivo y contra `HistorialFolios.csv`; si chocara con el de otra factura, se recalcula.
+- **La Referencia se actualiza junto con el folio:** `A1893      Q18-2026` → `26185113K7Q3MXP4_Q18-2026` (25 caracteres): el folio nuevo y lo demás que escribió quien manda el TXT, unidos con guion bajo y sin espacios.
+- El largo está en `LONGITUD_FOLIO` (`honorarios/config.py`).
 
 ### Arquitectura: una regla
 

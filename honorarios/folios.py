@@ -1,35 +1,45 @@
-"""Folios únicos para el TXT de SAP.
+"""Folios únicos y rastreables para el TXT de SAP (botón "Formatear folios" de Generar TXT).
 
-SAP rechaza el TXT si un proveedor repite un folio que ya usó, aunque haya sido en otro mes. Antes los folios se
-capturaban a mano (consecutivos reciclados) y chocaban. Aquí el folio NO es aleatorio: es una huella (SHA-256) del
-UUID de la factura que cruzó con la línea:
+SAP rechaza una línea si el proveedor repite un folio que ya usó, aunque haya sido en otro mes. El folio que pone el
+portal mide 16 caracteres (lo más que acepta SAP) y se lee así:
 
-- misma factura -> mismo folio siempre (reprocesar el mes no inventa folios nuevos, y si alguien intentara pagar
-  otra vez la misma factura, SAP también lo rechazaría);
-- facturas distintas -> folios distintos sin depender de qué computadora los generó;
-- pago quebrado (varias líneas, una factura): cada línea agrega su número de parte, así no chocan entre sí;
-- línea sin factura (sin UUID): código aleatorio criptográfico (módulo secrets).
+    26 18 5113 K7Q3MXP4
+    │  │   │      └─ 8 caracteres calculados con la factura (huella SHA-256 de IDProveedor + folio original +
+    │  │   │         monto + fecha): misma factura -> mismo folio, siempre y en cualquier computadora
+    │  │   └─ últimos 4 caracteres del IDProveedor
+    │  └─ quincena (Q18), de la Referencia; si no la trae, de la fecha
+    └─ año (2026)
 
-Con LONGITUD_FOLIO = 10 y 32 símbolos hay 32^10 ≈ 1.1 × 10^15 folios (50 bits). Además, antes de aceptar un folio
-se comprueba contra HistorialFolios.csv y contra los demás folios del archivo; si chocara, se recalcula.
+- Rastreable: con solo verlo se sabe la quincena y el proveedor; HistorialFolios.csv guarda además el folio original,
+  el monto, la fecha, quién lo generó y cuándo.
+- Misma factura -> mismo folio: si una línea ya cargada se vuelve a mandar, SAP la rechaza por folio repetido (no se
+  paga dos veces). Un folio que ya es de este formato para ese proveedor se conserva tal cual.
+- Pago quebrado con líneas idénticas: cada repetición agrega su número de parte, así no chocan entre sí.
+- 32^8 ≈ 1.1 × 10^12 combinaciones por proveedor y quincena (los 8 caracteres usan 32 símbolos, sin 0/O ni 1/I).
+  Además, antes de aceptar un folio se comprueba contra los demás del archivo y contra HistorialFolios.csv; si
+  chocara con el de otra factura, se recalcula.
 """
 
+import getpass
 import hashlib
-import secrets
+import re
 from datetime import datetime
 
 import pandas as pd
 
 from .config import ARCHIVO_FOLIOS, CONFIG, LONGITUD_FOLIO
-from .utilidades import guardar_seguro
+from .utilidades import guardar_seguro, normalizar_id
 
 # 32 símbolos sin los que se confunden al leer o dictar: sin 0/O ni 1/I.
 ALFABETO = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
-COLUMNAS = ["Folio", "Clave", "IDProveedor", "Periodo", "Linea", "Registrado"]
+LARGO_HUELLA = LONGITUD_FOLIO - 8                     # año (2) + quincena (2) + IDProveedor (4) + huella
+PATRON_QUINCENA = re.compile(r"Q(\d{1,2})\s*-\s*(\d{4})", re.IGNORECASE)
+COLUMNAS = ["Folio", "Clave", "IDProveedor", "Periodo", "Linea", "Registrado", "FolioOriginal", "Monto", "Fecha",
+            "Usuario", "Archivo"]
 
 
-def folio_de(clave, longitud=LONGITUD_FOLIO):
-    """Huella de la clave en el alfabeto de 32 símbolos (determinista: misma clave -> mismo folio)."""
+def huella(clave, longitud=LARGO_HUELLA):
+    """Huella de la clave en el alfabeto de 32 símbolos (determinista: misma clave -> misma huella)."""
     numero = int.from_bytes(hashlib.sha256(clave.encode("utf-8")).digest(), "big")
     simbolos = []
     for _ in range(longitud):
@@ -38,16 +48,64 @@ def folio_de(clave, longitud=LONGITUD_FOLIO):
     return "".join(simbolos)
 
 
-def folio_aleatorio(longitud=LONGITUD_FOLIO):
-    return "".join(secrets.choice(ALFABETO) for _ in range(longitud))
+def quincena(fecha, referencia=""):
+    """(año, quincena 1-24): la de la Referencia ("Q18-2026") si la trae; si no, la de la fecha (DD.MM.AAAA)."""
+    m = PATRON_QUINCENA.search(referencia or "")
+    if m and 1 <= int(m.group(1)) <= 24:
+        return int(m.group(2)), int(m.group(1))
+    dia = datetime.strptime(fecha, "%d.%m.%Y")
+    return dia.year, (dia.month - 1) * 2 + (1 if dia.day <= 15 else 2)
 
 
-def es_folio_generado(folio, longitud=LONGITUD_FOLIO):
-    return len(folio) == longitud and all(c in ALFABETO for c in folio)
+def cola_del_id(id_proveedor):
+    limpio = re.sub(r"[^0-9A-Z]", "", normalizar_id(id_proveedor).upper())
+    return limpio[-4:].rjust(4, "0")
+
+
+def prefijo(id_proveedor, fecha, referencia=""):
+    anio, q = quincena(fecha, referencia)
+    return f"{anio % 100:02d}{q:02d}{cola_del_id(id_proveedor)}"
+
+
+def es_folio_rastreable(folio, id_proveedor):
+    """True si el folio ya tiene este formato para ese proveedor (se conserva al volver a formatear)."""
+    return (len(folio) == LONGITUD_FOLIO and folio[:4].isdigit() and 1 <= int(folio[2:4]) <= 24
+            and folio[4:8] == cola_del_id(id_proveedor) and all(c in ALFABETO for c in folio[8:]))
+
+
+def clave_de(linea):
+    """Lo que identifica a la factura en la línea (no cambia al volver a armar el Excel)."""
+    return "|".join([normalizar_id(linea["IDProveedor"]), linea["Folio"].strip().upper(), linea["Monto"],
+                     linea["Fecha"]])
+
+
+def formatear_folios(lineas, registrados):
+    """lineas: [{"IDProveedor", "Folio", "Monto", "Fecha", "Referencia"}] (valores ya como van en el TXT).
+    registrados: cargar_folios(). Devuelve, en el mismo orden, [(folio, clave, registro previo o None)].
+    Ningún folio se repite entre sí ni con uno registrado de otra factura."""
+    tomados = {f: r.get("Clave", "") for f, r in registrados.items()}
+    partes, salida = {}, []
+    for linea in lineas:
+        if es_folio_rastreable(linea["Folio"], linea["IDProveedor"]):
+            folio = linea["Folio"]                         # ya formateado: se conserva (misma factura, mismo folio)
+            clave = tomados.get(folio) or f"conservado:{folio}"
+        else:
+            base = clave_de(linea)
+            partes[base] = partes.get(base, 0) + 1
+            clave = f"{base}#{partes[base]}"
+            inicio = prefijo(linea["IDProveedor"], linea["Fecha"], linea["Referencia"])
+            sal, folio = "", inicio + huella(clave)
+            while tomados.get(folio, clave) != clave:      # prácticamente imposible: se recalcula con sal
+                sal += "+"
+                folio = inicio + huella(clave + sal)
+        previo = registrados.get(folio) if registrados.get(folio, {}).get("Clave") == clave else None
+        tomados[folio] = clave
+        salida.append((folio, clave, previo))
+    return salida
 
 
 def cargar_folios():
-    """{folio: registro} de los folios ya descargados en esta computadora."""
+    """{folio: registro} de los folios ya generados en esta computadora."""
     ruta = CONFIG / ARCHIVO_FOLIOS
     if not ruta.exists():
         return {}
@@ -55,58 +113,18 @@ def cargar_folios():
     return {r["Folio"]: r for r in datos.to_dict("records")}
 
 
-def asignar_folios(lineas, registrados, actuales=None, longitud=LONGITUD_FOLIO):
-    """lineas: [(Linea, UUIDs de la factura con que cruzó (tupla, vacía si no cruzó))].
-    registrados: cargar_folios(). actuales: {Linea: folio que tiene ahora} (para conservar los aleatorios ya dados).
-    Devuelve {Linea: (folio, clave)}. Ningún folio se repite entre sí ni con uno registrado de otra clave."""
-    actuales = actuales or {}
-    partes = {}
-    for linea, uuids in sorted(lineas):
-        if uuids:
-            partes.setdefault(tuple(sorted(uuids)), []).append(linea)
-    tomados = {f: r.get("Clave", "") for f, r in registrados.items()}
-    asignados = {}
-
-    def libre(folio, clave):
-        return tomados.get(folio, clave) == clave
-
-    for uuids, de_la_factura in partes.items():
-        for parte, linea in enumerate(de_la_factura):
-            clave = f"{'|'.join(uuids)}#{parte}"
-            sal, folio = "", folio_de(clave, longitud)
-            while not libre(folio, clave):                 # prácticamente imposible: se recalcula con sal
-                sal += "+"
-                folio = folio_de(clave + sal, longitud)
-            tomados[folio] = clave
-            asignados[linea] = (folio, clave)
-    for linea, uuids in sorted(lineas):
-        if uuids:
-            continue
-        actual = actuales.get(linea, "")
-        clave = f"aleatorio:{actual}"
-        if es_folio_generado(actual, longitud) and libre(actual, clave):
-            folio = actual                                 # ya se le había dado uno: se conserva
-        else:
-            folio = folio_aleatorio(longitud)
-            clave = f"aleatorio:{folio}"
-            while not libre(folio, clave):
-                folio = folio_aleatorio(longitud)
-                clave = f"aleatorio:{folio}"
-        tomados[folio] = clave
-        asignados[linea] = (folio, clave)
-    return asignados
-
-
 def registrar_folios(registros):
-    """Guarda los folios descargados (Folio, Clave, IDProveedor, Periodo, Linea). Un folio ya registrado con la
-    misma clave no se duplica."""
+    """Guarda los folios del TXT descargado (Folio, Clave, IDProveedor, Periodo, Linea, FolioOriginal, Monto, Fecha,
+    Archivo). Un folio ya registrado con la misma clave no se duplica (conserva la fecha en que se generó)."""
     if not registros:
         return
     ruta = CONFIG / ARCHIVO_FOLIOS
-    ahora = datetime.now().strftime("%d/%m/%Y %H:%M")
-    nuevos = pd.DataFrame([{**r, "Registrado": ahora} for r in registros], columns=COLUMNAS).astype(str)
+    ahora, usuario = datetime.now().strftime("%d/%m/%Y %H:%M"), getpass.getuser()
+    nuevos = pd.DataFrame([{**r, "Registrado": ahora, "Usuario": usuario} for r in registros],
+                          columns=COLUMNAS).astype(str)
     previo = (pd.read_csv(ruta, dtype=str, encoding="utf-8-sig").fillna("") if ruta.exists()
               else pd.DataFrame(columns=COLUMNAS))
-    total = pd.concat([previo, nuevos], ignore_index=True).drop_duplicates(["Folio", "Clave"])
+    total = (pd.concat([previo, nuevos], ignore_index=True).fillna("")
+             .drop_duplicates(["Folio", "Clave"]).reindex(columns=COLUMNAS, fill_value=""))
     ruta.parent.mkdir(parents=True, exist_ok=True)
     guardar_seguro(ruta, lambda tmp: total.to_csv(tmp, index=False, encoding="utf-8-sig"))

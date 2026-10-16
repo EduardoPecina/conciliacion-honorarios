@@ -325,84 +325,6 @@ def socket_que_no_contesta():
     return mudo
 
 
-class TestFiltrosDeEdicionTxt(unittest.TestCase):
-    """Filtros y orden de la tabla de Edición TXT (solo lo que se ve; el TXT siempre lleva todo)."""
-
-    def tabla(self):
-        import pandas as pd
-        filas = [
-            {"Línea": 1, "Estatus": "Cruzado", "Médico": "ZETA", "Tax": "E0", "Monto": "1000", "IDProveedor": "1",
-             "Folio": "A1", "Referencia": "A1_Q", "Problemas del TXT": "", "Sugerencia": "", "_editada": False,
-             "_sin_folio": True},
-            {"Línea": 2, "Estatus": "Rechazar", "Médico": "ALFA", "Tax": "F2", "Monto": "50,000.00", "IDProveedor": "2",
-             "Folio": "A2", "Referencia": "A2_Q", "Problemas del TXT": "", "Sugerencia": "Posible ID", "_editada": True,
-             "_sin_folio": False},
-            {"Línea": 3, "Estatus": "Cruzado con observaciones", "Médico": "BETA", "Tax": "E0", "Monto": "xx",
-             "IDProveedor": "3", "Folio": "A3", "Referencia": "A3_Q", "Problemas del TXT": "Importe inválido",
-             "Sugerencia": "", "_editada": False, "_sin_folio": True},
-            {"Línea": 4, "Estatus": "Cruzado (pago quebrado)", "Médico": "GAMA", "Tax": "E0", "Monto": "300",
-             "IDProveedor": "4", "Folio": "A4", "Referencia": "A4_Q", "Problemas del TXT": "", "Sugerencia": "",
-             "_editada": False, "_sin_folio": False},
-        ]
-        return pd.DataFrame(filas)
-
-    def lineas(self, **cambios):
-        from portal import filtros
-        vista, activos = filtros.aplicar(self.tabla(), {**filtros.VACIOS, **cambios})
-        return vista["Línea"].tolist(), activos
-
-    def test_sin_filtros_muestra_todo_en_orden_del_archivo(self):
-        self.assertEqual(self.lineas(), ([1, 2, 3, 4], []))
-
-    def test_pendientes_de_revisar_oculta_los_cruzados_y_ordena_por_gravedad(self):
-        from portal import filtros
-        vista, activos = filtros.aplicar(self.tabla(), filtros.PENDIENTES)
-        self.assertEqual(vista["Línea"].tolist(), [2, 3])            # Rechazar antes que Con observaciones
-        self.assertIn("Ocultar", activos[0][0])
-        self.assertIn("Orden: Gravedad del estatus", [texto for texto, _ in activos])
-
-    def test_cada_filtro_se_puede_quitar_solo(self):
-        from portal import filtros
-        elegidos = {**filtros.VACIOS, "f_modo": "Ocultar", "f_estatus": ["Cruzado"], "f_tax": "E0", "f_min": 100.0,
-                    "f_buscar": "a", "f_orden": "Médico (A-Z)", "f_con": ["Editadas"], "f_max": 9e9}
-        _, activos = filtros.aplicar(self.tabla(), elegidos)
-        self.assertEqual(len(activos), 7)
-        for texto, quitar in activos:
-            with self.subTest(filtro=texto):
-                _, quedan = filtros.aplicar(self.tabla(), {**elegidos, **quitar})
-                self.assertEqual(len(quedan), 6)
-                self.assertNotIn(texto, [t for t, _ in quedan])
-        _, ninguno = filtros.aplicar(self.tabla(), filtros.VACIOS)
-        self.assertEqual(ninguno, [], "Quitar todos los filtros deja la tabla completa")
-
-    def test_estatus_que_no_hay_en_el_mes_se_puede_quitar(self):
-        """El error que se encontró: "Pendientes de revisar" con un mes sin líneas Cruzado dejaba el filtro activo
-        pero invisible en la lista (solo mostraba los estatus del mes) y no se podía quitar."""
-        from portal import filtros
-        sin_cruzados = self.tabla()[~self.tabla()["Estatus"].isin(filtros.CRUZADOS_LIMPIOS)]
-        _, activos = filtros.aplicar(sin_cruzados, filtros.PENDIENTES)
-        self.assertTrue(activos)
-        self.assertTrue(set(filtros.PENDIENTES["f_estatus"]) <= set(filtros.GRAVEDAD),
-                        "la lista del panel siempre ofrece todos los estatus")
-
-    def test_para_corregir(self):
-        from portal import filtros
-        vista, _ = filtros.aplicar(self.tabla(), filtros.PARA_CORREGIR)
-        self.assertEqual(sorted(vista["Línea"]), [2, 3])             # posible ID equivocado o problema en el TXT
-
-    def test_filtros_y_ordenes(self):
-        self.assertEqual(self.lineas(f_estatus=["Rechazar"])[0], [2])
-        self.assertEqual(self.lineas(f_tax="F2")[0], [2])
-        self.assertEqual(self.lineas(f_min=500.0)[0], [1, 2])         # el monto inválido no pasa
-        self.assertEqual(self.lineas(f_max=500.0)[0], [4])
-        self.assertEqual(self.lineas(f_con=["Editadas"])[0], [2])
-        self.assertEqual(self.lineas(f_buscar="beta")[0], [3])
-        self.assertEqual(self.lineas(f_orden="Médico (A-Z)")[0], [2, 3, 4, 1])
-        self.assertEqual(self.lineas(f_orden="Monto (mayor a menor)")[0], [2, 1, 4, 3])
-        self.assertEqual(self.lineas(f_orden="Problemas primero")[0], [3, 2, 1, 4])
-        self.assertEqual(self.lineas(f_estatus=["Rechazar"], f_buscar="nadie")[0], [])
-
-
 class TestJavaScriptDelPortal(unittest.TestCase):
     """st.html limpia el HTML con DOMPurify y BORRA en silencio un <script> cuyo texto contenga etiquetas ("<div",
     "</p"...). Si alguien edita estos scripts y mete una etiqueta literal, el aviso dejaría de funcionar sin error."""
@@ -516,6 +438,12 @@ class TestPaginasDelPortal(unittest.TestCase):
             self.assertIn("RS↔RH", casilla.help)
         finally:
             cache.unlink()
+
+    def test_generar_txt_sin_excel_explica_y_ofrece_la_plantilla(self):
+        app = self.abrir("generar_txt.py")
+        self.assertEqual(app.title[0].value, "Generar TXT")
+        self.assertIn("no edita nada", app.caption[0].value)
+        self.assertIn("TXT para SAP", app.expander[0].markdown[0].value)
 
     def test_catalogo(self):
         app = self.abrir("catalogo.py")

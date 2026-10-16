@@ -1,5 +1,39 @@
 # Historial de cambios
 
+## [1.19.0] - 2026-10-16
+
+### Cambiado
+- **Edición TXT se reemplaza por Generar TXT: el TXT para SAP ya no se edita en el portal.** El TXT es lo que va a SAP
+  y genera los pagos, así que los cambios manuales se quitan. Ahora el analista arma un Excel solo con las líneas
+  listas para pagar, con las 11 columnas del TXT en su orden (A a K). Lo sube en **Generar TXT**, revisa la vista
+  previa (con el médico, el total de líneas y el monto total), da clic en **Formatear folios** y descarga el TXT. Lo
+  que sigue en revisión se queda fuera y se paga después, sin detener a lo demás.
+  - **El portal revisa, no corrige:** cada celda que SAP rechazaría se reporta con su fila y columna (fecha, monto,
+    Tax E0/F2, X/1/PM, campos vacíos, cuenta convertida en número por Excel, tabuladores, caracteres raros). No se
+    genera el TXT hasta corregirla en el Excel.
+  - **Avisos sin bloquear:** IDProveedor que no está en el catálogo, y dos filas con la misma factura (mismo ID,
+    folio, monto y fecha: ¿pago doble?).
+  - **Mismo formato que el TXT original:** tabulador, sin encabezado, CRLF, ANSI. Lo que Excel cambia se regresa a
+    como va en el TXT: fecha `29.09.2026`, monto `9096.00`, columna 1 `001`.
+  - Al descargar se guardan una copia del TXT y el **control de folios** en la carpeta del mes. El control (de qué
+    folio original salió cada folio nuevo) también se puede descargar.
+  - Plantilla vacía descargable, con las columnas en formato texto.
+- **Folios de 16 caracteres, rastreables:** año + quincena + últimos 4 del IDProveedor + 8 caracteres calculados con
+  la factura (`26185113K7Q3MXP4`). Hay 1.1 × 10^12 combinaciones por proveedor y quincena, y se comprueban contra el
+  archivo y contra `HistorialFolios.csv`. Misma factura → mismo folio: si una línea ya cargada se vuelve a mandar, SAP
+  la rechaza (no se paga dos veces) y el portal avisa que ese folio ya se había generado. `HistorialFolios.csv`
+  registra además el folio original, el monto, la fecha, el Excel, el usuario y la fecha de generación.
+- La Referencia sigue al folio nuevo: `A1893      Q18-2026` → `26185113K7Q3MXP4_Q18-2026`.
+
+### Agregado
+- Excel de la conciliación: hoja **TXT para SAP**, con las líneas del TXT tal cual (A a K, como texto) y, de apoyo,
+  Estatus, Médico y Línea. Se deja solo lo aprobado y se sube en Generar TXT. Conciliador Automático tiene un enlace
+  directo.
+
+### Quitado
+- Tabla editable, ventana "Editar línea", sugerencias de ID, filtros y bitácora de Edición TXT; la hoja "Cambios TXT"
+  del Excel.
+
 ## [1.18.1] - 2026-10-06
 
 ### Corregido

@@ -108,9 +108,8 @@ if procesar:
                         hechas / total, text=f"Consulta a SAP: {hechas}/{total} (proveedor {id_prov})"),
                     hoy=hoy)
             st.session_state["conciliacion"] = conciliacion
-            st.session_state["txt_original"] = (txt.name, txt.getvalue())      # para Edición TXT
+            st.session_state["txt_original"] = (txt.name, txt.getvalue())      # para regenerar el Excel
             st.session_state["salida"] = salida
-            st.session_state.pop("etxt", None)                                 # TXT nuevo: Edición TXT de cero
             st.session_state["excel_version"] = conciliacion.version
             guardar()                                                          # para continuar otro día
             st.session_state["excel"] = Path(conciliacion.destino).read_bytes()
@@ -142,16 +141,14 @@ periodo = f"{NOMBRES_MES[conciliacion.mes - 1]} {conciliacion.anio}"
 st.header(f"Resultado · {periodo}")
 for aviso in conciliacion.avisos:
     st.warning(aviso)
-if conciliacion.editada:
-    st.info("Incluye los cambios hechos en **Edición TXT**: los números de abajo y el Excel ya están actualizados "
-            "(el Excel trae la hoja **Cambios TXT** con la bitácora).")
 
 # Consultas al SAT y a SAP: si el trabajo se retoma días después, pudieron cambiar
 dias = dias_desde_consulta(conciliacion)
 with st.expander(f"Consultas al SAT y a SAP: {conciliacion.consultado or 'sin fecha'}", expanded=dias >= 1):
     if dias >= 1:
         st.warning(f"Las consultas tienen {dias} día(s). Desde entonces una factura pudo cancelarse en el SAT o "
-                   "Customer Services pudo corregir algo en SAP: actualízalas antes de confirmar o descargar el TXT.")
+                   "Customer Services pudo corregir algo en SAP: actualízalas antes de confirmar o de armar el "
+                   "Excel para el TXT.")
     col_sat, col_sap = st.columns(2)
     actualizar = None
     if col_sat.button("Actualizar SAT", width="stretch", help="Vuelve a consultar el estatus de todas las facturas "
@@ -215,10 +212,9 @@ if conciliacion.sobrantes:
                f"{len(conciliacion.errores_xml):,} XML no se pudieron leer (hoja 'Errores XML').")
 
 if st.session_state.get("excel_version") != conciliacion.version or not st.session_state.get("excel"):
-    # Hubo cambios (Edición TXT, actualizar SAT o SAP): Excel nuevo con el resultado actual
+    # Hubo cambios (actualizar SAT o SAP): Excel nuevo con el resultado actual
     with st.spinner("Actualizando el Excel..."):
-        txt_actual = conciliacion.txt_editado or st.session_state["txt_original"][1]
-        conciliacion = regenerar_reporte(conciliacion, st.session_state["salida"], txt_actual)
+        conciliacion = regenerar_reporte(conciliacion, st.session_state["salida"], st.session_state["txt_original"])
         st.session_state["conciliacion"] = conciliacion
         st.session_state["excel"] = Path(conciliacion.destino).read_bytes()
         st.session_state["excel_version"] = conciliacion.version
@@ -226,6 +222,9 @@ if st.session_state.get("excel_version") != conciliacion.version or not st.sessi
 st.download_button("Descargar Excel", st.session_state["excel"], file_name=Path(conciliacion.destino).name,
                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                    type="primary", width="stretch")
+st.info("**Para cargar a SAP:** en el Excel, hoja **TXT para SAP**, deja solo las líneas listas para pagar y "
+        "súbelo en **Generar TXT**: ahí se formatean los folios y se descarga el TXT.")
+st.page_link("paginas/generar_txt.py", label="Ir a Generar TXT", icon="📄")
 
 st.divider()
 st.subheader("Confirmar conciliación")
