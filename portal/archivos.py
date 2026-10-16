@@ -64,7 +64,14 @@ def preparar_carpeta(carpeta, txt, facturas):
 
     nombre_txt, contenido_txt = txt
     (entrada / (Path(nombre_txt).stem + ".txt")).write_bytes(contenido_txt)
+    return preparar_xmls(carpeta_xml, facturas)
 
+
+def preparar_xmls(carpeta_xml, facturas):
+    """Solo los XML (sueltos o en .zip) en carpeta_xml: para las facturas pendientes, que no traen TXT.
+    Devuelve cuántos XML quedaron."""
+    carpeta_xml = Path(carpeta_xml)
+    carpeta_xml.mkdir(parents=True, exist_ok=True)
     total = 0
     for nombre, contenido in facturas:
         if nombre.lower().endswith(".zip"):

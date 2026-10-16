@@ -30,6 +30,12 @@ from .estado_sat import EFOS_EN_LISTA, alerta_efos, en_proceso_de_cancelacion
 from .utilidades import a_decimal, normalizar_nombre
 
 
+def mes_siguiente(periodo):
+    """"2026-09" -> "2026-10"; "2026-12" -> "2027-01"."""
+    anio, mes = map(int, periodo.split("-"))
+    return f"{anio + mes // 12}-{mes % 12 + 1:02d}"
+
+
 def validar_xml(f, ctx):
     """Reglas de negocio de una factura.
     Devuelve (motivos de rechazo, observaciones, motivos para detener, validaciones aprobadas)."""
@@ -61,10 +67,17 @@ def validar_xml(f, ctx):
         d.append("El emisor es persona moral (RFC de 12 caracteres): las retenciones de honorarios "
                  "de persona física no aplican")
 
-    # Periodo, tipo, método y forma de pago
+    # Periodo, tipo, método y forma de pago. Una factura agregada después como pendiente (refactura o XML que no
+    # había llegado) puede venir fechada hasta el mes siguiente: un CFDI no se puede fechar hacia atrás, así que la
+    # refactura de septiembre llega con fecha de octubre. Queda "Cruzado con observaciones" para que se vea.
     if f["FechaXML"][:7] != ctx["periodo"]:
-        r.append(f"Factura del {f['FechaXML']}, fuera del periodo {ctx['mes']:02d}/{ctx['anio']}: "
-                 "pedir refacturación")
+        if f.get("Agregada") and ctx["periodo"] < f["FechaXML"][:7] <= mes_siguiente(ctx["periodo"]):
+            o.append(f"Factura del {f['FechaXML']}, posterior al periodo {ctx['mes']:02d}/{ctx['anio']}: "
+                     f"se aceptó porque se agregó como pendiente (refactura) el {f['Agregada']}")
+        else:
+            r.append(f"Factura del {f['FechaXML']}, fuera del periodo {ctx['mes']:02d}/{ctx['anio']}: "
+                     "pedir refacturación"
+                     + (" (como pendiente se acepta hasta el mes siguiente)" if f.get("Agregada") else ""))
     if f["TipoComprobante"] != "I":
         r.append(f"Tipo de comprobante {f['TipoComprobante']}, se esperaba I (Ingreso)")
     if f["MetodoPago"] not in METODOS_PAGO_OK:

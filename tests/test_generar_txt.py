@@ -257,11 +257,11 @@ class TestHojaTxtParaSap(unittest.TestCase):
     def test_trae_todas_las_lineas_del_txt_tal_cual(self):
         hoja = load_workbook(self.conciliacion.destino)["TXT para SAP"]
         filas = list(hoja.iter_rows(values_only=True))
-        self.assertEqual(list(filas[0]), txt_sap.COLUMNAS_EXCEL + ["Estatus", "Médico", "Línea"])
+        self.assertEqual(list(filas[0]), txt_sap.COLUMNAS_EXCEL + ["Estatus", "TXT generado", "Médico", "Línea"])
         originales = txt_sap.lineas_del_txt(self.rutas["txt"].read_bytes())
         self.assertEqual(len(filas) - 1, len(originales))
         for fila in filas[1:]:
-            self.assertEqual(list(fila[:10]), originales[fila[12]][:10], "A a J: el TXT tal cual, como texto")
+            self.assertEqual(list(fila[:10]), originales[fila[13]][:10], "A a J: el TXT tal cual, como texto")
         self.assertEqual(hoja["A2"].number_format, "@")
 
     def test_dejar_solo_lo_aprobado_y_subirlo(self):

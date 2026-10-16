@@ -24,6 +24,7 @@ from .config import (
     UMBRAL_OK,
     USOS_CFDI_OK,
 )
+from .folios import ya_generados
 from .utilidades import huella
 
 
@@ -539,26 +540,32 @@ def escribir_instrucciones(libro):
 
 def hoja_para_txt(resultado, ruta_txt):
     """Hoja "TXT para SAP": las líneas del TXT original con sus primeras 10 columnas tal cual (A a J, como texto) y,
-    de apoyo, Estatus, Médico y Línea (K a M). El analista deja aquí solo las líneas listas para pagar y sube el
-    Excel en Generar TXT (que lee solo de la A a la J; la Referencia la arma el portal)."""
+    de apoyo, Estatus, TXT generado (si la línea ya salió en un TXT de Generar TXT), Médico y Línea (K a N). El
+    analista deja aquí solo las líneas listas para pagar que aún no tienen TXT y sube el Excel en Generar TXT (que
+    lee solo de la A a la J; la Referencia la arma el portal)."""
     from .txt_sap import COLUMNAS_EXCEL, lineas_del_txt
     por_linea = {f["Linea"]: f for f in resultado}
+    generados = ya_generados(resultado)
     orden = {e: i for i, e in enumerate(ORDEN_ESTATUS)}
     n_col = len(COLUMNAS_EXCEL)
-    filas = [valores[:n_col] + [por_linea.get(n, {}).get("Estatus", ""), por_linea.get(n, {}).get("Nombre", ""), n]
+    filas = [valores[:n_col] + [por_linea.get(n, {}).get("Estatus", ""), generados.get(n, ""),
+                                por_linea.get(n, {}).get("Nombre", ""), n]
              for n, valores in lineas_del_txt(ruta_txt.read_bytes()).items()]
-    filas.sort(key=lambda f: (orden.get(f[n_col], 99), f[1], f[n_col + 2]))
-    return pd.DataFrame(filas, columns=COLUMNAS_EXCEL + ["Estatus", "Médico", "Línea"])
+    # Por estatus; dentro de cada uno, primero lo que todavía no tiene TXT
+    filas.sort(key=lambda f: (orden.get(f[n_col], 99), f[n_col + 1] != "", f[1], f[n_col + 3]))
+    return pd.DataFrame(filas, columns=COLUMNAS_EXCEL + ["Estatus", "TXT generado", "Médico", "Línea"])
 
 
 def generar_reporte(rutas, anio, mes, resultado, sobrantes, errores_xml, n_xml, estados):
     detalle = pd.DataFrame(resultado)
+    generados = ya_generados(resultado)
+    detalle["TXT generado"] = detalle["Linea"].map(lambda n: generados.get(n, "")) if len(detalle) else []
     columnas = ["Linea", "Estatus", "Fecha", "IDProveedor", "Nombre", "RFC", "Folio",
                 "CodigoImpuesto", "Importe", "Ver cálculo", "Revisión importe", "Variación importe",
                 "Revisión impuestos", "Variación impuestos"] + COLS_DESGLOSE + [
                 "RegimenEmisor", "NombreRegimen", "CodigosSAP", "RegimenSAP",
                 "DiscrepanciaSAP", "FechaXML", "MetodoPago", "FormaPago", "UUID", "EstadoSAT", "EFOS", "ArchivoXML",
-                "CentroCosto", "Cuenta", "MotivoRechazo", "Observaciones"]
+                "CentroCosto", "Cuenta", "MotivoRechazo", "Observaciones", "TXT generado"]
     detalle = detalle.reindex(columns=columnas)
     detalle["DiscrepanciaSAP"] = detalle["DiscrepanciaSAP"].map(lambda v: "Sí" if v is True else "No")
     detalle["_orden"] = detalle["Estatus"].map({e: i for i, e in enumerate(ORDEN_ESTATUS)})

@@ -27,6 +27,7 @@ def continuar(ruta):
     ss.anio_sel, ss.mes_sel = conciliacion.anio, conciliacion.mes        # el selector muestra el mes recuperado
     ss.excel = Path(conciliacion.destino).read_bytes() if Path(conciliacion.destino).exists() else None
     ss.excel_version = None if ss.excel is None else conciliacion.version
+    ss.pop("resumen_pendientes", None)                   # el aviso de la última vuelta era de otro mes
 
 
 def ofrecer_continuar():

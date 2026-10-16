@@ -1,5 +1,23 @@
 # Historial de cambios
 
+## [1.21.0] - 2026-10-16
+
+### Agregado
+- **Facturas pendientes (segunda vuelta del mes)**, en Conciliador Automático: se suben solo los XML nuevos
+  (refacturas o XML que no habían llegado) y se buscan **solo entre las líneas que no cruzaron**. Lo cruzado no se
+  toca: ni sus facturas ni sus copias pueden cruzar otra línea. Solo se consultan al SAT los XML nuevos; SAP se
+  reusa. El cruce prefiere la factura válida a la rechazada. Un XML que ya estaba en el mes se ignora. El portal
+  muestra qué líneas cambiaron, actualiza el Excel (la hoja Info registra cada vuelta) y guarda el trabajo.
+  - Una factura agregada como pendiente puede venir fechada hasta el **mes siguiente** (un CFDI no se puede fechar
+    hacia atrás) y queda **Cruzado con observaciones**. En la primera vuelta la regla del periodo no cambia.
+- **"TXT generado"** en el Excel (hojas TXT para SAP y Detalle): fecha y Excel con que cada línea ya salió en un TXT
+  de Generar TXT. En TXT para SAP, dentro de cada estatus va primero lo que todavía no tiene TXT. El Excel se vuelve
+  a generar solo cuando se descarga un TXT nuevo.
+
+### Cambiado
+- **Generar TXT no deja descargar líneas que ya salieron en un TXT anterior** (posible pago doble), salvo que se
+  marque que la carga anterior a SAP falló. Antes solo se avisaba.
+
 ## [1.20.1] - 2026-10-16
 
 ### Corregido

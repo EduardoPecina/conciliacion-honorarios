@@ -150,15 +150,21 @@ st.caption(("Fila, Médico y Folio original son" if g["formateadas"] else "Fila 
 if not g["formateadas"]:
     st.stop()
 formateadas = g["formateadas"]
+# Líneas que ya salieron en un TXT anterior (misma factura = mismo folio): no se descargan otra vez sin decirlo
 previas = [l for l in formateadas if l["Previo"]]
+se_puede_descargar = True
 if previas:
-    with st.expander(f"{len(previas)} línea(s) ya tenían este folio generado antes", expanded=False):
-        st.caption("Misma factura = mismo folio. Si esas líneas ya se cargaron a SAP, SAP las rechaza por folio "
-                   "repetido: no se pagan dos veces. Si no se cargaron (por ejemplo, la carga falló), no pasa nada.")
-        st.dataframe(pd.DataFrame([{"Fila": l["Fila"], "Médico": medico(l["IDProveedor"]), "Folio": l["Folio"],
-                                    "Generado": l["Previo"].get("Registrado", ""),
-                                    "Archivo": l["Previo"].get("Archivo", "")} for l in previas]),
-                     hide_index=True, width="stretch")
+    st.error(f"**{len(previas)} línea(s) ya salieron en un TXT anterior** (posible pago doble). Lo normal es "
+             "quitarlas de tu Excel y volver a subirlo: en el Excel de la conciliación, la hoja TXT para SAP las "
+             "marca en la columna **TXT generado**.")
+    st.dataframe(pd.DataFrame([{"Fila": l["Fila"], "Médico": medico(l["IDProveedor"]), "Folio": l["Folio"],
+                                "Monto": l["Monto"], "TXT generado": l["Previo"].get("Registrado", ""),
+                                "Excel": l["Previo"].get("Archivo", "")} for l in previas]),
+                 hide_index=True, width="stretch")
+    se_puede_descargar = st.checkbox(
+        "La carga anterior a SAP falló y hay que mandarlas otra vez: inclúyelas",
+        help="Llevan el mismo folio que la vez anterior: si en realidad sí se cargaron, SAP las rechaza por folio "
+             "repetido y no se pagan dos veces.")
 
 anio, mes, quincena = txt_sap.periodo(formateadas)
 contenido = txt_sap.escribir(formateadas)
@@ -184,7 +190,7 @@ def registrar_descarga():
 
 st.subheader("Descargar TXT para SAP")
 st.download_button("Descargar TXT", contenido, file_name=nombre_txt, mime="text/plain", type="primary",
-                   width="stretch", on_click=registrar_descarga)
+                   width="stretch", on_click=registrar_descarga, disabled=not se_puede_descargar)
 st.caption(f"**{len(formateadas):,} líneas** por **${total:,.2f}**. Mismo formato que el TXT original: 11 columnas "
            "separadas por tabulador, sin encabezados. Al descargar, los folios quedan registrados en "
            "_Configuracion\\HistorialFolios.csv y se guarda una copia en la carpeta del mes.")

@@ -47,6 +47,7 @@ class Conciliacion:
     entradas: dict = field(default_factory=dict, repr=False)
     version: int = 0                # sube con cada cambio: el portal sabe cuándo regenerar el Excel
     consultado: str = ""            # fecha y hora de las consultas al SAT y a SAP ("dd/mm/aaaa hh:mm")
+    agregadas: list = field(default_factory=list)   # vueltas de "Facturas pendientes" (fecha, XML, resultado)
 
     @property
     def se_puede_registrar(self):
@@ -162,6 +163,82 @@ def revalidar(conciliacion, lineas):
                                      e["sap"], e["historial"], conciliacion.estados_sat)
     return replace(conciliacion, resultado=resultado, sobrantes=sobrantes, entradas={**e, "lineas": lineas},
                    version=conciliacion.version + 1)
+
+
+# ------------------------------------------------------------------ Facturas pendientes (refacturas)
+def es_cruzada(fila):
+    """Cruzado, Cruzado (pago quebrado) o Cruzado con observaciones: ya está lista; no se vuelve a tocar."""
+    return str(fila.get("Estatus", "")).startswith("Cruzado")
+
+
+def lineas_pendientes(conciliacion):
+    """Filas del resultado que todavía no cruzan (Sin XML, Rechazar, Diferencia de importe, Detenida...)."""
+    return [f for f in conciliacion.resultado if not es_cruzada(f)]
+
+
+def agregar_pendientes(conciliacion, rutas_xml, carpeta_xml, avisar=print, progreso_sat=progreso_en_consola,
+                       consultar_sat=consultar_estados, ahora=None):
+    """Segunda vuelta del mes: refacturas y XML que no habían llegado.
+
+    Las líneas que ya cruzaron (y sus facturas) NO se tocan. Los XML nuevos se consultan en el SAT (solo esos) y
+    se buscan, con las mismas reglas, entre las líneas pendientes, junto con las facturas del mes que ninguna línea
+    cruzada usa (si el médico mandó una factura nueva, el cruce prefiere la válida a la que se rechazó). Lo
+    consultado a SAP se reusa. Una factura agregada puede venir fechada hasta el mes siguiente (reglas.py).
+    -> (conciliación actualizada, resumen). ErrorUsuario si no hay nada nuevo o no hay conexión con el SAT."""
+    ahora = ahora or datetime.now()
+    e = conciliacion.entradas
+    nuevas, errores = leer_xmls(rutas_xml, carpeta_xml)
+    del_mes = {f["UUID"] for f in e["facturas"] if f["UUID"]}
+    ya_estaban = [f["ArchivoXML"] for f in nuevas if f["UUID"] and f["UUID"] in del_mes]
+    nuevas = [{**f, "Agregada": ahora.strftime("%d/%m/%Y")} for f in nuevas
+              if not (f["UUID"] and f["UUID"] in del_mes)]
+    resumen = {"leidos": len(rutas_xml), "nuevas": len(nuevas), "ya_estaban": ya_estaban, "errores": errores,
+               "cambios": [], "sin_linea": 0}
+    if not nuevas:
+        raise ErrorUsuario("Ningún XML nuevo: " + (f"los {len(ya_estaban)} ya estaban en la conciliación del mes "
+                                                     "(mismo UUID)" if ya_estaban else "no se pudo leer ninguno")
+                           + ". Sube solo las refacturas o los XML que faltaban.")
+
+    avisar(f"Consultando en el SAT {len({f['UUID'] for f in nuevas if f['UUID']}):,} facturas nuevas...")
+    estados_nuevos, _ = consultar_sat(nuevas, progreso=progreso_sat, avisar=avisar)
+    if estados_nuevos and all(c.get("SinConexion") for c in estados_nuevos.values()):
+        raise ErrorUsuario("No hubo conexión con el SAT: no se agregó nada. Vuelve a intentarlo en unos minutos.")
+    estados_sat = {**conciliacion.estados_sat, **estados_nuevos}
+
+    avisar("Buscando en las líneas pendientes...")
+    fijas = [f for f in conciliacion.resultado if es_cruzada(f)]
+    usadas = {i for f in fijas for i in f.get("_grupo", ())}
+    uuid_pagados = {e["facturas"][i]["UUID"] for i in usadas} - {""}
+    lineas_fijas = {f["Linea"] for f in fijas}
+    pendientes = [l for l in e["lineas"] if l["Linea"] not in lineas_fijas]
+    facturas = e["facturas"] + nuevas
+    # Ni las facturas de las líneas cruzadas ni sus copias (mismo UUID) pueden cruzar otra línea: sería pago doble
+    disponibles = [i for i in range(len(facturas)) if i not in usadas and facturas[i]["UUID"] not in uuid_pagados]
+    filas, sobrantes = conciliar(pendientes, e["catalogo"], [facturas[i] for i in disponibles],
+                                 conciliacion.anio, conciliacion.mes, e["sap"], e["historial"], estados_sat)
+    copias = [x for x in conciliacion.sobrantes if x["UUID"] and x["UUID"] in uuid_pagados]
+    sobrantes = copias + sobrantes                       # siguen en "XML sin TXT" con su motivo
+    for fila in filas:                                   # índices de las facturas disponibles -> de todas
+        if "_grupo" in fila:
+            fila["_grupo"] = tuple(sorted(disponibles[i] for i in fila["_grupo"]))
+
+    antes = {f["Linea"]: f["Estatus"] for f in conciliacion.resultado}
+    resumen["cambios"] = [{"Línea": f["Linea"], "Médico": f.get("Nombre", ""), "Importe": float(f["Importe"]),
+                           "Antes": antes.get(f["Linea"], ""), "Ahora": f["Estatus"]}
+                          for f in filas if f["Estatus"] != antes.get(f["Linea"])]
+    nuevas_uuid = {f["UUID"] for f in nuevas}
+    resumen["sin_linea"] = sum(1 for s_ in sobrantes if s_["UUID"] in nuevas_uuid)
+    cruzaron = sum(1 for c in resumen["cambios"] if c["Ahora"].startswith("Cruzado"))
+    vuelta = len(conciliacion.agregadas) + 2
+    texto = (f"{len(nuevas)} XML agregados el {ahora:%d/%m/%Y %H:%M}: {cruzaron} línea(s) pasaron a Cruzado, "
+             f"{resumen['sin_linea']} XML sin línea pendiente")
+    return replace(conciliacion,
+                   resultado=sorted(fijas + filas, key=lambda f: f["Linea"]), sobrantes=sobrantes,
+                   errores_xml=conciliacion.errores_xml + errores, estados_sat=estados_sat,
+                   estados={**conciliacion.estados, f"Facturas pendientes (vuelta {vuelta})": texto},
+                   entradas={**e, "facturas": facturas, "n_xml": e["n_xml"] + len(rutas_xml)},
+                   agregadas=conciliacion.agregadas + [{"Fecha": f"{ahora:%d/%m/%Y %H:%M}", "Resultado": texto}],
+                   version=conciliacion.version + 1), resumen
 
 
 def registrar_historial(conciliacion):
