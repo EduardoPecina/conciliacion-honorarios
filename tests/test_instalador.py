@@ -52,7 +52,7 @@ class TestInstalador(unittest.TestCase):
         self.assertFalse(viejo.exists(), "al actualizar se reemplaza el programa completo")
         self.assertFalse((self.raiz / "_Programa_anterior").exists())
 
-    def test_dentro_del_zip_no_instala(self):
+    def test_dentro_del_zip_sin_poder_copiarlo_no_instala(self):
         with mock.patch.object(instalar, "corre_desde_el_zip", return_value=True), \
                 mock.patch.object(instalar, "avisar") as aviso:
             self.assertEqual(self.instalar(), 1)
@@ -159,7 +159,7 @@ class TestRespaldoDeLaActualizacion(unittest.TestCase):
         destino = self.programa("_Programa")
         self.programa("_Programa_anterior")                       # quedó bloqueado de una actualización pasada
         origen = self.programa("zip_nuevo")
-        with mock.patch.object(instalar, "ORIGEN", origen), \
+        with mock.patch.object(instalar, "ORIGEN", origen), mock.patch("builtins.print"), \
                 mock.patch.object(instalar, "borrar_carpeta", return_value=False):
             instalar.copiar_programa(destino)                     # antes: FileExistsError al renombrar
         self.assertTrue((self.raiz / "_Programa_anterior_2").exists())
@@ -195,6 +195,64 @@ class TestRespaldoDeLaActualizacion(unittest.TestCase):
         self.assertTrue(instalar.corre_desde_el_zip(zip_abierto))
         self.assertFalse(instalar.corre_desde_el_zip(temporal / "conciliacion-honorarios-main"))
         self.assertFalse(instalar.corre_desde_el_zip(Path.home() / "Downloads" / "conciliacion-honorarios-main"))
+
+    def zip_abierto(self, archivos=instalar.ESENCIALES + ("README.md", "portal/__pycache__/x.pyc")):
+        """Lo que deja Windows al abrir INSTALAR.bat dentro del ZIP: la carpeta extraída en Temp."""
+        origen = self.programa("x_conciliacion-honorarios-main.zip.686/conciliacion-honorarios-main", archivos)
+        estable = self.raiz / "AppData" / "Honorarios" / "Instalador"
+        bitacora_bat = self.raiz / "InstalacionHonorarios_bat.log"
+        bitacora_bat.write_text("INSTALAR.bat ...\n", encoding="utf-8")
+        entorno = mock.patch.dict(os.environ, {"HONORARIOS_INSTALADOR": str(estable),
+                                               "HONORARIOS_BITACORA_BAT": str(bitacora_bat)})
+        entorno.start()
+        self.addCleanup(entorno.stop)
+        return origen, estable / origen.name, bitacora_bat
+
+    def test_abierto_dentro_del_zip_se_copia_a_un_lugar_fijo_y_sigue_desde_ahi(self):
+        origen, copia, bitacora_bat = self.zip_abierto()
+        (copia / "viejo.txt").parent.mkdir(parents=True)
+        (copia / "viejo.txt").write_text("de una instalación anterior")
+        with mock.patch.object(instalar, "ORIGEN", origen), mock.patch("builtins.print"), \
+                mock.patch("subprocess.call", return_value=0) as corre:
+            self.assertEqual(instalar.instalar_desde_el_zip(["--sin-accesos"]), 0)
+        self.assertEqual(corre.call_args.args[0],
+                         [sys.executable, str(copia / "instalador" / "instalar.py"), "--sin-accesos"])
+        self.assertEqual(corre.call_args.kwargs["cwd"], copia)
+        self.assertTrue((copia / "portal" / "app.py").exists())
+        self.assertFalse((copia / "viejo.txt").exists(), "la copia anterior se reemplaza")
+        self.assertFalse((copia / "portal" / "__pycache__").exists())
+        self.assertIn("se copió a", bitacora_bat.read_text(encoding="utf-8"))
+
+    def test_si_el_zip_no_se_extrajo_completo_pide_extraerlo(self):
+        origen, copia, bitacora_bat = self.zip_abierto(archivos=("INSTALAR.bat", "instalador/instalar.py"))
+        with mock.patch.object(instalar, "ORIGEN", origen), mock.patch("builtins.print"), \
+                mock.patch("subprocess.call") as corre:
+            self.assertIsNone(instalar.instalar_desde_el_zip([]))
+        corre.assert_not_called()
+        self.assertIn("no se extrajo completo", bitacora_bat.read_text(encoding="utf-8"))
+
+    def test_instalacion_completa_abriendo_el_zip(self):
+        """De punta a punta, como en Windows: INSTALAR.bat desde la carpeta temporal del ZIP."""
+        import shutil
+        import subprocess
+        repo = Path(__file__).resolve().parent.parent
+        with tempfile.TemporaryDirectory(dir=tempfile.gettempdir()) as temporal:
+            origen = Path(temporal) / "b56f_conciliacion-honorarios-main.zip.686" / "conciliacion-honorarios-main"
+            shutil.copytree(repo, origen, ignore=instalar.NO_COPIAR)
+            escritorio = self.raiz / "Escritorio"
+            estable = self.raiz / "AppData" / "Honorarios" / "Instalador"
+            entorno = {**os.environ, "HONORARIOS_ESCRITORIO": str(escritorio), "HONORARIOS_INSTALADOR": str(estable),
+                       "PYTHONIOENCODING": "utf-8"}
+            entorno.pop("HONORARIOS_BITACORA_BAT", None)
+            hecho = subprocess.run([sys.executable, str(origen / "instalador" / "instalar.py"), "--sin-librerias",
+                                    "--sin-accesos"], cwd=origen, env=entorno, capture_output=True, text=True,
+                                   encoding="utf-8", stdin=subprocess.DEVNULL, timeout=120)
+            self.assertEqual(hecho.returncode, 0, hecho.stdout + hecho.stderr)
+            programa = escritorio / "Honorarios" / "_Programa"
+            self.assertEqual(instalar.archivos_del_programa(programa), instalar.archivos_del_programa(origen))
+        bitacora = (escritorio / "Honorarios" / instalar.BITACORA).read_text(encoding="utf-8")
+        self.assertIn(f"desde {estable / origen.name}", bitacora)
+        self.assertIn("RESULTADO: terminó bien", bitacora)
 
     def test_el_portal_borra_los_respaldos_que_quedaron(self):
         sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
