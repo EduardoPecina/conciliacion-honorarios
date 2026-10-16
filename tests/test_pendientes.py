@@ -12,6 +12,8 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
+from unittest import mock
+
 from openpyxl import load_workbook
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -21,7 +23,7 @@ import test_conciliacion  # noqa: E402,F401  (define HONORARIOS_RAIZ antes de im
 import datos_prueba  # noqa: E402
 from test_portal import sap_simulado, sat_todo_vigente  # noqa: E402
 from honorarios import cruce, folios, servicio, txt_sap  # noqa: E402
-from honorarios.config import ARCHIVO_FOLIOS, CONFIG, RAIZ  # noqa: E402
+from honorarios.config import ARCHIVO_CATALOGO, ARCHIVO_FOLIOS, CONFIG, RAIZ  # noqa: E402
 from honorarios.entradas import obtener_rutas  # noqa: E402
 from honorarios.utilidades import ErrorUsuario  # noqa: E402
 
@@ -30,9 +32,12 @@ AHORA = datetime(2026, 10, 16, 11, 40)
 RFC = {id_: rfc for id_, _, rfc, _ in datos_prueba.PROVEEDORES}
 
 
+RFC_ALTA = "NUEV800101AB1"            # el médico del ID 999999, que al procesar no estaba en el catálogo
+
+
 def xml(id_proveedor, subtotal, fecha="2026-10-05", uuid_=None, **otros):
     return (f"{id_proveedor}_{subtotal}.xml",
-            datos_prueba.xml_cfdi(RFC[id_proveedor], subtotal, fecha=f"{fecha}T09:00:00",
+            datos_prueba.xml_cfdi(RFC.get(id_proveedor, RFC_ALTA), subtotal, fecha=f"{fecha}T09:00:00",
                                   uuid=uuid_ or str(uuid.uuid4()).upper(), **otros))
 
 
@@ -48,7 +53,7 @@ class TestFacturasPendientes(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
 
-    def agregar(self, *archivos, conciliacion=None, consultar_sat=sat_todo_vigente):
+    def agregar(self, *archivos, conciliacion=None, consultar_sat=sat_todo_vigente, **otros):
         carpeta = Path(self.tmp.name) / "Pendientes 16-10-2026 1140"
         carpeta.mkdir(exist_ok=True)
         rutas = []
@@ -57,7 +62,18 @@ class TestFacturasPendientes(unittest.TestCase):
             rutas.append(carpeta / nombre)
         return servicio.agregar_pendientes(conciliacion or self.conciliacion, rutas, Path(self.tmp.name),
                                            avisar=lambda t: None, progreso_sat=lambda h, t: None,
-                                           consultar_sat=consultar_sat, ahora=AHORA)
+                                           consultar_sat=consultar_sat, ahora=AHORA, **otros)
+
+    def dar_de_alta(self):
+        """Agrega al catálogo el ID 999999 (como si Administración del catálogo lo diera de alta después)."""
+        ruta = CONFIG / ARCHIVO_CATALOGO
+        original = ruta.read_bytes()
+        self.addCleanup(ruta.write_bytes, original)
+        libro = load_workbook(ruta)
+        hoja = libro.active
+        hoja.append(["999999", "MEDICO DADO DE ALTA DESPUES", RFC_ALTA, None, 1, None])
+        hoja.tables["Catalogo"].ref = f"A1:F{hoja.max_row}"
+        libro.save(ruta)
 
     @staticmethod
     def fila(conciliacion, id_proveedor):
@@ -128,6 +144,37 @@ class TestFacturasPendientes(unittest.TestCase):
         sin_internet = lambda facturas, **k: ({f["UUID"]: {"SinConexion": True} for f in facturas}, "x")
         with self.assertRaises(ErrorUsuario):
             self.agregar(xml("100005", "40180"), consultar_sat=sin_internet)
+
+    def test_medico_dado_de_alta_despues_cruza_y_se_consulta_en_sap(self):
+        self.assertEqual(self.fila(self.conciliacion, "999999")["Estatus"], "ID no está en catálogo")
+        self.dar_de_alta()
+        consulta = mock.Mock(return_value=({**datos_prueba.sap_simulado(), "999999": (["RS"], "")}, "consultado"))
+        nueva, resumen = self.agregar(xml("999999", "100", fecha="2026-09-15"), carpeta=Path(self.tmp.name),
+                                      consultar_sap=consulta)
+        self.assertEqual(resumen["altas"], ["999999"])
+        self.assertIn("999999", consulta.call_args.args[0], "solo lo que faltaba se consulta en SAP")
+        self.assertTrue(consulta.call_args.args[4], "lo ya consultado se reusa")
+        fila = self.fila(nueva, "999999")
+        self.assertEqual((fila["Estatus"], fila["Nombre"]), ("Cruzado", "MEDICO DADO DE ALTA DESPUES"))
+
+    def test_sin_xml_nuevos_cruza_con_el_xml_que_ya_habia_llegado(self):
+        # Primera búsqueda: llega su XML, pero el médico no está en el catálogo -> queda en "XML sin TXT"
+        con_xml, resumen = self.agregar(xml("999999", "100", fecha="2026-09-15"))
+        self.assertEqual(self.fila(con_xml, "999999")["Estatus"], "ID no está en catálogo")
+        self.assertEqual(resumen["sin_linea"], 1)
+        self.dar_de_alta()
+        nueva, resumen = servicio.agregar_pendientes(con_xml, [], Path(self.tmp.name), avisar=lambda t: None,
+                                                     consultar_sat=sat_todo_vigente, ahora=AHORA)
+        self.assertEqual(resumen["nuevas"], 0)
+        self.assertTrue(self.fila(nueva, "999999")["Estatus"].startswith("Cruzado"),
+                        "cruza sin subir nada (sin SAP queda con observaciones)")
+        self.assertIn("Validaciones no realizadas", self.fila(nueva, "999999")["Observaciones"])
+
+    def test_sin_xml_ni_cambios_en_el_catalogo_no_hay_nada_que_hacer(self):
+        with self.assertRaises(ErrorUsuario) as error:
+            servicio.agregar_pendientes(self.conciliacion, [], Path(self.tmp.name), avisar=lambda t: None,
+                                        consultar_sat=sat_todo_vigente, ahora=AHORA)
+        self.assertIn("No hay nada nuevo", str(error.exception))
 
     def test_actualizar_sat_despues_conserva_la_refactura(self):
         nueva, _ = self.agregar(xml("100008", "1000"))
