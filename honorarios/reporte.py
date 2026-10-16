@@ -501,6 +501,9 @@ def escribir_instrucciones(libro):
         ("     • El vínculo 'Ver cálculo' lleva a la ficha de esa línea.", False),
         ("4. Cálculos: la ficha de cada línea, paso a paso y explicada en palabras.", False),
         ("5. Tasas: los porcentajes que usan las fórmulas (IVA 16%, ISR 10%, RESICO 1.25%...).", False),
+        ("6. TXT para SAP: las líneas del TXT con sus 11 columnas (A a K) y, de apoyo, Estatus, Médico y Línea.", False),
+        ("     • Deja solo las líneas listas para pagar (filtra por Estatus y borra las demás) y sube este Excel", False),
+        ("       en la página Generar TXT del portal: ahí se ponen los folios únicos y se descarga el TXT para SAP.", False),
         ("", False),
         ("QUÉ SIGNIFICA CADA ESTATUS", True),
         ("", False),
@@ -533,8 +536,20 @@ def escribir_instrucciones(libro):
     hoja.sheet_view.showGridLines = False
 
 
-def generar_reporte(rutas, anio, mes, resultado, sobrantes, errores_xml, n_xml, estados, cambios=None):
-    """cambios: bitácora de Edición TXT (si se editó el TXT): va en la hoja "Cambios TXT"."""
+def hoja_para_txt(resultado, ruta_txt):
+    """Hoja "TXT para SAP": las líneas del TXT original con sus 11 columnas tal cual (A a K, como texto) y, de apoyo,
+    Estatus, Médico y Línea (L a N). El analista deja aquí solo las líneas listas para pagar y sube el Excel en
+    Generar TXT (que lee solo de la A a la K)."""
+    from .txt_sap import COLUMNAS, lineas_del_txt
+    por_linea = {f["Linea"]: f for f in resultado}
+    orden = {e: i for i, e in enumerate(ORDEN_ESTATUS)}
+    filas = [valores + [por_linea.get(n, {}).get("Estatus", ""), por_linea.get(n, {}).get("Nombre", ""), n]
+             for n, valores in lineas_del_txt(ruta_txt.read_bytes()).items()]
+    filas.sort(key=lambda f: (orden.get(f[11], 99), f[1], f[13]))
+    return pd.DataFrame(filas, columns=COLUMNAS + ["Estatus", "Médico", "Línea"])
+
+
+def generar_reporte(rutas, anio, mes, resultado, sobrantes, errores_xml, n_xml, estados):
     detalle = pd.DataFrame(resultado)
     columnas = ["Linea", "Estatus", "Fecha", "IDProveedor", "Nombre", "RFC", "Folio",
                 "CodigoImpuesto", "Importe", "Ver cálculo", "Revisión importe", "Variación importe",
@@ -593,8 +608,7 @@ def generar_reporte(rutas, anio, mes, resultado, sobrantes, errores_xml, n_xml, 
         {"Dato": "Tolerancia de importe (cruce TXT vs XML)", "Valor": str(TOLERANCIA)},
         {"Dato": "Tolerancia de impuestos (redondeo)", "Valor": str(TOLERANCIA_IMPUESTOS)},
         {"Dato": "Variación etiquetada como OK (hasta)", "Valor": str(UMBRAL_OK)},
-    ] + ([{"Dato": "Cambios hechos en Edición TXT",
-           "Valor": f"{len(cambios)} (ver hoja Cambios TXT; el TXT de arriba es el editado)"}] if cambios else []))
+    ])
 
     nombre = f"Conciliacion_{anio}-{mes:02d}_{datetime.now():%Y%m%d_%H%M%S}.xlsx"
     destino = rutas["salida"] / nombre
@@ -605,14 +619,18 @@ def generar_reporte(rutas, anio, mes, resultado, sobrantes, errores_xml, n_xml, 
         pd.DataFrame(errores_xml, columns=["Archivo", "Error"]).to_excel(
             w, sheet_name="Errores XML", index=False)
         info.to_excel(w, sheet_name="Info", index=False)
-        if cambios:
-            pd.DataFrame(cambios, columns=["Linea", "Columna", "Anterior", "Nuevo", "Motivo", "Usuario", "Fecha"]) \
-                .to_excel(w, sheet_name="Cambios TXT", index=False)
+        para_txt = hoja_para_txt(resultado, rutas["txt"])
+        para_txt.to_excel(w, sheet_name="TXT para SAP", index=False)
         for hoja in w.book.worksheets:
             if hoja.title != "Resumen":
                 # Hasta aquí estas hojas solo tienen datos (las fórmulas del programa se agregan después)
                 como_texto(c for fila in hoja.iter_rows() for c in fila)
-                formatear_hoja(hoja, colorear_estatus=(hoja.title == "Detalle"))
+                formatear_hoja(hoja, colorear_estatus=hoja.title in ("Detalle", "TXT para SAP"))
+        hoja_txt = w.book["TXT para SAP"]
+        hoja_txt.auto_filter.ref = hoja_txt.dimensions
+        for fila in hoja_txt.iter_rows(min_row=2, max_col=11):
+            for celda in fila:
+                celda.number_format = "@"                  # texto: Excel no le quita los ceros ni los decimales
         hoja_det = w.book["Detalle"]
         hoja_det.auto_filter.ref = hoja_det.dimensions
         escribir_resumen(w.book["Resumen"], list(detalle.columns), len(detalle), n_xml)
@@ -621,7 +639,7 @@ def generar_reporte(rutas, anio, mes, resultado, sobrantes, errores_xml, n_xml, 
         fichas = escribir_calculos(w.book, L, detalle)
         escribir_por_proveedor(w.book, L, detalle, fichas)
         escribir_instrucciones(w.book)
-        orden = ["Resumen", "Cómo usar", "Por proveedor", "Detalle", "Cambios TXT", "Cálculos",
+        orden = ["Resumen", "Cómo usar", "Por proveedor", "Detalle", "TXT para SAP", "Cálculos",
                  "XML sin TXT", "Errores XML", "Tasas", "Info"]
         w.book._sheets.sort(key=lambda h: orden.index(h.title) if h.title in orden else 99)
         w.book.active = 0

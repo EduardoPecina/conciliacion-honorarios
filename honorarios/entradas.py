@@ -137,7 +137,7 @@ def leer_catalogo(ruta):
 
 def leer_linea_txt(campos, n):
     """Una línea del TXT (ya separada por tabuladores) -> (fila para el motor, None) o (None, motivo del error).
-    La usan leer_txt() y la Edición TXT del portal, así que las dos validan igual."""
+    La usa leer_txt()."""
     campos = [c.strip() for c in campos]
     if len(campos) != len(COLUMNAS_TXT):
         return None, f"trae {len(campos)} columnas y se esperaban {len(COLUMNAS_TXT)}"

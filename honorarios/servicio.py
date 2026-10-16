@@ -9,6 +9,7 @@ import hmac
 import os
 import pickle
 import secrets
+import tempfile
 from dataclasses import dataclass, field, fields, replace
 from datetime import datetime
 from pathlib import Path
@@ -41,14 +42,11 @@ class Conciliacion:
     historial_legible: bool         # False: el historial no se pudo leer y no se debe registrar nada
     avisos: list = field(default_factory=list)
     sin_consultar: list = field(default_factory=list)   # "SAP" / "SAT" si no hubo conexión en esta corrida
-    # Lo leído y consultado en esta corrida (catálogo, líneas, facturas, SAP, historial): Edición TXT vuelve a
-    # cruzar con esto al editar, sin repetir las consultas al SAT ni a SAP.
+    # Lo leído y consultado en esta corrida (catálogo, líneas, facturas, SAP, historial): Actualizar SAT o SAP vuelve
+    # a cruzar con esto sin repetir la consulta que no se pidió.
     entradas: dict = field(default_factory=dict, repr=False)
-    editada: bool = False           # True: el resultado ya incluye cambios hechos en Edición TXT
-    cambios: list = field(default_factory=list)     # bitácora de Edición TXT
     version: int = 0                # sube con cada cambio: el portal sabe cuándo regenerar el Excel
     consultado: str = ""            # fecha y hora de las consultas al SAT y a SAP ("dd/mm/aaaa hh:mm")
-    txt_editado: bytes = b""        # el TXT con los cambios de Edición TXT (para el Excel y su huella)
 
     @property
     def se_puede_registrar(self):
@@ -157,33 +155,13 @@ def conciliar_periodo(rutas, anio, mes, avisar=print, progreso_sat=progreso_en_c
 
 
 def revalidar(conciliacion, lineas):
-    """Vuelve a cruzar con las líneas editadas, usando lo ya consultado al SAT y a SAP (tarda segundos).
-    Las mismas reglas que la conciliación: nada se salta."""
+    """Vuelve a cruzar usando lo ya consultado al SAT y a SAP (tarda segundos). Las mismas reglas que la
+    conciliación: nada se salta."""
     e = conciliacion.entradas
     resultado, sobrantes = conciliar(lineas, e["catalogo"], e["facturas"], conciliacion.anio, conciliacion.mes,
                                      e["sap"], e["historial"], conciliacion.estados_sat)
-    return replace(conciliacion, resultado=resultado, sobrantes=sobrantes, editada=True,
-                   entradas={**e, "lineas": lineas}, version=conciliacion.version + 1)
-
-
-def ids_sin_consultar_en_sap(conciliacion):
-    """IDs del TXT (editado) que están en el catálogo pero no se consultaron en SAP (p. ej. un ID corregido)."""
-    e = conciliacion.entradas
-    en_catalogo = set(e["catalogo"]["IDProveedor"])
-    return sorted({l["IDProveedor"] for l in e["lineas"] if l["IDProveedor"] in en_catalogo} - set(e["sap"] or {}))
-
-
-def consultar_sap_faltantes(conciliacion, carpeta, progreso=progreso_sap_en_consola, avisar=print):
-    """Consulta en SAP solo los IDs que faltan (reusa lo ya consultado este mes) y vuelve a cruzar."""
-    e = conciliacion.entradas
-    ids = sorted(set(e["sap"] or {}) | set(ids_sin_consultar_en_sap(conciliacion)))
-    sap, texto = consultar_sap(ids, carpeta, conciliacion.anio, conciliacion.mes, True, progreso=progreso,
-                               avisar=avisar)
-    if sap is None:
-        return conciliacion, texto
-    actualizada = replace(conciliacion, entradas={**e, "sap": {**(e["sap"] or {}), **sap}},
-                          sin_consultar=[x for x in conciliacion.sin_consultar if x != "SAP"])
-    return revalidar(actualizada, e["lineas"]), texto
+    return replace(conciliacion, resultado=resultado, sobrantes=sobrantes, entradas={**e, "lineas": lineas},
+                   version=conciliacion.version + 1)
 
 
 def registrar_historial(conciliacion):
@@ -255,7 +233,7 @@ def verificar(datos):
 
 
 def guardar_trabajo(conciliacion, carpeta, txt_original):
-    """Guarda todo lo del mes (resultado, lo consultado al SAT y a SAP, el TXT original, la bitácora) para poder
+    """Guarda todo lo del mes (resultado, lo consultado al SAT y a SAP, el TXT original) para poder
     continuar otro día sin volver a procesar. Se guarda en la carpeta del mes; si falla, no detiene nada."""
     datos = {"programa": __version__, "guardado": datetime.now().strftime(FORMATO_FECHA), "txt": txt_original,
              "conciliacion": {f.name: getattr(conciliacion, f.name) for f in fields(conciliacion)}}
@@ -334,16 +312,18 @@ def dias_desde_consulta(conciliacion, hoy=None):
         return 0
 
 
-def regenerar_reporte(conciliacion, carpeta, txt_editado):
-    """Excel con el resultado actual (con las ediciones) y la hoja "Cambios TXT". El TXT editado se guarda junto
-    al Excel: su nombre y su huella SHA-256 quedan en la hoja Info."""
+def regenerar_reporte(conciliacion, carpeta, txt_original):
+    """Excel con el resultado actual (p. ej. después de Actualizar SAT o SAP). txt_original: (nombre, bytes) del TXT
+    del mes; como al procesar, su nombre y su huella SHA-256 quedan en la hoja Info y sus líneas en "TXT para SAP"."""
     e = conciliacion.entradas
     carpeta = Path(carpeta)
     carpeta.mkdir(parents=True, exist_ok=True)
-    ruta_txt = carpeta / f"TXT_editado_{conciliacion.anio}-{conciliacion.mes:02d}.txt"
-    ruta_txt.write_bytes(txt_editado)
-    rutas = {"txt": ruta_txt, "catalogo": e["ruta_catalogo"], "salida": carpeta}
-    destino, resumen = generar_reporte(rutas, conciliacion.anio, conciliacion.mes, conciliacion.resultado,
-                                       conciliacion.sobrantes, conciliacion.errores_xml, e["n_xml"],
-                                       conciliacion.estados, cambios=conciliacion.cambios)
+    nombre, datos = txt_original
+    with tempfile.TemporaryDirectory() as tmp:
+        ruta_txt = Path(tmp) / Path(nombre).name
+        ruta_txt.write_bytes(datos)
+        rutas = {"txt": ruta_txt, "catalogo": e["ruta_catalogo"], "salida": carpeta}
+        destino, resumen = generar_reporte(rutas, conciliacion.anio, conciliacion.mes, conciliacion.resultado,
+                                           conciliacion.sobrantes, conciliacion.errores_xml, e["n_xml"],
+                                           conciliacion.estados)
     return replace(conciliacion, destino=destino, resumen=resumen)

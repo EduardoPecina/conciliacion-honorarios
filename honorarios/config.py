@@ -50,9 +50,10 @@ PREFIJOS_CLAVE_SERVICIOS = ("80", "81", "82", "83", "84", "85", "86", "93")
 
 ARCHIVO_HISTORIAL = "HistorialUUID.csv"
 
-# Folios únicos para el TXT de SAP (botón "Formatear folios" de Edición TXT). SAP rechaza un folio que el mismo
-# proveedor ya usó, aunque sea de otro mes. Si SAP aceptara menos caracteres, se cambia aquí.
-LONGITUD_FOLIO = 10
+# Folios únicos para el TXT de SAP (botón "Formatear folios" de Generar TXT, ver folios.py). SAP rechaza un folio que
+# el mismo proveedor ya usó, aunque sea de otro mes, y acepta hasta 16 caracteres: año (2) + quincena (2) +
+# IDProveedor (4) + huella de la factura (el resto).
+LONGITUD_FOLIO = 16
 ARCHIVO_FOLIOS = "HistorialFolios.csv"
 
 MESES = ["01 Ene", "02 Feb", "03 Mar", "04 Abr", "05 May", "06 Jun",

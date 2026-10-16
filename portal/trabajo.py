@@ -26,8 +26,7 @@ def continuar(ruta):
     ss.conciliacion, ss.txt_original, ss.salida = conciliacion, txt_original, carpeta
     ss.anio_sel, ss.mes_sel = conciliacion.anio, conciliacion.mes        # el selector muestra el mes recuperado
     ss.excel = Path(conciliacion.destino).read_bytes() if Path(conciliacion.destino).exists() else None
-    ss.excel_version = None if conciliacion.editada or ss.excel is None else conciliacion.version
-    ss.pop("etxt", None)                                 # Edición TXT se vuelve a armar (con su borrador)
+    ss.excel_version = None if ss.excel is None else conciliacion.version
 
 
 def ofrecer_continuar():
@@ -44,5 +43,5 @@ def ofrecer_continuar():
         for ruta, nombre, fecha in trabajos:
             st.button(f"Continuar {nombre} (última modificación: {fecha})", key=f"continuar_{ruta.stem}",
                       on_click=continuar, args=(ruta,))
-        st.caption("Se recupera todo: el resultado, lo consultado al SAT y a SAP, y tus cambios en Edición TXT. "
+        st.caption("Se recupera todo: el resultado y lo consultado al SAT y a SAP. "
                    "Para empezar de nuevo, sube los archivos abajo y procesa.")
