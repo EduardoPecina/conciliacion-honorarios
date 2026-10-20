@@ -167,9 +167,40 @@ class TestArchivosSubidos(unittest.TestCase):
             self.assertTrue(all(Path(d) in p.parents for p in creados))
             self.assertTrue((Path(d) / "Entrada" / "XML" / "malo" / "fuera.xml").exists())
 
+    def test_nombres_que_en_windows_salen_de_la_carpeta(self):
+        """Con las reglas de Windows: '//servidor/x.xml' es una ruta de red (abriría una conexión SMB) y 'D:x.xml'
+        o 'a/D:b/x.xml' otra unidad. Ninguna parte puede traer raíz, unidad ni ':'."""
+        from pathlib import PureWindowsPath
+        from portal.archivos import _partes_seguras
+        for nombre in ("//servidor/carpeta/x.xml", "\\\\servidor\\carpeta\\x.xml", "D:x.xml", "a/D:b/x.xml",
+                       "C:\\Windows\\x.xml", "x.xml:flujo", "../../x.xml", ".../x.xml", ".. /x.xml",
+                       "a/./b/../x.xml"):
+            with self.subTest(nombre=nombre):
+                partes = _partes_seguras(nombre)
+                ruta = PureWindowsPath(*partes)
+                self.assertFalse(ruta.drive or ruta.root, ruta)
+                self.assertFalse(any(":" in p or not p.strip(" .") for p in partes), partes)
+        self.assertEqual(_partes_seguras("//servidor/carpeta/x.xml"), ["servidor", "carpeta", "x.xml"])
+        self.assertEqual(_partes_seguras("sep\\a.xml"), ["sep", "a.xml"])
+
     def test_sin_xml_avisa(self):
         with tempfile.TemporaryDirectory() as d, self.assertRaises(utilidades.ErrorUsuario):
             preparar_carpeta(d, ("pagos.txt", b"linea"), [("notas.pdf", b"x")])
+
+
+class TestConfiguracionSegura(unittest.TestCase):
+    """.streamlit/config.toml: solo esta computadora, sin estadísticas a Streamlit y sin enlaces externos en errores."""
+
+    def test_config_toml(self):
+        import tomllib
+        with open(Path(__file__).resolve().parents[1] / ".streamlit" / "config.toml", "rb") as archivo:
+            config = tomllib.load(archivo)
+        self.assertEqual(config["server"]["address"], "localhost")
+        self.assertEqual(config["server"]["allowedHosts"], ["localhost", "127.0.0.1"])
+        self.assertIs(config["server"]["enableXsrfProtection"], True)
+        self.assertIs(config["server"]["enableCORS"], True)
+        self.assertIs(config["browser"]["gatherUsageStats"], False)
+        self.assertIs(config["client"]["showErrorLinks"], False)
 
 
 class TestLanzador(unittest.TestCase):
@@ -210,6 +241,11 @@ class TestLanzador(unittest.TestCase):
         salida, navegador, arrancar, avisar = self.lanzar(abierto=[False, False, True])
         self.assertEqual(salida, 0)
         arrancar.assert_called_once()
+        comando = arrancar.call_args.args[0]
+        for bandera in ("--server.address=localhost", "--browser.gatherUsageStats=false",
+                        "--server.enableXsrfProtection=true", "--client.showErrorLinks=false",
+                        "--server.allowedHosts=localhost"):
+            self.assertIn(bandera, comando, "va en la línea de comandos: gana sobre config.toml y STREAMLIT_*")
         navegador.assert_called_once()
         avisar.assert_not_called()
 

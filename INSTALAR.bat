@@ -19,6 +19,9 @@ echo.
 echo Revisando Python 3.13...
 set "PY="
 set "PYNUEVO=%LOCALAPPDATA%\Programs\Python\Python313\python.exe"
+REM Version de respaldo si no hay winget (winget instala la 3.13 mas reciente)
+set "PYVERSION=3.13.7"
+set "INSTALADOR_PY=%TEMP%\instalador-python.exe"
 py -3.13 -c "import sys" >nul 2>nul && set "PY=py -3.13"
 if not defined PY python -c "import sys; sys.exit(0 if sys.version_info[:2] == (3, 13) else 1)" >nul 2>nul && set "PY=python"
 if not defined PY if exist "%PYNUEVO%" set PY="%PYNUEVO%"
@@ -44,16 +47,29 @@ winget install --id Python.Python.3.13 -e --scope user --silent --accept-package
 >> "%HONORARIOS_BITACORA_BAT%" echo winget termino con codigo %errorlevel%
 :sin_winget
 if exist "%PYNUEVO%" goto :python_listo
-echo Descargando Python desde python.org...
->> "%HONORARIOS_BITACORA_BAT%" echo Descargando Python desde python.org
-curl.exe -sS -L --retry 5 -o "%TEMP%\instalador-python.exe" https://www.python.org/ftp/python/3.13.1/python-3.13.1-amd64.exe >> "%HONORARIOS_BITACORA_BAT%" 2>&1
+echo Descargando Python %PYVERSION% desde python.org...
+>> "%HONORARIOS_BITACORA_BAT%" echo Descargando Python %PYVERSION% desde python.org
+del /q "%INSTALADOR_PY%" >nul 2>nul
+REM --fail: una pagina de error del proxy no se guarda como si fuera el instalador; --proto: solo HTTPS
+curl.exe -sS -L --fail --proto =https --retry 5 -o "%INSTALADOR_PY%" https://www.python.org/ftp/python/%PYVERSION%/python-%PYVERSION%-amd64.exe >> "%HONORARIOS_BITACORA_BAT%" 2>&1
 >> "%HONORARIOS_BITACORA_BAT%" echo curl termino con codigo %errorlevel%
-if not exist "%TEMP%\instalador-python.exe" goto :python_listo
+if not exist "%INSTALADOR_PY%" goto :python_listo
+REM Antes de ejecutarlo: firma digital valida de la Python Software Foundation. Si no la tiene, no se ejecuta.
+powershell.exe -NoProfile -NonInteractive -Command "$f = Get-AuthenticodeSignature -LiteralPath $env:INSTALADOR_PY; $f.Status; $f.SignerCertificate.Subject; if ($f.Status -ne 'Valid' -or $f.SignerCertificate.Subject -notmatch 'O=Python Software Foundation') { exit 1 }" >> "%HONORARIOS_BITACORA_BAT%" 2>&1
+if errorlevel 1 goto :firma_invalida
+>> "%HONORARIOS_BITACORA_BAT%" echo Firma de la Python Software Foundation valida
 echo Instalando Python...
-"%TEMP%\instalador-python.exe" /quiet InstallAllUsers=0 PrependPath=1 Include_test=0 Include_launcher=1 InstallLauncherAllUsers=0
+"%INSTALADOR_PY%" /quiet InstallAllUsers=0 PrependPath=1 Include_test=0 Include_launcher=1 InstallLauncherAllUsers=0
 >> "%HONORARIOS_BITACORA_BAT%" echo Instalador de python.org termino con codigo %errorlevel%
+del /q "%INSTALADOR_PY%" >nul 2>nul
 :python_listo
 if exist "%PYNUEVO%" set PY="%PYNUEVO%"
+exit /b 0
+
+:firma_invalida
+>> "%HONORARIOS_BITACORA_BAT%" echo El archivo descargado NO tiene la firma valida de la Python Software Foundation: no se ejecuta
+echo El archivo descargado no tiene la firma digital de python.org: no se ejecuta.
+del /q "%INSTALADOR_PY%" >nul 2>nul
 exit /b 0
 
 :sin_python

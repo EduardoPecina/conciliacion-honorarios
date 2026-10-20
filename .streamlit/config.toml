@@ -2,8 +2,12 @@
 [server]
 headless = true              # no intenta abrir un navegador en el servidor
 port = 8501                  # fijo: si ya está ocupado (otro portal abierto), avisa en lugar de irse al 8502
-address = "localhost"        # solo esta computadora puede abrir el portal. En el servidor interno se cambia
-                             # por la dirección de red para que Contabilidad entre (lo define Sistemas)
+address = "localhost"        # solo esta computadora puede abrir el portal. portal/iniciar.py lo repite en la
+                             # línea de comandos. Abrirlo a la red NO es cambiar esta línea: el portal no tiene
+                             # usuario ni contraseña ni HTTPS; antes, revisión de Ciberseguridad.
+allowedHosts = ["localhost", "127.0.0.1"]   # contra "DNS rebinding": solo se aceptan esos nombres de equipo
+enableXsrfProtection = true  # fijos aquí (no solo por el valor de fábrica): un config.toml global no los apaga
+enableCORS = true
 maxUploadSize = 500          # MB por archivo subido (un .zip con todos los XML del mes)
 
 [browser]
@@ -11,6 +15,7 @@ gatherUsageStats = false     # no enviar estadísticas de uso a Streamlit: nada 
 
 [client]
 toolbarMode = "minimal"      # oculta el botón "Deploy" (publicar en la nube de Streamlit) y opciones de desarrollador
+showErrorLinks = false       # sin los enlaces "Ask Google" / "Ask ChatGPT" en los errores (mandarían el detalle)
 
 [theme]
 primaryColor = "#305496"     # mismo azul de los encabezados del Excel

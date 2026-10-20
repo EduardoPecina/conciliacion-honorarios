@@ -24,6 +24,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.utils.datetime import from_excel
 
 from . import folios
+from .reporte import como_texto
 from .config import CODIGOS_IMPUESTO_TXT, LONGITUD_FOLIO, LONGITUD_REFERENCIA
 from .entradas import es_encabezado_txt
 from .utilidades import ErrorUsuario, importe_txt, normalizar_id
@@ -36,7 +37,7 @@ LETRAS = dict(zip(COLUMNAS_EXCEL, "ABCDEFGHIJ"))
 # Columnas que en el TXT de SAP llevan siempre el mismo valor
 FIJOS = {"X": "X", "1": "001", "PM": "T"}
 # Referencia = final del folio nuevo + separador + quincena, en 16 caracteres: "7Q3MXP4_Q18-2026" (en el TXT
-# original venía "A1893      Q18-2026": el folio, espacios y la quincena)
+# original venía "A1001      Q18-2026": el folio, espacios y la quincena)
 SEPARADOR_REFERENCIA = "_"
 HOJA_PARA_TXT = "TXT para SAP"                 # hoja del Excel de la conciliación con las columnas del TXT
 SALTO = "\r\n"
@@ -71,7 +72,7 @@ def _texto(v):
     if v is None:
         return ""
     if isinstance(v, float) and v.is_integer():
-        return str(int(v))                         # 145362.0 -> 145362
+        return str(int(v))                         # 907362.0 -> 907362
     if isinstance(v, (datetime, date)):
         return v.strftime("%d.%m.%Y")
     return str(v).strip()
@@ -129,7 +130,7 @@ def _valor(columna, v):
     if columna == "Tax":
         texto = _texto(v).upper()
         return texto, None if texto in CODIGOS_IMPUESTO_TXT else f"'{texto}' no es válido: debe ser E0 (sin IVA) o F2 (con IVA)"
-    # Una cuenta como 50E03158 Excel la puede leer como número en notación científica: ya no es la cuenta (las
+    # Una cuenta como 12E04567 Excel la puede leer como número en notación científica: ya no es la cuenta (las
     # cuentas de SAP miden hasta 10 caracteres)
     if columna == "Cuenta Contable" and _es_numero(v) and (not float(v).is_integer() or abs(v) >= 1e10):
         return _texto(v), ("Excel convirtió la cuenta en número (por ejemplo 5E+31): pon la columna como Texto "
@@ -192,7 +193,7 @@ def misma_factura_repetida(lineas):
 def referencia(folio, fecha):
     """Referencia del TXT, de LONGITUD_REFERENCIA (16) caracteres como máximo: el final del folio nuevo y la quincena
     de la fecha, unidos con guion bajo: folio 26185113K7Q3MXP4 -> "7Q3MXP4_Q18-2026". Es la estructura de la del TXT
-    original ("A1893      Q18-2026": folio y quincena). Del folio van sus últimos caracteres porque son los que lo
+    original ("A1001      Q18-2026": folio y quincena). Del folio van sus últimos caracteres porque son los que lo
     distinguen (los primeros, año, quincena e ID, ya están en la quincena y en la línea); si cupiera completo, va
     completo."""
     quincena = folios.texto_quincena(fecha)
@@ -288,6 +289,7 @@ def control_de_folios(lineas, nombres):
                      l["Referencia"],
                      f"Sí, el {previo['Registrado']}" if previo else ""])
         hoja.cell(hoja.max_row, 6).number_format = "#,##0.00"
+    como_texto(c for fila in hoja.iter_rows(min_row=2) for c in fila)    # un nombre o folio con "=" no se ejecuta
     for i, encabezado in enumerate(encabezados, start=1):
         hoja.cell(1, i).font = Font(bold=True, color="FFFFFF")
         hoja.cell(1, i).fill = PatternFill("solid", fgColor="305496")

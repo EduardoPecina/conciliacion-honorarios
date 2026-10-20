@@ -320,6 +320,23 @@ class TestVersionesFijas(unittest.TestCase):
         self.assertIn("--only-binary=:all:", comando)
         self.assertIn("HONORARIOS_BITACORA_BAT", texto, "INSTALAR.bat anota sus pasos para la bitácora")
 
+    def test_el_python_de_respaldo_se_verifica_antes_de_ejecutarlo(self):
+        """Sin winget, INSTALAR.bat baja Python de python.org: solo HTTPS, sin guardar páginas de error y solo se
+        ejecuta si trae la firma digital válida de la Python Software Foundation."""
+        texto = (self.RAIZ / "INSTALAR.bat").read_text(encoding="ascii")
+        descarga = next(l for l in texto.splitlines() if l.startswith("curl.exe"))
+        self.assertIn("--fail", descarga)
+        self.assertIn("--proto =https", descarga)
+        self.assertIn("https://www.python.org/ftp/python/%PYVERSION%/", descarga)
+        version = re.search(r'set "PYVERSION=3\.13\.(\d+)"', texto)
+        self.assertTrue(version and int(version.group(1)) >= 7, "una 3.13 con los parches de seguridad recientes")
+        self.assertIn("Get-AuthenticodeSignature", texto)
+        self.assertIn("O=Python Software Foundation", texto)
+        self.assertLess(texto.index("Get-AuthenticodeSignature"), texto.index('"%INSTALADOR_PY%" /quiet'),
+                        "la firma se revisa ANTES de ejecutar el instalador")
+        self.assertIn("if errorlevel 1 goto :firma_invalida", texto)
+        self.assertNotIn("Bypass", texto, "no se salta la política de ejecución de PowerShell")
+
     def test_las_huellas_corresponden_a_las_versiones_fijadas(self):
         """requirements-instalar.txt (con huellas) debe tener exactamente las versiones de requirements-lock.txt.
         Si falla: python instalador/generar_lock.py"""

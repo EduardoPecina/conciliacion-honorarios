@@ -126,12 +126,13 @@ def leer_catalogo(ruta):
     if duplicados:
         raise ErrorUsuario(f"El catálogo tiene IDs repetidos: {', '.join(duplicados[:10])}")
     # Un RFC raro ya no detiene todo el programa: solo afecta a las líneas de ese proveedor.
-    malos = [f"{i} ({r})" for i, r, t in zip(catalogo["IDProveedor"], catalogo["RFC"], catalogo["TipoRFC"])
-             if t == "Inválido"]
+    # Solo el IDProveedor, sin el RFC: el aviso del portal queda también en su bitácora (portal.log) y el RFC de una
+    # persona física es un dato personal. El RFC se ve en el reporte.
+    malos = [i for i, t in zip(catalogo["IDProveedor"], catalogo["TipoRFC"]) if t == "Inválido"]
     if malos:
         print(f"  Aviso: {len(malos)} proveedor(es) con RFC mal escrito; sus líneas saldrán "
-              f"'RFC inválido en catálogo':\n    " + "\n    ".join(malos[:10])
-              + ("\n    ..." if len(malos) > 10 else ""))
+              f"'RFC inválido en catálogo'. IDProveedor: {', '.join(malos[:10])}"
+              + (", ..." if len(malos) > 10 else ""))
     return catalogo.reset_index(drop=True)
 
 

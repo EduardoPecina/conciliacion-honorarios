@@ -8,7 +8,7 @@ No depende de Streamlit (se puede probar solo). Sin reglas de negocio: solo arch
 
 import zipfile
 from io import BytesIO
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
 from honorarios.utilidades import ErrorUsuario
 
@@ -25,10 +25,16 @@ def _nombre_libre(carpeta, relativa):
     return destino
 
 
+def _partes_seguras(nombre):
+    """Partes de la ruta sin '..' (ni '...' o '.. ', que Windows recorta), sin unidad, sin raíz y sin ':' en ninguna
+    parte. Se separa a mano (no con PurePosixPath): '//servidor/x.xml' sería en Windows una ruta de red y
+    'a/D:b/x.xml' otra unidad."""
+    return [p for p in nombre.replace("\\", "/").split("/") if p.strip(" .") and ":" not in p]
+
+
 def _ruta_segura(nombre):
     """Ruta relativa sin '..', sin unidad ni raíz: un .zip no puede escribir fuera de la carpeta XML."""
-    partes = [p for p in PurePosixPath(nombre.replace("\\", "/")).parts if p not in ("", ".", "..", "/")]
-    partes = [p for p in partes if not p.endswith(":")]
+    partes = _partes_seguras(nombre)
     return Path(*partes) if partes else None
 
 
@@ -37,6 +43,8 @@ def _guardar_xml(carpeta_xml, nombre, contenido):
     if relativa is None:
         return 0
     destino = _nombre_libre(carpeta_xml, relativa)
+    if not destino.resolve().is_relative_to(Path(carpeta_xml).resolve()):     # segunda revisión, por si acaso
+        return 0
     destino.parent.mkdir(parents=True, exist_ok=True)
     destino.write_bytes(contenido)
     return 1

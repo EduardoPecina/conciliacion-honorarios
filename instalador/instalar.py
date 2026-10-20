@@ -289,7 +289,7 @@ def corre_desde_el_zip(origen=None):
 
 # Lo mínimo que debe traer la carpeta del ZIP para poder instalar
 ESENCIALES = ("INSTALAR.bat", "EJECUTAR_PORTAL.bat", "requirements-instalar.txt", "instalador/instalar.py",
-              "honorarios/__init__.py", "portal/app.py", "portal/iniciar.py")
+              "honorarios/__init__.py", "portal/app.py", "portal/iniciar.py", ".streamlit/config.toml")
 
 
 def carpeta_estable():
