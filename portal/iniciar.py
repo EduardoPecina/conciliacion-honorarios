@@ -44,7 +44,18 @@ OPCIONES_STREAMLIT = (
     "--server.enableXsrfProtection=true", "--server.enableCORS=true",
     "--server.allowedHosts=localhost", "--server.allowedHosts=127.0.0.1",
     "--browser.gatherUsageStats=false", "--client.showErrorLinks=false",
+    "--server.maxUploadSize=500", "--client.toolbarMode=minimal",
 )
+# Si una página web abierta en el navegador intenta conectarse al portal desde otro sitio, Streamlit la rechaza, pero
+# antes pregunta a checkip.amazonaws.com la IP pública de la PC para compararla. Se le da ya resuelta (127.0.0.1, que
+# de todos modos acepta): así no sale nada a internet. Se arranca Streamlit con -c en lugar de -m streamlit.
+SIN_IP_EXTERNA = "import streamlit.net_util as red; red._external_ip = '127.0.0.1'"
+ARRANQUE = SIN_IP_EXTERNA + "; from streamlit.web.cli import main; main()"
+
+
+def comando_streamlit():
+    """El mismo arranque para el acceso directo y para la consola de diagnóstico (python portal/iniciar.py --consola)."""
+    return [sys.executable, "-c", ARRANQUE, "run", str(Path("portal") / "app.py"), *OPCIONES_STREAMLIT]
 
 
 def portal_abierto():
@@ -132,9 +143,7 @@ def arrancar_portal():
     BITACORA.parent.mkdir(parents=True, exist_ok=True)
     bitacora = open(BITACORA, "w", encoding="utf-8")
     opciones = {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
-    proceso = subprocess.Popen([sys.executable, "-m", "streamlit", "run", str(Path("portal") / "app.py"),
-                                *OPCIONES_STREAMLIT],
-                               cwd=RAIZ_REPO, stdout=bitacora, stderr=subprocess.STDOUT,
+    proceso = subprocess.Popen(comando_streamlit(), cwd=RAIZ_REPO, stdout=bitacora, stderr=subprocess.STDOUT,
                                stdin=subprocess.DEVNULL, **opciones)
     limite = time.monotonic() + ESPERA_MAXIMA
     try:
@@ -190,4 +199,6 @@ def iniciar():
 
 
 if __name__ == "__main__":
+    if "--consola" in sys.argv[1:]:            # diagnóstico: el portal con sus mensajes en esta ventana (Ctrl+C lo cierra)
+        sys.exit(subprocess.call(comando_streamlit(), cwd=RAIZ_REPO))
     sys.exit(iniciar())

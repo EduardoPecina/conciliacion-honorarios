@@ -1,7 +1,8 @@
 """Portal de Honorarios (Streamlit). Uso: doble clic en EJECUTAR_PORTAL.bat (sin ventana negra; abre el navegador).
-Para ver los mensajes en una consola, desde la carpeta del repositorio:
+Para ver los mensajes en una consola, desde la carpeta del repositorio (mismo arranque y protecciones que el acceso
+directo; no uses "python -m streamlit run", que no las aplica):
 
-    python -m streamlit run portal/app.py
+    python portal/iniciar.py --consola
 
 REGLA: el portal NO tiene reglas de negocio. Solo recibe archivos, llama al motor (honorarios/) y muestra
 el resultado. Cualquier regla nueva va en honorarios/, así el portal y el .bat siempre dan lo mismo."""

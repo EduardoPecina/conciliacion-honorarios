@@ -7,19 +7,27 @@ Revisión de seguridad (red, datos y protección contra pérdida de información
 ### Seguridad
 - **Un ZIP ya no puede escribir fuera de su carpeta con nombres de Windows.** Antes, un ZIP con un archivo llamado
   `//servidor/carpeta/x.xml` o `D:x.xml` se guardaba en una ruta de red (Windows abría una conexión SMB) o en otra
-  unidad. Ahora se descarta cualquier parte con `:` o vacía, y se comprueba que cada archivo quede dentro de la
-  carpeta.
+  unidad. Ahora cada parte del nombre se corrige como Windows la aceptaría: los caracteres que no acepta (`:` `|` `?`
+  `*` `<` `>` `"`) pasan a `_`, los nombres de dispositivo (`CON`, `NUL`, `COM1`…) llevan `_` delante y se quitan los
+  puntos y espacios del final (`Factura 15:09:2026.xml` → `Factura 15_09_2026.xml`). Además se comprueba que cada
+  archivo quede dentro de la carpeta, y si un XML no se puede guardar, el portal dice cuál.
 - **El portal solo se puede abrir desde esta computadora aunque falte `.streamlit/config.toml`:** el lanzador pasa
   en la línea de comandos `localhost`, la protección XSRF/CORS, `allowedHosts` (contra "DNS rebinding") y sin
   estadísticas de uso. La línea de comandos gana sobre cualquier otra configuración o variable `STREAMLIT_*`. El
-  instalador revisa que `config.toml` venga en el ZIP.
+  instalador no instala nada si al programa le falta `config.toml` (u otro archivo esencial).
+- Para diagnosticar en una consola: `python portal\iniciar.py --consola`, con el mismo arranque y las mismas
+  protecciones que el acceso directo (`python -m streamlit run` no las aplica).
 - Los errores ya no muestran los enlaces "Ask Google" / "Ask ChatGPT", que mandaban el detalle del error a esos sitios.
+- Si una página web abierta en el navegador intenta conectarse al portal desde otro sitio, se rechaza **sin consultar
+  `checkip.amazonaws.com`** (Streamlit preguntaba ahí la IP pública de la PC para compararla): el lanzador se la da
+  ya resuelta.
 - **El control de folios (Excel) guarda como texto** un nombre o folio que empieza con `=`: Excel ya no lo ejecuta
   como fórmula (el Excel de la conciliación ya lo hacía).
 - **La bitácora del portal se mudó a `%LOCALAPPDATA%\Honorarios\portal.log`**, fuera de OneDrive, y el aviso de
   RFC mal escrito en el catálogo ya no anota RFC (solo el `IDProveedor`).
-- **Python de respaldo (sin winget):** se baja la 3.13.7 (antes 3.13.1), solo por HTTPS, sin guardar páginas de error
-  del proxy, y **solo se ejecuta si trae la firma digital válida de la Python Software Foundation**. Después se borra.
+- **Python de respaldo (sin winget, o si winget no pudo instalarlo):** se baja la 3.13.7 (antes 3.13.1), solo por HTTPS, sin guardar páginas de error
+  del proxy, y **solo se ejecuta si trae la firma digital válida de la Python Software Foundation** (el firmante
+  exacto; si la revisión falla por cualquier motivo, no se ejecuta). Después se borra.
 
 ### Cambiado
 - Los datos de prueba que parecían reales (dos RFC con dígito verificador válido, un ID fiscal extranjero y una línea

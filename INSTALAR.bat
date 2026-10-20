@@ -55,8 +55,9 @@ curl.exe -sS -L --fail --proto =https --retry 5 -o "%INSTALADOR_PY%" https://www
 >> "%HONORARIOS_BITACORA_BAT%" echo curl termino con codigo %errorlevel%
 if not exist "%INSTALADOR_PY%" goto :python_listo
 REM Antes de ejecutarlo: firma digital valida de la Python Software Foundation. Si no la tiene, no se ejecuta.
-powershell.exe -NoProfile -NonInteractive -Command "$f = Get-AuthenticodeSignature -LiteralPath $env:INSTALADOR_PY; $f.Status; $f.SignerCertificate.Subject; if ($f.Status -ne 'Valid' -or $f.SignerCertificate.Subject -notmatch 'O=Python Software Foundation') { exit 1 }" >> "%HONORARIOS_BITACORA_BAT%" 2>&1
-if errorlevel 1 goto :firma_invalida
+powershell.exe -NoProfile -NonInteractive -Command "$f = Get-AuthenticodeSignature -LiteralPath $env:INSTALADOR_PY; $f.Status; $f.SignerCertificate.Subject; if ($f.Status -ne 'Valid' -or $f.SignerCertificate.Subject -cnotmatch '(^|, )O=Python Software Foundation(,|$)') { exit 1 }" >> "%HONORARIOS_BITACORA_BAT%" 2>&1
+REM Cualquier codigo distinto de 0 (tambien uno negativo, si PowerShell se cae) cuenta como firma no valida
+if not "%errorlevel%"=="0" goto :firma_invalida
 >> "%HONORARIOS_BITACORA_BAT%" echo Firma de la Python Software Foundation valida
 echo Instalando Python...
 "%INSTALADOR_PY%" /quiet InstallAllUsers=0 PrependPath=1 Include_test=0 Include_launcher=1 InstallLauncherAllUsers=0

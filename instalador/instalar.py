@@ -462,6 +462,12 @@ def _instalar(raiz, sin_librerias, sin_accesos):
                "instalarlo.\n\nCierra esta ventana, da clic derecho en el ZIP → \"Extraer todo...\" y corre "
                "INSTALAR.bat de la carpeta que se crea.", error=True)
         return 1
+    sin_extraer = [esencial for esencial in ESENCIALES if not (ORIGEN / esencial).is_file()]
+    if sin_extraer:                             # p. ej. .streamlit/config.toml: sin él el portal pierde su configuración
+        avisar(f"Al programa le faltan archivos ({', '.join(sin_extraer)}): el ZIP no se extrajo completo.\n\n"
+               "No se cambió nada. Da clic derecho en el ZIP → \"Extraer todo...\" y corre INSTALAR.bat de la "
+               "carpeta que se crea.", error=True)
+        return 1
     if portal_abierto():
         avisar("El Portal de Honorarios está abierto.\n\nCiérralo (botón \"Cerrar el portal\") y vuelve a "
                "correr INSTALAR.bat.", error=True)
