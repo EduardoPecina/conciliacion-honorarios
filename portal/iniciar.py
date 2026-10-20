@@ -1,7 +1,8 @@
 """Abre el Portal de Honorarios sin ventana negra: lo arranca en segundo plano y abre el navegador predeterminado.
 
 Lo llama EJECUTAR_PORTAL.bat con pythonw (Python sin consola). Si el portal ya está abierto, solo abre otra
-pestaña. Si algo falla, muestra una ventana de Windows con el motivo; el detalle queda en portal/portal.log.
+pestaña. Si algo falla, muestra una ventana de Windows con el motivo; el detalle queda en
+%LOCALAPPDATA%\\Honorarios\\portal.log (fuera de OneDrive).
 
 Clics de más (usuarios desesperados que dan doble clic varias veces): solo un lanzador a la vez trabaja. Los que
 llegan mientras otro arranca el portal (o acaba de abrir la pestaña) se retiran sin hacer nada, así que nunca se
@@ -28,11 +29,33 @@ if str(RAIZ_REPO) not in sys.path:
 
 PUERTO = 8501                                  # el mismo de .streamlit/config.toml
 URL = f"http://localhost:{PUERTO}"
-BITACORA = Path(__file__).resolve().parent / "portal.log"
+# Fuera de _Programa (que puede estar en el Escritorio de OneDrive), junto a la clave del trabajo guardado
+CARPETA_LOCAL = Path(os.environ.get("LOCALAPPDATA") or Path.home() / ".config") / "Honorarios"
+BITACORA = CARPETA_LOCAL / "portal.log"
 ESPERA_MAXIMA = 120                            # segundos; la primera vez el antivirus puede hacerlo lento
 VIDA_MAXIMA = ESPERA_MAXIMA + 90               # pase lo que pase, el lanzador no vive más que esto (suelta el turno)
 PAUSA_ENTRE_CLICS = 5                          # tras abrir la pestaña, los clics de más en estos segundos no abren otra
 CANDADO = Path(tempfile.gettempdir()) / f"portal-honorarios-{PUERTO}.lock"   # en TEMP, no en OneDrive
+# Lo que protege al portal va también en la línea de comandos, que gana sobre .streamlit/config.toml, las variables
+# STREAMLIT_* y la configuración global del usuario: aunque falte o no se lea ese archivo, solo esta computadora
+# puede abrirlo y nada sale a Streamlit.
+OPCIONES_STREAMLIT = (
+    "--server.address=localhost", f"--server.port={PUERTO}", "--server.headless=true",
+    "--server.enableXsrfProtection=true", "--server.enableCORS=true",
+    "--server.allowedHosts=localhost", "--server.allowedHosts=127.0.0.1",
+    "--browser.gatherUsageStats=false", "--client.showErrorLinks=false",
+    "--server.maxUploadSize=500", "--client.toolbarMode=minimal",
+)
+# Si una página web abierta en el navegador intenta conectarse al portal desde otro sitio, Streamlit la rechaza, pero
+# antes pregunta a checkip.amazonaws.com la IP pública de la PC para compararla. Se le da ya resuelta (127.0.0.1, que
+# de todos modos acepta): así no sale nada a internet. Se arranca Streamlit con -c en lugar de -m streamlit.
+SIN_IP_EXTERNA = "import streamlit.net_util as red; red._external_ip = '127.0.0.1'"
+ARRANQUE = SIN_IP_EXTERNA + "; from streamlit.web.cli import main; main()"
+
+
+def comando_streamlit():
+    """El mismo arranque para el acceso directo y para la consola de diagnóstico (python portal/iniciar.py --consola)."""
+    return [sys.executable, "-c", ARRANQUE, "run", str(Path("portal") / "app.py"), *OPCIONES_STREAMLIT]
 
 
 def portal_abierto():
@@ -117,10 +140,10 @@ def detener_portal_trabado():
 
 def arrancar_portal():
     """Arranca el portal en segundo plano y espera a que abra el puerto. None si quedó listo, o el mensaje de error."""
+    BITACORA.parent.mkdir(parents=True, exist_ok=True)
     bitacora = open(BITACORA, "w", encoding="utf-8")
     opciones = {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
-    proceso = subprocess.Popen([sys.executable, "-m", "streamlit", "run", str(Path("portal") / "app.py")],
-                               cwd=RAIZ_REPO, stdout=bitacora, stderr=subprocess.STDOUT,
+    proceso = subprocess.Popen(comando_streamlit(), cwd=RAIZ_REPO, stdout=bitacora, stderr=subprocess.STDOUT,
                                stdin=subprocess.DEVNULL, **opciones)
     limite = time.monotonic() + ESPERA_MAXIMA
     try:
@@ -176,4 +199,6 @@ def iniciar():
 
 
 if __name__ == "__main__":
+    if "--consola" in sys.argv[1:]:            # diagnóstico: el portal con sus mensajes en esta ventana (Ctrl+C lo cierra)
+        sys.exit(subprocess.call(comando_streamlit(), cwd=RAIZ_REPO))
     sys.exit(iniciar())

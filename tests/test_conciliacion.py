@@ -469,10 +469,57 @@ class TestUtilidades(unittest.TestCase):
         self.assertEqual(utilidades.normalizar_id("PV0001"), "PV0001")
 
     def test_clasificar_rfc(self):
-        self.assertEqual(utilidades.clasificar_rfc("LEHV730331NP6"), "MX")
-        self.assertEqual(utilidades.clasificar_rfc("HYL850731H2A"), "MX")
-        self.assertEqual(utilidades.clasificar_rfc("880443249"), "Extranjero")
+        self.assertEqual(utilidades.clasificar_rfc("PEGA900215AB1"), "MX")
+        self.assertEqual(utilidades.clasificar_rfc("ABC900101AB1"), "MX")
+        self.assertEqual(utilidades.clasificar_rfc("123456789"), "Extranjero")
         self.assertEqual(utilidades.clasificar_rfc(""), "Vacío")
+
+
+class TestAvisoDelCatalogo(unittest.TestCase):
+    def test_rfc_mal_escrito_avisa_el_id_sin_el_rfc(self):
+        """El aviso queda en portal.log: lleva el IDProveedor, no el RFC (dato personal de una persona física)."""
+        import contextlib
+        import io
+        from openpyxl import Workbook
+        from openpyxl.worksheet.table import Table
+        with tempfile.TemporaryDirectory() as carpeta:
+            ruta = Path(carpeta) / "Catalogo.xlsx"
+            libro = Workbook()
+            hoja = libro.active
+            hoja.append(["IDProveedor", "Nombre", "RFC", "RFCTipo", "Activo", "Observaciones"])
+            hoja.append(["100001", "MEDICO BIEN", "MERU800101AB1", "FISICA", 1, None])
+            hoja.append(["100099", "MEDICO MAL", "MERU8001X", "FISICA", 1, None])
+            hoja.add_table(Table(displayName="Catalogo", ref="A1:F3"))
+            libro.save(ruta)
+            salida = io.StringIO()
+            with contextlib.redirect_stdout(salida):
+                catalogo = entradas.leer_catalogo(ruta)
+        self.assertEqual(list(catalogo["TipoRFC"]), ["MX", "Inválido"])
+        self.assertIn("100099", salida.getvalue())
+        self.assertNotIn("MERU8001X", salida.getvalue())
+
+
+class TestDatosInventados(unittest.TestCase):
+    """Ningún RFC de las pruebas puede pasar el dígito verificador del SAT (sería de una persona o empresa real),
+    salvo el de la sociedad, que es público y va en cada factura."""
+    VALORES = "0123456789ABCDEFGHIJKLMN&OPQRSTUVWXYZ Ñ"
+
+    def digito_valido(self, rfc):
+        rfc = rfc.rjust(13)                                # persona moral (12): se completa con un espacio
+        suma = sum(self.VALORES.index(c) * (13 - i) for i, c in enumerate(rfc[:12]))
+        residuo = suma % 11
+        return rfc[12] == ("0" if residuo == 0 else "A" if residuo == 1 else str(11 - residuo))
+
+    def test_ningun_rfc_de_prueba_es_real(self):
+        import re
+        from honorarios.config import RFC_SOCIEDAD
+        self.assertTrue(self.digito_valido(RFC_SOCIEDAD), "el cálculo del dígito verificador está mal")
+        carpeta = Path(__file__).resolve().parent
+        for archivo in sorted(carpeta.glob("*.py")):
+            for rfc in set(re.findall(r"\b[A-ZÑ&]{3,4}\d{6}[A-Z\d]{3}\b", archivo.read_text(encoding="utf-8"))):
+                if rfc != RFC_SOCIEDAD:
+                    with self.subTest(archivo=archivo.name, rfc=rfc):
+                        self.assertFalse(self.digito_valido(rfc), "parece un RFC real: usa uno inventado")
 
 
 if __name__ == "__main__":

@@ -167,9 +167,66 @@ class TestArchivosSubidos(unittest.TestCase):
             self.assertTrue(all(Path(d) in p.parents for p in creados))
             self.assertTrue((Path(d) / "Entrada" / "XML" / "malo" / "fuera.xml").exists())
 
+    def test_nombres_que_en_windows_salen_de_la_carpeta(self):
+        """Con las reglas de Windows: '//servidor/x.xml' es una ruta de red (abriría una conexión SMB) y 'D:x.xml'
+        o 'a/D:b/x.xml' otra unidad. Ninguna parte puede traer raíz, unidad ni ':'."""
+        from pathlib import PureWindowsPath
+        from portal.archivos import _partes_seguras
+        for nombre in ("//servidor/carpeta/x.xml", "\\\\servidor\\carpeta\\x.xml", "D:x.xml", "a/D:b/x.xml",
+                       "C:\\Windows\\x.xml", "x.xml:flujo", "../../x.xml", ".../x.xml", ".. /x.xml",
+                       "a/./b/../x.xml"):
+            with self.subTest(nombre=nombre):
+                partes = _partes_seguras(nombre)
+                ruta = PureWindowsPath(*partes)
+                self.assertFalse(ruta.drive or ruta.root, ruta)
+                self.assertFalse(any(":" in p or not p.strip(" .") for p in partes), partes)
+        self.assertEqual(_partes_seguras("//servidor/carpeta/x.xml"), ["servidor", "carpeta", "x.xml"])
+        self.assertEqual(_partes_seguras("a/D:b/x.xml"), ["a", "D_b", "x.xml"])
+        self.assertEqual(_partes_seguras("sep\\a.xml"), ["sep", "a.xml"])
+
+    def test_nombres_que_windows_no_acepta_se_corrigen(self):
+        """Dispositivos (CON, NUL, COM1...), caracteres prohibidos y puntos o espacios al final: el XML se guarda con
+        un nombre que Windows sí acepta. Si lo que no sirve es el nombre del archivo, no se usa el de su carpeta."""
+        import ntpath
+        from portal.archivos import _partes_seguras
+        casos = {"CON.xml": ["_CON.xml"], "facturas/nul/x.xml": ["facturas", "_nul", "x.xml"],
+                 "COM1.xml": ["_COM1.xml"], "a|b?.xml": ["a_b_.xml"], "a.xml. ": ["a.xml"],
+                 "Factura 15:09:2026.xml": ["Factura 15_09_2026.xml"], "Lote/..": [], "Lote/": [],
+                 "CONSULTA.xml": ["CONSULTA.xml"], ".oculto.xml": [".oculto.xml"]}
+        for nombre, esperado in casos.items():
+            with self.subTest(nombre=nombre):
+                partes = _partes_seguras(nombre)
+                self.assertEqual(partes, esperado)
+                if partes and hasattr(ntpath, "isreserved"):                 # Python 3.13+
+                    self.assertFalse(any(ntpath.isreserved(p) for p in partes), partes)
+
+    def test_zip_con_dos_puntos_en_el_nombre_guarda_todos(self):
+        """Un ZIP hecho en Mac puede traer ':' en un nombre. Ese XML y los demás del ZIP se guardan."""
+        with tempfile.TemporaryDirectory() as d:
+            zip_ = self.zip_con({"Factura 15:09:2026.xml": "<a/>", "b.xml": "<b/>", "CON.xml": "<c/>"})
+            n = preparar_carpeta(d, ("pagos.txt", b"linea"), [("Lote.zip", zip_)])
+            lote = Path(d) / "Entrada" / "XML" / "Lote"
+            self.assertEqual(n, 3)
+            self.assertEqual(sorted(p.name for p in lote.iterdir()), ["Factura 15_09_2026.xml", "_CON.xml", "b.xml"])
+
     def test_sin_xml_avisa(self):
         with tempfile.TemporaryDirectory() as d, self.assertRaises(utilidades.ErrorUsuario):
             preparar_carpeta(d, ("pagos.txt", b"linea"), [("notas.pdf", b"x")])
+
+
+class TestConfiguracionSegura(unittest.TestCase):
+    """.streamlit/config.toml: solo esta computadora, sin estadísticas a Streamlit y sin enlaces externos en errores."""
+
+    def test_config_toml(self):
+        import tomllib
+        with open(Path(__file__).resolve().parents[1] / ".streamlit" / "config.toml", "rb") as archivo:
+            config = tomllib.load(archivo)
+        self.assertEqual(config["server"]["address"], "localhost")
+        self.assertEqual(config["server"]["allowedHosts"], ["localhost", "127.0.0.1"])
+        self.assertIs(config["server"]["enableXsrfProtection"], True)
+        self.assertIs(config["server"]["enableCORS"], True)
+        self.assertIs(config["browser"]["gatherUsageStats"], False)
+        self.assertIs(config["client"]["showErrorLinks"], False)
 
 
 class TestLanzador(unittest.TestCase):
@@ -210,8 +267,28 @@ class TestLanzador(unittest.TestCase):
         salida, navegador, arrancar, avisar = self.lanzar(abierto=[False, False, True])
         self.assertEqual(salida, 0)
         arrancar.assert_called_once()
+        comando = arrancar.call_args.args[0]
+        for bandera in ("--server.address=localhost", "--browser.gatherUsageStats=false",
+                        "--server.enableXsrfProtection=true", "--client.showErrorLinks=false",
+                        "--server.allowedHosts=localhost"):
+            self.assertIn(bandera, comando, "va en la línea de comandos: gana sobre config.toml y STREAMLIT_*")
+        self.assertEqual(comando[1:3], ["-c", self.iniciar.ARRANQUE])
+        self.assertEqual(comando, self.iniciar.comando_streamlit(), "el mismo que usa --consola")
+        self.assertIn(str(Path("portal") / "app.py"), comando, "apagado.py reconoce al portal por portal/app.py")
         navegador.assert_called_once()
         avisar.assert_not_called()
+
+    def test_streamlit_no_pregunta_la_ip_publica(self):
+        """Una página de otro sitio que intenta conectarse al portal se rechaza sin preguntar a checkip.amazonaws.com
+        (Streamlit lo hace para comparar la IP pública): el arranque se la da ya resuelta."""
+        from streamlit import net_util
+        from streamlit.web.server import server_util
+        self.addCleanup(setattr, net_util, "_external_ip", net_util._external_ip)
+        exec(self.iniciar.SIN_IP_EXTERNA, {})
+        sin_red = AssertionError("salió a internet")
+        with self.mock.patch.object(net_util, "_make_blocking_http_get", side_effect=sin_red):
+            self.assertFalse(server_util.is_url_from_allowed_origins("http://atacante.example.com"))
+            self.assertTrue(server_util.is_url_from_allowed_origins("http://localhost:8501"))
 
     def test_clics_de_mas_mientras_otro_arranca_no_hacen_nada(self):
         turno = self.iniciar.tomar_turno()                    # otro clic ya está arrancando el portal

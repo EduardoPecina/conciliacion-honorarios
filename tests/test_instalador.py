@@ -59,6 +59,21 @@ class TestInstalador(unittest.TestCase):
         self.assertIn("Extraer todo", aviso.call_args.args[0])
         self.assertFalse((self.raiz / "_Programa").exists())
 
+    def test_sin_config_toml_no_instala(self):
+        """Aunque el ZIP ya se haya extraído: sin .streamlit/config.toml (p. ej. una extracción que omite carpetas
+        que empiezan con punto) no se instala nada."""
+        carpeta = tempfile.TemporaryDirectory()
+        self.addCleanup(carpeta.cleanup)
+        origen = Path(carpeta.name)
+        for esencial in instalar.ESENCIALES:
+            if esencial != ".streamlit/config.toml":
+                (origen / esencial).parent.mkdir(parents=True, exist_ok=True)
+                (origen / esencial).write_text("x")
+        with mock.patch.object(instalar, "ORIGEN", origen), mock.patch.object(instalar, "avisar") as aviso:
+            self.assertEqual(self.instalar(), 1)
+        self.assertIn(".streamlit/config.toml", aviso.call_args.args[0])
+        self.assertFalse((self.raiz / "_Programa").exists())
+
     def test_actualizar_quita_el_acceso_del_desinstalador_retirado(self):
         self.instalar()
         acceso_viejo = self.raiz / "Desinstalar Portal de Honorarios.lnk"
@@ -319,6 +334,24 @@ class TestVersionesFijas(unittest.TestCase):
         self.assertIn("--require-hashes", comando)
         self.assertIn("--only-binary=:all:", comando)
         self.assertIn("HONORARIOS_BITACORA_BAT", texto, "INSTALAR.bat anota sus pasos para la bitácora")
+
+    def test_el_python_de_respaldo_se_verifica_antes_de_ejecutarlo(self):
+        """Sin winget, INSTALAR.bat baja Python de python.org: solo HTTPS, sin guardar páginas de error y solo se
+        ejecuta si trae la firma digital válida de la Python Software Foundation."""
+        texto = (self.RAIZ / "INSTALAR.bat").read_text(encoding="ascii")
+        descarga = next(l for l in texto.splitlines() if l.startswith("curl.exe"))
+        self.assertIn("--fail", descarga)
+        self.assertIn("--proto =https", descarga)
+        self.assertIn("https://www.python.org/ftp/python/%PYVERSION%/", descarga)
+        version = re.search(r'set "PYVERSION=3\.13\.(\d+)"', texto)
+        self.assertTrue(version and int(version.group(1)) >= 7, "una 3.13 con los parches de seguridad recientes")
+        self.assertIn("Get-AuthenticodeSignature", texto)
+        self.assertIn("-cnotmatch '(^|, )O=Python Software Foundation(,|$)'", texto, "el firmante exacto, no uno parecido")
+        self.assertLess(texto.index("Get-AuthenticodeSignature"), texto.index('"%INSTALADOR_PY%" /quiet'),
+                        "la firma se revisa ANTES de ejecutar el instalador")
+        self.assertIn('if not "%errorlevel%"=="0" goto :firma_invalida', texto,
+                      "'if errorlevel 1' no ve los códigos negativos (PowerShell que se cae)")
+        self.assertNotIn("Bypass", texto, "no se salta la política de ejecución de PowerShell")
 
     def test_las_huellas_corresponden_a_las_versiones_fijadas(self):
         """requirements-instalar.txt (con huellas) debe tener exactamente las versiones de requirements-lock.txt.

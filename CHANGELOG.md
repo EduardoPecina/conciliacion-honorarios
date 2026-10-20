@@ -1,5 +1,42 @@
 # Historial de cambios
 
+## [1.21.2] - 2026-10-20
+
+Revisión de seguridad (red, datos y protección contra pérdida de información).
+
+### Seguridad
+- **Un ZIP ya no puede escribir fuera de su carpeta con nombres de Windows.** Antes, un ZIP con un archivo llamado
+  `//servidor/carpeta/x.xml` o `D:x.xml` se guardaba en una ruta de red (Windows abría una conexión SMB) o en otra
+  unidad. Ahora cada parte del nombre se corrige como Windows la aceptaría: los caracteres que no acepta (`:` `|` `?`
+  `*` `<` `>` `"`) pasan a `_`, los nombres de dispositivo (`CON`, `NUL`, `COM1`…) llevan `_` delante y se quitan los
+  puntos y espacios del final (`Factura 15:09:2026.xml` → `Factura 15_09_2026.xml`). Además se comprueba que cada
+  archivo quede dentro de la carpeta, y si un XML no se puede guardar, el portal dice cuál.
+- **El portal solo se puede abrir desde esta computadora aunque falte `.streamlit/config.toml`:** el lanzador pasa
+  en la línea de comandos `localhost`, la protección XSRF/CORS, `allowedHosts` (contra "DNS rebinding") y sin
+  estadísticas de uso. La línea de comandos gana sobre cualquier otra configuración o variable `STREAMLIT_*`. El
+  instalador no instala nada si al programa le falta `config.toml` (u otro archivo esencial).
+- Para diagnosticar en una consola: `python portal\iniciar.py --consola`, con el mismo arranque y las mismas
+  protecciones que el acceso directo (`python -m streamlit run` no las aplica).
+- Los errores ya no muestran los enlaces "Ask Google" / "Ask ChatGPT", que mandaban el detalle del error a esos sitios.
+- Si una página web abierta en el navegador intenta conectarse al portal desde otro sitio, se rechaza **sin consultar
+  `checkip.amazonaws.com`** (Streamlit preguntaba ahí la IP pública de la PC para compararla): el lanzador se la da
+  ya resuelta.
+- **El control de folios (Excel) guarda como texto** un nombre o folio que empieza con `=`: Excel ya no lo ejecuta
+  como fórmula (el Excel de la conciliación ya lo hacía).
+- **La bitácora del portal se mudó a `%LOCALAPPDATA%\Honorarios\portal.log`**, fuera de OneDrive, y el aviso de
+  RFC mal escrito en el catálogo ya no anota RFC (solo el `IDProveedor`).
+- **Python de respaldo (sin winget, o si winget no pudo instalarlo):** se baja la 3.13.7 (antes 3.13.1), solo por HTTPS, sin guardar páginas de error
+  del proxy, y **solo se ejecuta si trae la firma digital válida de la Python Software Foundation** (el firmante
+  exacto; si la revisión falla por cualquier motivo, no se ejecuta). Después se borra.
+
+### Cambiado
+- Los datos de prueba que parecían reales (dos RFC con dígito verificador válido, un ID fiscal extranjero y una línea
+  de pago con proveedor, cuenta y centro de costo) se cambiaron por datos inventados. Una prueba nueva impide que
+  vuelva a entrar un RFC con dígito verificador válido.
+- README, "Datos y seguridad": dice con exactitud qué se guarda y dónde (el contenido de lo que se sube queda en el
+  Excel y en el trabajo guardado; OneDrive si el Escritorio está sincronizado), que el portal no tiene usuario ni
+  contraseña (es seguro porque es local) y que SAP GUI Scripting lo habilita Sistemas.
+
 ## [1.21.1] - 2026-10-16
 
 ### Cambiado
@@ -47,7 +84,7 @@
 - **Generar TXT: la Referencia ya no se captura, la arma el portal.** El Excel de la conciliación no la mostraba, así
   que al armar el Excel con la plantilla quedaba vacía y la Referencia salía solo con el folio. Ahora "Formatear
   folios" la arma siempre: el folio nuevo y la quincena de la fecha, `26185113K7Q3MXP4_Q18-2026`, con la misma
-  estructura que la del TXT original (`A1893      Q18-2026`).
+  estructura que la del TXT original (`A1001      Q18-2026`).
   - El Excel lleva solo las columnas **A a J** (Fecha … PM). La plantilla ya no trae Referencia; si un Excel la trae
     en la K, no se lee. En el TXT sigue saliendo la Referencia como columna 11, porque SAP espera las 11 columnas.
   - Hoja "TXT para SAP" del Excel de la conciliación: columnas A a J y, de apoyo, Estatus, Médico y Línea (K a M).
@@ -86,7 +123,7 @@
   archivo y contra `HistorialFolios.csv`. Misma factura → mismo folio: si una línea ya cargada se vuelve a mandar, SAP
   la rechaza (no se paga dos veces) y el portal avisa que ese folio ya se había generado. `HistorialFolios.csv`
   registra además el folio original, el monto, la fecha, el Excel, el usuario y la fecha de generación.
-- La Referencia sigue al folio nuevo: `A1893      Q18-2026` → `26185113K7Q3MXP4_Q18-2026`.
+- La Referencia sigue al folio nuevo: `A1001      Q18-2026` → `26185113K7Q3MXP4_Q18-2026`.
 
 ### Agregado
 - Excel de la conciliación: hoja **TXT para SAP**, con las líneas del TXT tal cual (A a K, como texto) y, de apoyo,
@@ -182,13 +219,13 @@
 
 ### Cambiado
 - Formatear folios: la Referencia queda **sin espacios**, con guion bajo entre el folio y el resto
-  (`A1893      Q18-2026` → `7KQ2M9XHRT_Q18-2026`). Con el folio de 10 caracteres mide lo mismo que antes (19).
+  (`A1001      Q18-2026` → `7KQ2M9XHRT_Q18-2026`). Con el folio de 10 caracteres mide lo mismo que antes (19).
 
 ## [1.15.1] - 2026-10-03
 
 ### Cambiado
 - Edición TXT: **la Referencia cambia junto con el folio** al presionar "Formatear folios" (solo la parte del folio:
-  `A1893      Q18-2026` → `7KQ2M9XHRT      Q18-2026`; espacios y resto intactos) y ya no se edita a mano.
+  `A1001      Q18-2026` → `7KQ2M9XHRT      Q18-2026`; espacios y resto intactos) y ya no se edita a mano.
 - La columna **Tax** se edita con una lista (E0 / F2), para no teclear códigos inválidos.
 
 ## [1.15.0] - 2026-10-03

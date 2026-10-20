@@ -122,7 +122,7 @@ def xml_cfdi(rfc, subtotal, regimen="626", con_iva=False, fecha=f"{ANIO}-{MES:02
 
 def linea_txt(id_prov, folio, importe, codigo="E0", dia=29):
     return (f"{dia:02d}.{MES:02d}.{ANIO}\t{id_prov}\t{folio}\t{importe}\tX\t{codigo}\t1\t"
-            f"32635079\t50E03158\tT\t{folio}      Q18-{ANIO}")
+            f"12345678\t12E04567\tT\t{folio}      Q18-{ANIO}")
 
 
 def crear(destino):
