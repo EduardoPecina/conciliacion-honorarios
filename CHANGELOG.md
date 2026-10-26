@@ -1,5 +1,16 @@
 # Historial de cambios
 
+## [1.21.3] - 2026-10-26
+
+### Agregado
+- **Hoja "XML sin TXT": columna "Qué pasó"**, junto al nombre del archivo. Explica en palabras por qué ese XML no se
+  usó y qué pasó con su médico: cuántos XML mandó y cuántas líneas tiene, con qué factura cruzó cada línea, si no
+  tiene línea en el TXT, si su RFC no está en el catálogo, o si es una factura válida sin línea que la pague.
+  Antes, un médico con dos facturas (una cruzada y otra "fuera del periodo" en esta hoja) parecía cruzado con la
+  factura equivocada al buscar por RFC.
+- **Hoja Detalle: columna "Otros XML del médico"**: avisa en la línea cuando a ese médico le sobró alguna factura.
+- La hoja "Cómo usar" explica la hoja XML sin TXT.
+
 ## [1.21.2] - 2026-10-20
 
 Revisión de seguridad (red, datos y protección contra pérdida de información).

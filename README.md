@@ -189,6 +189,13 @@ La conciliación de un mes puede llevar días (revisar errores, esperar correcci
 - Para empezar el mes de cero, basta con subir los archivos y procesar (reemplaza el trabajo guardado de ese mes).
 - El archivo lo escribe y lo lee solo el programa; si está dañado o es de una versión muy distinta, el portal lo dice y se vuelve a procesar.
 
+### Hoja "XML sin TXT": las facturas que ninguna línea usó
+
+Cada fila es un XML que se leyó bien pero que no cruzó con ninguna línea del TXT. Su **MotivoRechazo** dice qué tiene mal **esa factura**, no la línea: si el médico mandó varias, la línea puede estar Cruzado con otra factura suya. Para que no parezca que se cruzó la equivocada:
+
+- La columna **Qué pasó** (justo después del nombre del archivo) lo explica en palabras. Por ejemplo: *"El médico mandó 2 XML y tiene 1 línea(s) en el TXT. Su línea 45 ya cruzó con otra factura: B1234.xml (del 2026-10-12). Esta factura no se usó por lo que dice MotivoRechazo."* Otros casos: el médico no tiene línea en el TXT, su RFC no está en el catálogo, su línea quedó "Diferencia de importe" (el TXT paga tanto y la factura es por tanto), o la factura es válida pero no hay otra línea para pagarla (¿falta la línea o facturó de más?).
+- En **Detalle**, la columna **Otros XML del médico** avisa en la línea cuando a ese médico le sobró alguna factura: *"1 XML más de este médico no se usó (hoja XML sin TXT): …"*.
+
 ### Excel actualizado
 
 El botón **Descargar Excel** de Conciliador Automático siempre da el reporte **actual**: si se actualizó el SAT o SAP, genera un Excel nuevo con los estatus actualizados (la hoja Info conserva el nombre y la huella SHA-256 del TXT original).

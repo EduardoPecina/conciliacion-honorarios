@@ -1,5 +1,6 @@
 """Generación del Excel de salida: Resumen con fórmulas, Detalle, desglose de impuestos, hojas auxiliares."""
 
+from collections import Counter, defaultdict
 from datetime import datetime
 from decimal import Decimal
 
@@ -506,6 +507,10 @@ def escribir_instrucciones(libro):
         ("     • Deja solo las líneas listas para pagar (filtra por Estatus y borra las demás) y sube este Excel", False),
         ("       en la página Generar TXT del portal: ahí se ponen los folios únicos y la Referencia, y se descarga", False),
         ("       el TXT para SAP.", False),
+        ("7. XML sin TXT: los XML que ninguna línea usó. La columna 'Qué pasó' explica cada uno: si el médico", False),
+        ("     mandó varios XML y otra factura suya ya cruzó, si no tiene línea en el TXT, si su RFC no está en el", False),
+        ("     catálogo... MotivoRechazo dice qué tiene mal ESA factura (no la línea: la línea cruzó con otra).", False),
+        ("     En Detalle, la columna 'Otros XML del médico' avisa cuando a un médico le sobró alguna factura.", False),
         ("", False),
         ("QUÉ SIGNIFICA CADA ESTATUS", True),
         ("", False),
@@ -556,16 +561,85 @@ def hoja_para_txt(resultado, ruta_txt):
     return pd.DataFrame(filas, columns=COLUMNAS_EXCEL + ["Estatus", "TXT generado", "Médico", "Línea"])
 
 
+def _archivos(fila):
+    return [a.strip() for a in str(fila.get("ArchivoXML") or "").split(",") if a.strip()]
+
+
+def _pesos(valor):
+    return f"${float(valor):,.2f}"
+
+
+def explicar_xml_sin_txt(resultado, sobrantes):
+    """Para cada XML que ninguna línea usó, en palabras: cuántos XML mandó el médico, qué líneas tiene en el TXT y
+    con qué factura cruzó cada una. Así, al buscar por RFC, no parece que se cruzó la factura equivocada (p. ej. un
+    médico Cruzado con una factura "fuera del periodo" en esta hoja: es OTRA factura suya, la que no se usó).
+    -> los sobrantes con la columna "Qué pasó" después de ArchivoXML."""
+    lineas_por_rfc = defaultdict(list)
+    for fila in resultado:
+        if fila.get("RFC"):
+            lineas_por_rfc[fila["RFC"]].append(fila)
+    sobran = Counter(x["RFCEmisor"] for x in sobrantes)
+    salida = []
+    for xml in sobrantes:
+        lineas = sorted(lineas_por_rfc.get(xml["RFCEmisor"], []), key=lambda f: f["Linea"])
+        usados = {a for f in lineas for a in _archivos(f)}
+        total = len(usados) + sobran[xml["RFCEmisor"]]
+        partes = [f"El médico mandó {total} XML y tiene {len(lineas)} línea(s) en el TXT."] if total > 1 else []
+        if xml.get("IDProveedorCatalogo") == "No está en catálogo":
+            partes.append("Su RFC no está en el catálogo de proveedores: no se sabe qué IDProveedor es, así que no se "
+                          "buscó en el TXT.")
+        elif not lineas:
+            partes.append(f"El médico (ID {xml.get('IDProveedorCatalogo')}) no tiene ninguna línea en el TXT de este "
+                          "mes.")
+        for f in lineas:
+            if str(f["Estatus"]).startswith("Cruzado"):
+                partes.append(f"Su línea {f['Linea']} ya cruzó con otra factura: {', '.join(_archivos(f))} "
+                              f"(del {f.get('FechaXML') or 's/f'}).")
+            elif _archivos(f):
+                partes.append(f"Su línea {f['Linea']} está como {f['Estatus']}, con otra factura: "
+                              f"{', '.join(_archivos(f))}.")
+            else:
+                partes.append(f"Su línea {f['Linea']} está como {f['Estatus']}: el TXT paga {_pesos(f['Importe'])} y "
+                              f"esta factura es por {_pesos(xml['ImporteConIVA'])}.")
+        if xml.get("MotivoRechazo"):
+            partes.append("Esta factura no se usó por lo que dice MotivoRechazo.")
+        elif lineas and all(str(f["Estatus"]).startswith("Cruzado") for f in lineas):
+            partes.append("Esta factura es válida, pero no hay otra línea del TXT para pagarla: ¿falta su línea en el "
+                          "TXT o el médico facturó de más?")
+        explicada = {}
+        for clave, valor in xml.items():
+            explicada[clave] = valor
+            if clave == "ArchivoXML":
+                explicada["Qué pasó"] = " ".join(partes)
+        salida.append(explicada)
+    return salida
+
+
+def otros_xml_del_medico(resultado, sobrantes):
+    """{Linea: texto} para las líneas cuyo médico tiene XML que no se usaron (hoja "XML sin TXT")."""
+    por_rfc = defaultdict(list)
+    for xml in sobrantes:
+        por_rfc[xml["RFCEmisor"]].append(f"{xml['ArchivoXML']} (del {xml.get('FechaXML') or 's/f'}, "
+                                         f"{_pesos(xml['ImporteConIVA'])})")
+    def texto(xmls):
+        cuantos = "1 XML más de este médico no se usó" if len(xmls) == 1 else \
+            f"{len(xmls)} XML más de este médico no se usaron"
+        return f"{cuantos} (hoja XML sin TXT): " + "; ".join(xmls)
+    return {f["Linea"]: texto(por_rfc[f["RFC"]]) for f in resultado if f.get("RFC") and f["RFC"] in por_rfc}
+
+
 def generar_reporte(rutas, anio, mes, resultado, sobrantes, errores_xml, n_xml, estados):
     detalle = pd.DataFrame(resultado)
     generados = ya_generados(resultado)
     detalle["TXT generado"] = detalle["Linea"].map(lambda n: generados.get(n, "")) if len(detalle) else []
+    otros = otros_xml_del_medico(resultado, sobrantes)
+    detalle["Otros XML del médico"] = detalle["Linea"].map(lambda n: otros.get(n, "")) if len(detalle) else []
     columnas = ["Linea", "Estatus", "Fecha", "IDProveedor", "Nombre", "RFC", "Folio",
                 "CodigoImpuesto", "Importe", "Ver cálculo", "Revisión importe", "Variación importe",
                 "Revisión impuestos", "Variación impuestos"] + COLS_DESGLOSE + [
                 "RegimenEmisor", "NombreRegimen", "CodigosSAP", "RegimenSAP",
                 "DiscrepanciaSAP", "FechaXML", "MetodoPago", "FormaPago", "UUID", "EstadoSAT", "EFOS", "ArchivoXML",
-                "CentroCosto", "Cuenta", "MotivoRechazo", "Observaciones", "TXT generado"]
+                "CentroCosto", "Cuenta", "MotivoRechazo", "Observaciones", "Otros XML del médico", "TXT generado"]
     detalle = detalle.reindex(columns=columnas)
     detalle["DiscrepanciaSAP"] = detalle["DiscrepanciaSAP"].map(lambda v: "Sí" if v is True else "No")
     detalle["_orden"] = detalle["Estatus"].map({e: i for i, e in enumerate(ORDEN_ESTATUS)})
@@ -624,7 +698,8 @@ def generar_reporte(rutas, anio, mes, resultado, sobrantes, errores_xml, n_xml, 
     with pd.ExcelWriter(destino, engine="openpyxl") as w:
         w.book.create_sheet("Resumen")
         detalle.to_excel(w, sheet_name="Detalle", index=False)
-        a_float(pd.DataFrame(sobrantes)).to_excel(w, sheet_name="XML sin TXT", index=False)
+        a_float(pd.DataFrame(explicar_xml_sin_txt(resultado, sobrantes))).to_excel(w, sheet_name="XML sin TXT",
+                                                                                 index=False)
         pd.DataFrame(errores_xml, columns=["Archivo", "Error"]).to_excel(
             w, sheet_name="Errores XML", index=False)
         info.to_excel(w, sheet_name="Info", index=False)
