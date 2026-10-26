@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import test_conciliacion  # noqa: E402,F401  (define HONORARIOS_RAIZ antes de importar el programa)
 import datos_prueba  # noqa: E402
 from test_portal import sap_simulado, sat_todo_vigente  # noqa: E402
-from honorarios import cruce, folios, servicio, txt_sap  # noqa: E402
+from honorarios import cruce, folios, reporte, servicio, txt_sap  # noqa: E402
 from honorarios.config import ARCHIVO_CATALOGO, ARCHIVO_FOLIOS, CONFIG, RAIZ  # noqa: E402
 from honorarios.entradas import obtener_rutas  # noqa: E402
 from honorarios.utilidades import ErrorUsuario  # noqa: E402
@@ -36,7 +36,7 @@ RFC_ALTA = "NUEV800101AB1"            # el médico del ID 999999, que al procesa
 
 
 def xml(id_proveedor, subtotal, fecha="2026-10-05", uuid_=None, **otros):
-    return (f"{id_proveedor}_{subtotal}.xml",
+    return (f"{id_proveedor}_{subtotal}_{fecha}.xml",
             datos_prueba.xml_cfdi(RFC.get(id_proveedor, RFC_ALTA), subtotal, fecha=f"{fecha}T09:00:00",
                                   uuid=uuid_ or str(uuid.uuid4()).upper(), **otros))
 
@@ -175,6 +175,30 @@ class TestFacturasPendientes(unittest.TestCase):
             servicio.agregar_pendientes(self.conciliacion, [], Path(self.tmp.name), avisar=lambda t: None,
                                         consultar_sat=sat_todo_vigente, ahora=AHORA)
         self.assertIn("No hay nada nuevo", str(error.exception))
+
+    def test_xml_sin_txt_explica_que_paso_con_el_medico(self):
+        # El médico de la línea 1 (ya Cruzado) mandó además una factura vieja de febrero y otra válida de más
+        nueva, _ = self.agregar(xml("100001", "32188", fecha="2026-02-09"), xml("100001", "32188", fecha="2026-09-12"))
+        explicados = {Path(x["ArchivoXML"]).name: x["Qué pasó"]
+                      for x in reporte.explicar_xml_sin_txt(nueva.resultado, nueva.sobrantes)}
+        febrero = explicados["100001_32188_2026-02-09.xml"]
+        self.assertIn("El médico mandó 3 XML y tiene 1 línea(s) en el TXT", febrero)
+        self.assertIn("Su línea 1 ya cruzó con otra factura: 01_resico.xml (del 2026-09-07)", febrero)
+        self.assertIn("no se usó por lo que dice MotivoRechazo", febrero)
+        self.assertIn("es válida, pero no hay otra línea del TXT para pagarla",
+                      explicados["100001_32188_2026-09-12.xml"])
+        self.assertIn("Su línea 8 está como Diferencia de importe: el TXT paga $30,156.00 y esta factura es por "
+                      "$30,000.00", explicados["06_diferencia.xml"])
+        self.assertIn("no está en el catálogo", explicados["20_sin_linea_txt.xml"])
+        otros = reporte.otros_xml_del_medico(nueva.resultado, nueva.sobrantes)
+        self.assertTrue(otros[1].startswith("2 XML más de este médico no se usaron"))
+        self.assertTrue(otros[8].startswith("1 XML más de este médico no se usó"))
+        # En el Excel: "Qué pasó" justo después del nombre del archivo, y la columna nueva en Detalle
+        regenerada = servicio.regenerar_reporte(nueva, Path(self.tmp.name) / "Salida",
+                                                ("Honorarios.txt", obtener_rutas(ANIO, MES)["txt"].read_bytes()))
+        libro = load_workbook(regenerada.destino)
+        self.assertEqual([c.value for c in libro["XML sin TXT"][1]][:2], ["ArchivoXML", "Qué pasó"])
+        self.assertIn("Otros XML del médico", [c.value for c in libro["Detalle"][1]])
 
     def test_actualizar_sat_despues_conserva_la_refactura(self):
         nueva, _ = self.agregar(xml("100008", "1000"))
