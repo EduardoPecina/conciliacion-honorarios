@@ -73,6 +73,18 @@ def como_texto(celdas):
             celda.data_type = "s"
 
 
+def color_estado_sat(valor):
+    """Rojo: cancelada · naranja: en proceso de cancelación · amarillo: no encontrada, sin respuesta o sin consultar."""
+    texto = str(valor or "")
+    if "Cancelado" in texto:
+        return ROJO
+    if "En proceso de cancelación" in texto:
+        return COLORES["Detenida"]
+    if any(x in texto for x in ("No encontrado", "Sin respuesta", "No se consultó", "Sin UUID")):
+        return "FFEB9C"
+    return None
+
+
 def formatear_hoja(hoja, colorear_estatus=False):
     hoja.freeze_panes = "A2"
     for celda in hoja[1]:
@@ -84,8 +96,14 @@ def formatear_hoja(hoja, colorear_estatus=False):
         for c in col[1:]:
             if isinstance(c.value, float):
                 c.number_format = "#,##0.00"
+    encabezados = [c.value for c in hoja[1]]
+    if "EstadoSAT" in encabezados:                       # lo que no está simplemente vigente, a la vista
+        col = encabezados.index("EstadoSAT")
+        for fila in hoja.iter_rows(min_row=2):
+            color = color_estado_sat(fila[col].value)
+            if color:
+                fila[col].fill = PatternFill("solid", fgColor=color)
     if colorear_estatus:
-        encabezados = [c.value for c in hoja[1]]
         if "Estatus" in encabezados:
             col = encabezados.index("Estatus")
             for fila in hoja.iter_rows(min_row=2):
@@ -125,6 +143,8 @@ def escribir_resumen(hoja, detalle_cols, n_filas, n_xml):
          "El SAT, SAP o el historial de UUID no se pudieron consultar para esas líneas"),
         ("Líneas con factura cancelada en el SAT", f"=COUNTIF({rango(ES)},\"*Cancelado*\")",
          "Líneas del Detalle con EstadoSAT = Cancelado"),
+        ("Líneas con factura en proceso de cancelación", f"=COUNTIF({rango(ES)},\"*En proceso de cancelación*\")",
+         "El médico pidió cancelarla y el SAT espera que la empresa acepte o rechace (la línea queda Detenida)"),
         ("Líneas con alerta EFOS (69-B)", f"=COUNTIF({rango(EF)},\"Revisar*\")",
          "El SAT indica que el emisor podría estar en la lista de operaciones simuladas (columna EFOS)"),
         ("Líneas con discrepancia SAP", f"=COUNTIF({rango(S)},\"Sí\")",
@@ -658,6 +678,8 @@ def generar_reporte(rutas, anio, mes, resultado, sobrantes, errores_xml, n_xml, 
          "Lineas": int(detalle["Observaciones"].fillna("").str.contains("Validaciones no realizadas").sum())},
         {"Estatus": "Líneas con factura cancelada en el SAT",
          "Lineas": int(detalle["EstadoSAT"].fillna("").str.contains("Cancelado").sum())},
+        {"Estatus": "Líneas con factura en proceso de cancelación",
+         "Lineas": int(detalle["EstadoSAT"].fillna("").str.contains("En proceso de cancelación").sum())},
         {"Estatus": "Líneas con alerta EFOS (69-B)",
          "Lineas": int(detalle["EFOS"].fillna("").str.startswith("Revisar").sum())},
         {"Estatus": "Líneas con discrepancia SAP", "Lineas": int((detalle["DiscrepanciaSAP"] == "Sí").sum())},

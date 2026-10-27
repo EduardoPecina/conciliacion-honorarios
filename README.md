@@ -353,7 +353,7 @@ El portal de verificación del SAT tiene captcha porque es para personas. El pro
   | 201 | Ni el emisor ni los RFC "a cuenta de terceros" de la factura están en la lista | No listado | Sin alerta |
   | Otro | Código no documentado (p. ej. uno que el SAT agregue después) | Revisar: código … no documentado por el SAT | Alerta (se prefiere revisar de más) |
 - Si todas las facturas están vigentes, el resultado es exactamente el mismo que sin consultar al SAT (hay una prueba automática que lo verifica).
-- La columna **EstadoSAT** del Detalle dice Vigente, Vigente (cancelación en proceso), Cancelado, No encontrado o Sin respuesta.
+- La columna **EstadoSAT** del Detalle (y de "XML sin TXT") dice Vigente, **En proceso de cancelación**, Cancelado, No encontrado o Sin respuesta, con color: rojo cancelada, naranja en proceso de cancelación, amarillo no encontrada o sin respuesta. "En proceso de cancelación" es un estatus aparte (sigue vigente, pero el médico pidió cancelarla y el SAT espera que la empresa acepte o rechace; si no responde en 3 días hábiles, se cancela sola): al filtrar por "Vigente" no se mezcla. Su línea queda Detenida. El Resumen trae el indicador "Líneas con factura en proceso de cancelación" y el portal, "SAT: en proceso de cancelación".
 - Es una regla obligatoria: se consulta en cada corrida, sin preguntar.
 
 ## Tolerancias
