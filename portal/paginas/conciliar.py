@@ -9,7 +9,7 @@ import streamlit as st
 
 from honorarios.config import ARCHIVO_FOLIOS, CONFIG, MESES, REPORTES
 from honorarios.entradas import NOMBRES_MES, rutas_en
-from honorarios.estado_sat import alerta_efos, describir
+from honorarios.estado_sat import EN_PROCESO_DE_CANCELACION, alerta_efos, describir
 from honorarios.reporte import ORDEN_ESTATUS, RESPONSABLE_POR_ESTATUS
 from honorarios.servicio import (AYUDA_REUSAR_SAP, actualizar_sap, actualizar_sat, agregar_pendientes,
                                  conciliar_periodo, dias_desde_consulta, es_cruzada, fecha_consultas_sap,
@@ -188,16 +188,20 @@ c[4].metric("🔴 Rechazar", lineas("Rechazar"))
 consultas = list(conciliacion.estados_sat.values())
 sat = pd.Series([describir(x) for x in consultas]).value_counts()
 c = st.columns(5)
-c[0].metric("SAT: vigentes", int(sat.get("Vigente", 0) + sat.get("Vigente (cancelación en proceso)", 0)))
-c[1].metric("SAT: canceladas", int(sat.get("Cancelado", 0)))
-c[2].metric("SAT: no encontradas", int(sat.get("No encontrado", 0)))
-c[3].metric("SAT: sin respuesta", int(sat.get("Sin respuesta", 0)))
-c[4].metric("Alerta EFOS (69-B)", sum(1 for x in consultas if alerta_efos(x)))
+c[0].metric("SAT: vigentes", int(sat.get("Vigente", 0)))
+c[1].metric("SAT: en proceso de cancelación", int(sat.get(EN_PROCESO_DE_CANCELACION, 0)),
+            help="El médico pidió cancelar la factura y el SAT espera que la empresa acepte o rechace la "
+                 "cancelación (si no responde en 3 días hábiles, se cancela sola). Sus líneas quedan Detenida; en el "
+                 "Excel, columna EstadoSAT en naranja.")
+c[2].metric("SAT: canceladas", int(sat.get("Cancelado", 0)))
+c[3].metric("SAT: no encontradas", int(sat.get("No encontrado", 0)))
+c[4].metric("SAT: sin respuesta", int(sat.get("Sin respuesta", 0)))
 
 observaciones = detalle.get("Observaciones", pd.Series(dtype=str)).fillna("")
 c = st.columns(5)
 c[0].metric("SAP: líneas con discrepancia", int(detalle.get("DiscrepanciaSAP", pd.Series(dtype=bool)).fillna(False).sum()))
 c[1].metric("SAP: líneas sin validar", int(observaciones.str.contains("códigos de retención en SAP").sum()))
+c[2].metric("Alerta EFOS (69-B)", sum(1 for x in consultas if alerta_efos(x)))
 st.caption(f"SAP: {conciliacion.estados.get('Validación SAP', '')}")
 
 st.subheader("Qué hacer")

@@ -275,7 +275,26 @@ class TestCruceConEstadoSat(ConDatosDePrueba):
         self.assertIn("estatus del CFDI en el SAT", por_id["100012"][0]["Observaciones"])
         self.assertEqual(estatus["100007"], {"Cruzado"})
         self.assertEqual(por_id["100007"][0]["EstadoSAT"], "Vigente")
-        self.assertEqual(por_id["100013"][0]["EstadoSAT"], "Vigente (cancelación en proceso)")
+        self.assertEqual(por_id["100013"][0]["EstadoSAT"], "En proceso de cancelación",
+                         "estatus propio: al filtrar por Vigente no se mezcla")
+
+    def test_en_proceso_de_cancelacion_se_ve_en_el_excel(self):
+        from openpyxl import load_workbook
+        por_id, sobrantes = self.conciliar(lambda f: {"EstatusCancelacion": "En proceso"}
+                                           if f["RFCEmisor"] == "MENR800113AC4" else {})
+        resultado = [f for filas in por_id.values() for f in filas]
+        destino, resumen = reporte.generar_reporte(self.rutas, ANIO, MES, resultado, sobrantes, [], 0, {})
+        indicador = resumen[resumen["Estatus"] == "Líneas con factura en proceso de cancelación"]
+        self.assertEqual(int(indicador["Lineas"].iloc[0]), 1)
+        libro = load_workbook(destino)
+        self.assertIn("Líneas con factura en proceso de cancelación", [c.value for c in libro["Resumen"]["A"]])
+        detalle = libro["Detalle"]
+        col = [c.value for c in detalle[1]].index("EstadoSAT")
+        colores = {fila[col].value: fila[col].fill.fgColor.rgb[-6:] for fila in detalle.iter_rows(min_row=2)
+                   if fila[col].value}
+        self.assertEqual(colores["En proceso de cancelación"], "F8CBAD", "naranja")
+        self.assertNotEqual(colores["Vigente"], "F8CBAD")
+        destino.unlink()
 
     def test_alerta_efos_deja_la_linea_con_observaciones(self):
         por_id, _ = self.conciliar(lambda f: {"ValidacionEFOS": "100"} if f["RFCEmisor"] == "MERU800101AB1"

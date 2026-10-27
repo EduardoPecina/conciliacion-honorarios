@@ -1,4 +1,4 @@
-"""Estatus del CFDI en el SAT (Vigente / Cancelado / No encontrado).
+"""Estatus del CFDI en el SAT (Vigente / En proceso de cancelación / Cancelado / No encontrado).
 
 Usa el servicio web oficial ConsultaCFDIService, no el portal de verificación: el portal tiene captcha
 porque es para personas; el servicio web es el que el SAT publica para consultas automatizadas, no pide
@@ -133,14 +133,20 @@ def describir_efos(consulta):
     return "No listado" if consulta.get("ValidacionEFOS") else ""
 
 
+# Estatus propio para que no se mezcle con "Vigente" al filtrar: sigue vigente, pero el emisor pidió cancelarla y el
+# SAT espera la respuesta del receptor (si no responde en 3 días hábiles, se cancela sola)
+EN_PROCESO_DE_CANCELACION = "En proceso de cancelación"
+
+
 def describir(consulta):
-    """Texto corto para la columna EstadoSAT del Excel."""
+    """Texto corto para la columna EstadoSAT del Excel: Vigente, En proceso de cancelación, Cancelado,
+    No encontrado, Sin respuesta o No se consultó."""
     if not consulta:
         return "No se consultó"
     if not consulta["Estado"]:
         return "Sin respuesta"
     if consulta["Estado"] == "Vigente" and en_proceso_de_cancelacion(consulta):
-        return "Vigente (cancelación en proceso)"
+        return EN_PROCESO_DE_CANCELACION
     return consulta["Estado"]
 
 

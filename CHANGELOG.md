@@ -1,5 +1,18 @@
 # Historial de cambios
 
+## [1.21.4] - 2026-10-27
+
+### Cambiado
+- **"En proceso de cancelación" es un estatus aparte del SAT.** Antes salía como "Vigente (cancelación en proceso)",
+  se mezclaba con las vigentes al filtrar en Excel y el portal lo contaba en "SAT: vigentes". Ahora:
+  - Columna EstadoSAT (Detalle y XML sin TXT): **En proceso de cancelación**, con colores: rojo cancelada, naranja en
+    proceso de cancelación, amarillo no encontrada o sin respuesta.
+  - Resumen: indicador nuevo "Líneas con factura en proceso de cancelación".
+  - Portal: indicador nuevo "SAT: en proceso de cancelación"; "SAT: vigentes" ya no las cuenta. "Alerta EFOS" pasa a la
+    fila de abajo para que quepa.
+  - Hoja Info: el conteo del SAT las separa.
+  - No cambia la regla: la línea sigue quedando Detenida ("el emisor pidió cancelar esta factura…").
+
 ## [1.21.3] - 2026-10-26
 
 ### Agregado
