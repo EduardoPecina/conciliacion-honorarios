@@ -22,8 +22,9 @@ subido = st.file_uploader("ZIP con los XML", type=["zip"])
 pegado = st.text_area(
     "XML que quieres quitar (uno por renglón)", height=160,
     placeholder="Facturas Q18\\Septiembre\\A1872.xml\nA1890.xml\n6F9619FF-8B86-D011-B42D-00C04FC964FF",
-    help="Puedes pegar la columna ArchivoXML del Excel de la conciliación (hoja XML sin TXT o Detalle) tal cual, "
-         "solo el nombre del archivo, o el UUID. El encabezado de la columna y los renglones vacíos se ignoran.")
+    help="Copia del Excel de la conciliación (hoja XML sin TXT o Detalle) y pega aquí, todo de una vez: la columna "
+         "ArchivoXML o UUID, o filas completas (de cada fila se toma su UUID o su ruta .xml). También sirve escribir "
+         "solo el nombre del archivo. El renglón de encabezados y los vacíos se ignoran.")
 con_pdf = st.checkbox("Quitar también el PDF (u otro archivo) que tenga el mismo nombre", value=True,
                       help="Por ejemplo, al quitar A1872.xml también se quita A1872.pdf de la misma carpeta.")
 if subido is None:

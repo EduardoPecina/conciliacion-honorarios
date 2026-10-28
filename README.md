@@ -205,7 +205,7 @@ Para quitar del ZIP los XML que no deben estar (facturas de otro periodo, copias
    - la **ruta de la columna ArchivoXML** del Excel de la conciliación (hoja XML sin TXT o Detalle), tal cual, con `\` o `/` (`Lote Q18\Septiembre\A1872.xml`: nombre del ZIP, carpeta y archivo);
    - **solo el nombre del archivo** (`A1872.xml`). Si hay dos con ese nombre en carpetas distintas, no se adivina: pide la ruta completa o el UUID;
    - el **UUID**.
-   El encabezado de la columna y los renglones vacíos se ignoran. Lo que no está en el ZIP se lista aparte.
+   Se pega **todo de una vez**: la columna completa, o **filas completas** copiadas del Excel (varias columnas; de cada fila se toma su UUID o su ruta .xml). El renglón de encabezados y los vacíos se ignoran. Lo que no está en el ZIP se lista aparte.
 2. La página muestra qué se va a quitar (archivo, UUID, RFC, emisor, fecha y total). Por omisión también quita el **PDF** (u otro archivo) con el mismo nombre en la misma carpeta.
 3. **Descargar `<nombre>_depurado.zip`:** las mismas carpetas, nombres, fechas y contenido que el original, sin lo que se quitó. Se puede descargar además la lista de lo que se quitó (Excel), para control o para mandársela a quien armó la carpeta.
 

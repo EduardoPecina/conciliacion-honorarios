@@ -153,18 +153,42 @@ def leer_zip(nombre_zip, contenido):
     return archivo, xmls
 
 
+def que_buscar(renglon):
+    """Lo que hay que buscar en un renglón pegado: (texto, es_uuid); es_uuid None si la fila no trae ni UUID ni ruta
+    .xml. None si no hay nada que buscar (renglón vacío o de encabezados). Un renglón puede ser una celda o una fila
+    completa copiada del Excel (celdas separadas por tabulador): de la fila se toma su UUID y, si no trae, la celda que
+    termina en .xml."""
+    celdas = [c.strip().strip('"').strip("'").strip() for c in renglon.split("\t")]
+    celdas = [c for c in celdas if c]
+    if not celdas:
+        return None
+    uuid = next((c for c in celdas if PATRON_UUID.fullmatch(c)), None)
+    if uuid:
+        return uuid.upper(), True
+    ruta = next((c for c in celdas if c.lower().endswith(".xml")), None)
+    if ruta:
+        return ruta, False
+    if any(c.lower() in ("archivoxml", "uuid") for c in celdas):    # encabezados de la columna o de la hoja
+        return None
+    return (celdas[0], False) if len(celdas) == 1 else ("\t".join(celdas), None)
+
+
 def buscar_en_zip(xmls, pedidos):
-    """pedidos: renglones que pegó el usuario (ruta de la columna ArchivoXML del Excel, ruta dentro del ZIP, solo el
-    nombre del archivo, o el UUID). -> (XML encontrados, [(renglón, por qué no se encontró)]).
+    """pedidos: renglones que pegó el usuario: la ruta de la columna ArchivoXML del Excel, la ruta dentro del ZIP,
+    solo el nombre del archivo o el UUID; o filas completas copiadas del Excel (se toma su UUID o su ruta .xml).
+    -> (XML encontrados, [(renglón, por qué no se encontró)]).
     Un nombre de archivo que se repite en varias carpetas no se adivina: se pide la ruta completa."""
     encontrados, problemas = [], []
     for renglon in pedidos:
-        texto = renglon.strip().strip('"').strip("'").strip()
-        if not texto or texto.lower() in ("archivoxml", "uuid", "ruta"):     # vacío o el encabezado de la columna
+        buscado = que_buscar(renglon)
+        if buscado is None:
             continue
-        uuid = PATRON_UUID.fullmatch(texto)
-        if uuid:
-            hallados = [x for x in xmls if x["UUID"] == texto.upper()]
+        texto, es_uuid = buscado
+        if es_uuid is None:
+            problemas.append((renglon.replace("\t", " | ")[:120], "En esta fila no hay un UUID ni una ruta .xml"))
+            continue
+        if es_uuid:
+            hallados = [x for x in xmls if x["UUID"] == texto]
         else:
             clave = _clave_ruta(texto)
             hallados = [x for x in xmls if clave in (_clave_ruta(x["ArchivoXML"]), _clave_ruta(x["Ruta"]))]
@@ -177,7 +201,7 @@ def buscar_en_zip(xmls, pedidos):
                                              "pega la ruta completa (columna ArchivoXML del Excel) o el UUID"))
                     continue
         if not hallados:
-            problemas.append((texto, "No está en el ZIP" + (" (ningún XML tiene ese UUID)" if uuid else "")))
+            problemas.append((texto, "No está en el ZIP" + (" (ningún XML tiene ese UUID)" if es_uuid else "")))
         for x in hallados:
             if x not in encontrados:
                 encontrados.append(x)

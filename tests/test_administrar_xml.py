@@ -76,6 +76,19 @@ class TestAdministrarXml(unittest.TestCase):
         self.assertEqual([p[0] for p in problemas], ["B2.xml", "Z9.xml"])
         self.assertIn("ruta completa", problemas[0][1])
 
+    def test_filas_completas_copiadas_del_excel(self):
+        """Al copiar varias columnas de la hoja "XML sin TXT", cada renglón trae las celdas separadas por tabulador."""
+        pegado = "\n".join([
+            "ArchivoXML\tQué pasó\tUUID\tFechaXML\tRFCEmisor\tSubTotal",                     # encabezados
+            f"Lote Q18\\Octubre\\B2.xml\tEl médico mandó 2 XML…\t{U[3]}\t2026-02-09\tMERU800101AB1\t1000",
+            "Lote Q18\\Septiembre\\A1872.xml\tEsta factura no se usó por lo que dice MotivoRechazo.",
+            "El médico mandó 2 XML\t2026-02-09",                       # fila sin UUID ni ruta
+        ]).splitlines()
+        encontrados, problemas = buscar_en_zip(self.xmls, pegado)
+        self.assertEqual([x["Ruta"] for x in encontrados], ["Octubre/B2.xml", "Septiembre/A1872.xml"])
+        self.assertEqual(len(problemas), 1)
+        self.assertIn("no hay un UUID ni una ruta .xml", problemas[0][1])
+
     def test_el_zip_nuevo_es_igual_sin_lo_que_se_quita(self):
         encontrados, _ = buscar_en_zip(self.xmls, ["Lote Q18/Septiembre/A1872.xml", U[3]])
         nuevo, quitados = zip_sin(self.archivo, encontrados)
