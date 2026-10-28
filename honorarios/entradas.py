@@ -192,6 +192,25 @@ def leer_txt(ruta):
     return filas
 
 
+def datos_basicos_cfdi(contenido):
+    """Lo que identifica a un XML, sin validarlo (para buscarlo o mostrarlo): UUID, RFC y nombre del emisor, fecha
+    y total. Si no es un CFDI legible, los valores quedan vacíos."""
+    vacio = {"UUID": "", "RFCEmisor": "", "NombreEmisor": "", "FechaXML": "", "Total": ""}
+    try:
+        raiz = ET.fromstring(contenido)
+    except ET.ParseError:
+        return vacio
+    if not raiz.tag.endswith("Comprobante"):
+        return vacio
+    ns = {"cfdi": raiz.tag.split("}")[0].strip("{"), "tfd": "http://www.sat.gob.mx/TimbreFiscalDigital"}
+    emisor = raiz.find("cfdi:Emisor", ns)
+    timbre = raiz.find("cfdi:Complemento/tfd:TimbreFiscalDigital", ns)
+    return {"UUID": (timbre.get("UUID", "") if timbre is not None else "").upper().strip(),
+            "RFCEmisor": (emisor.get("Rfc", "") if emisor is not None else "").upper().strip(),
+            "NombreEmisor": emisor.get("Nombre", "") if emisor is not None else "",
+            "FechaXML": (raiz.get("Fecha") or "")[:10], "Total": raiz.get("Total", "")}
+
+
 def leer_cfdi(ruta, carpeta):
     raiz = ET.parse(ruta).getroot()
     if not raiz.tag.endswith("Comprobante"):

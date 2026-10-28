@@ -11,6 +11,7 @@ import zipfile
 from io import BytesIO
 from pathlib import Path
 
+from honorarios.entradas import datos_basicos_cfdi
 from honorarios.utilidades import ErrorUsuario
 
 MAX_DESCOMPRIMIDO = 500 * 1024 * 1024        # 500 MB por .zip: evita "zip bombs"
@@ -115,3 +116,86 @@ def preparar_xmls(carpeta_xml, facturas):
     if not total:
         raise ErrorUsuario("No se encontró ningún archivo .xml en lo que se subió.")
     return total
+
+
+# ------------------------------------------------------------------ Administrar carpeta de XML
+PATRON_UUID = re.compile(r"[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}", re.IGNORECASE)
+
+
+def _clave_ruta(texto):
+    """Ruta para comparar: con /, sin comillas ni espacios de más, sin distinguir mayúsculas."""
+    return texto.strip().strip('"').strip("'").strip().replace("\\", "/").strip("/").lower()
+
+
+def leer_zip(nombre_zip, contenido):
+    """-> (zipfile abierto, [{"Ruta": ruta dentro del ZIP, "ArchivoXML": como la escribe el Excel de la conciliación,
+    "UUID", "RFCEmisor", "NombreEmisor", "FechaXML", "Total"}] de cada XML). ErrorUsuario si no es un ZIP que se
+    pueda leer o es demasiado grande."""
+    try:
+        archivo = zipfile.ZipFile(BytesIO(contenido))
+        miembros = [m for m in archivo.infolist() if not m.is_dir()]
+    except zipfile.BadZipFile:
+        raise ErrorUsuario(f"'{nombre_zip}' no es un .zip válido.")
+    if sum(m.file_size for m in miembros) > MAX_DESCOMPRIMIDO:
+        raise ErrorUsuario(f"'{nombre_zip}' es demasiado grande al descomprimirlo (más de 500 MB).")
+    prefijo = (_ruta_segura(Path(nombre_zip).stem) or Path("zip")).as_posix()
+    xmls = []
+    for m in miembros:
+        if not m.filename.lower().endswith(".xml"):
+            continue
+        try:
+            datos = datos_basicos_cfdi(archivo.read(m))
+        except (RuntimeError, zipfile.BadZipFile, NotImplementedError) as e:   # protegido con contraseña, dañado
+            raise ErrorUsuario(f"No se pudo leer '{m.filename}' dentro de '{nombre_zip}' ({e}).")
+        relativa = _ruta_segura(m.filename)
+        xmls.append({"Ruta": m.filename,
+                     "ArchivoXML": f"{prefijo}/{relativa.as_posix()}" if relativa else m.filename, **datos})
+    return archivo, xmls
+
+
+def buscar_en_zip(xmls, pedidos):
+    """pedidos: renglones que pegó el usuario (ruta de la columna ArchivoXML del Excel, ruta dentro del ZIP, solo el
+    nombre del archivo, o el UUID). -> (XML encontrados, [(renglón, por qué no se encontró)]).
+    Un nombre de archivo que se repite en varias carpetas no se adivina: se pide la ruta completa."""
+    encontrados, problemas = [], []
+    for renglon in pedidos:
+        texto = renglon.strip().strip('"').strip("'").strip()
+        if not texto or texto.lower() in ("archivoxml", "uuid", "ruta"):     # vacío o el encabezado de la columna
+            continue
+        uuid = PATRON_UUID.fullmatch(texto)
+        if uuid:
+            hallados = [x for x in xmls if x["UUID"] == texto.upper()]
+        else:
+            clave = _clave_ruta(texto)
+            hallados = [x for x in xmls if clave in (_clave_ruta(x["ArchivoXML"]), _clave_ruta(x["Ruta"]))]
+            if not hallados:
+                por_nombre = [x for x in xmls if _clave_ruta(x["Ruta"]).rsplit("/", 1)[-1] == clave.rsplit("/", 1)[-1]]
+                if len(por_nombre) == 1:
+                    hallados = por_nombre
+                elif len(por_nombre) > 1:
+                    problemas.append((texto, f"Hay {len(por_nombre)} archivos con ese nombre en distintas carpetas: "
+                                             "pega la ruta completa (columna ArchivoXML del Excel) o el UUID"))
+                    continue
+        if not hallados:
+            problemas.append((texto, "No está en el ZIP" + (" (ningún XML tiene ese UUID)" if uuid else "")))
+        for x in hallados:
+            if x not in encontrados:
+                encontrados.append(x)
+    return encontrados, problemas
+
+
+def zip_sin(archivo, quitar, con_mismo_nombre=True):
+    """ZIP nuevo igual al original (mismas carpetas, nombres, fechas y contenido) pero sin los XML de quitar.
+    con_mismo_nombre: quita también los archivos de la misma carpeta con el mismo nombre y otra extensión (el PDF de
+    esa factura). -> (bytes del ZIP nuevo, rutas que se quitaron)."""
+    rutas = {x["Ruta"] for x in quitar}
+    if con_mismo_nombre:
+        bases = {r.rsplit(".", 1)[0].lower() for r in rutas}
+        rutas |= {m.filename for m in archivo.infolist()
+                  if not m.is_dir() and m.filename.rsplit(".", 1)[0].lower() in bases}
+    salida = BytesIO()
+    with zipfile.ZipFile(salida, "w", zipfile.ZIP_DEFLATED) as nuevo:
+        for m in archivo.infolist():
+            if m.filename not in rutas:
+                nuevo.writestr(m, archivo.read(m))
+    return salida.getvalue(), sorted(rutas)

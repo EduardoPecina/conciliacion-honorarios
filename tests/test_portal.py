@@ -522,6 +522,11 @@ class TestPaginasDelPortal(unittest.TestCase):
         self.assertIn("no edita nada", app.caption[0].value)
         self.assertIn("TXT para SAP", app.expander[0].markdown[0].value)
 
+    def test_administrar_xml_sin_zip_explica_que_hacer(self):
+        app = self.abrir("administrar_xml.py")
+        self.assertEqual(app.title[0].value, "Administrar carpeta de XML")
+        self.assertIn("ArchivoXML", app.info[0].value)
+
     def test_catalogo(self):
         app = self.abrir("catalogo.py")
         self.assertEqual(app.metric[0].value, str(len(datos_prueba.PROVEEDORES)))

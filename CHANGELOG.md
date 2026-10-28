@@ -1,5 +1,16 @@
 # Historial de cambios
 
+## [1.22.0] - 2026-10-28
+
+### Agregado
+- **Página "Administrar carpeta de XML"**: se sube el ZIP de XML, se pegan los que sobran (uno por renglón) y se
+  descarga un ZIP nuevo sin ellos. El original no se modifica.
+  - Acepta la ruta de la columna ArchivoXML del Excel de la conciliación tal cual (con `\` o `/`), solo el nombre del
+    archivo o el UUID. Un nombre repetido en varias carpetas no se adivina: pide la ruta completa.
+  - Muestra qué se va a quitar (archivo, UUID, RFC, emisor, fecha, total) y lo que no se encontró.
+  - Quita también el PDF con el mismo nombre (se puede desmarcar).
+  - El ZIP nuevo conserva carpetas, nombres, fechas y contenido. Se puede descargar la lista de lo que se quitó.
+
 ## [1.21.4] - 2026-10-27
 
 ### Cambiado
