@@ -32,6 +32,7 @@ paginas = Path(__file__).parent / "paginas"
 navegacion = st.navigation([
     st.Page(paginas / "conciliar.py", title="Conciliador Automático", icon="✅", default=True),
     st.Page(paginas / "generar_txt.py", title="Generar TXT", icon="📄"),
+    st.Page(paginas / "administrar_xml.py", title="Administrar carpeta de XML", icon="🗂️"),
 ])
 
 

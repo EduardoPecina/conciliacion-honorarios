@@ -168,6 +168,7 @@ El portal solo acepta conexiones desde la misma computadora: los compañeros de 
 |---|---|
 | Conciliador Automático | Subir archivos → Procesar → resumen → Descargar Excel → Confirmar |
 | Generar TXT | Subir el Excel con las líneas aprobadas → revisar → Formatear folios → Descargar el TXT para SAP |
+| Administrar carpeta de XML | Subir el ZIP de XML → pegar los que sobran (ruta del Excel, nombre o UUID) → descargar un ZIP nuevo sin ellos |
 
 Las páginas de Catálogo de Proveedores e Historial de UUID (`portal/paginas/catalogo.py` e `historial.py`) ya no se muestran en el menú porque Contabilidad no las usa. El catálogo y el historial se siguen usando igual en cada conciliación.
 
@@ -195,6 +196,18 @@ Cada fila es un XML que se leyó bien pero que no cruzó con ninguna línea del 
 
 - La columna **Qué pasó** (justo después del nombre del archivo) lo explica en palabras. Por ejemplo: *"El médico mandó 2 XML y tiene 1 línea(s) en el TXT. Su línea 45 ya cruzó con otra factura: B1234.xml (del 2026-10-12). Esta factura no se usó por lo que dice MotivoRechazo."* Otros casos: el médico no tiene línea en el TXT, su RFC no está en el catálogo, su línea quedó "Diferencia de importe" (el TXT paga tanto y la factura es por tanto), o la factura es válida pero no hay otra línea para pagarla (¿falta la línea o facturó de más?).
 - En **Detalle**, la columna **Otros XML del médico** avisa en la línea cuando a ese médico le sobró alguna factura: *"1 XML más de este médico no se usó (hoja XML sin TXT): …"*.
+
+### Administrar carpeta de XML
+
+Para quitar del ZIP los XML que no deben estar (facturas de otro periodo, copias repetidas, facturas que no son de la quincena) sin tocar el original:
+
+1. Se sube el ZIP y se pegan, uno por renglón, los XML que hay que quitar. Sirve cualquiera de estas tres formas:
+   - la **ruta de la columna ArchivoXML** del Excel de la conciliación (hoja XML sin TXT o Detalle), tal cual, con `\` o `/` (`Lote Q18\Septiembre\A1872.xml`: nombre del ZIP, carpeta y archivo);
+   - **solo el nombre del archivo** (`A1872.xml`). Si hay dos con ese nombre en carpetas distintas, no se adivina: pide la ruta completa o el UUID;
+   - el **UUID**.
+   Se pega **todo de una vez**: la columna completa, o **filas completas** copiadas del Excel (varias columnas; de cada fila se toma su UUID o su ruta .xml). El renglón de encabezados y los vacíos se ignoran. Lo que no está en el ZIP se lista aparte.
+2. La página muestra qué se va a quitar (archivo, UUID, RFC, emisor, fecha y total). Por omisión también quita el **PDF** (u otro archivo) con el mismo nombre en la misma carpeta.
+3. **Descargar `<nombre>_depurado.zip`:** las mismas carpetas, nombres, fechas y contenido que el original, sin lo que se quitó. Se puede descargar además la lista de lo que se quitó (Excel), para control o para mandársela a quien armó la carpeta.
 
 ### Excel actualizado
 
