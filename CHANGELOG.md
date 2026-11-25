@@ -1,5 +1,9 @@
 # Historial de cambios
 
+## [1.22.1] - 2026-11-25
+
+- El portal usa nombres temporales cortos para XML con rutas largas y conserva su ruta de origen en el reporte.
+
 ## [1.22.0] - 2026-10-28
 
 ### Agregado

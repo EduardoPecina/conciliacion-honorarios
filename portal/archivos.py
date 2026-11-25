@@ -6,6 +6,7 @@
 
 No depende de Streamlit (se puede probar solo). Sin reglas de negocio: solo archivos."""
 
+import hashlib
 import re
 import zipfile
 from io import BytesIO
@@ -63,12 +64,28 @@ def _guardar_xml(carpeta_xml, nombre, contenido):
     relativa = _ruta_segura(nombre)
     if relativa is None:
         return 0
-    destino = _nombre_libre(carpeta_xml, relativa)
+    # Dejar margen para el sufijo de copias y para crear directorios en Windows.
+    destino = carpeta_xml / relativa
+    acortar = len(str(destino.absolute()).encode("utf-16-le")) // 2 >= 240
+    if acortar:
+        original = relativa
+        copia = 1
+        while True:
+            clave = hashlib.sha256(str(relativa).casefold().encode("utf-8")).hexdigest()[:24]
+            destino = carpeta_xml / f"zip-{clave}.xml"
+            if not destino.exists():
+                break
+            copia += 1
+            relativa = original.with_name(f"{original.stem} ({copia}){original.suffix}")
+    else:
+        destino = _nombre_libre(carpeta_xml, relativa)
     if not destino.resolve().is_relative_to(Path(carpeta_xml).resolve()):     # segunda revisión, por si acaso
         return 0
     try:
         destino.parent.mkdir(parents=True, exist_ok=True)
         destino.write_bytes(contenido)
+        if acortar:
+            destino.with_suffix(".origen").write_text(str(relativa), encoding="utf-8")
     except OSError as e:
         raise ErrorUsuario(f"No se pudo guardar '{nombre}' ({e.strerror or e}). Cámbiale el nombre y vuelve a "
                            "subirlo.")

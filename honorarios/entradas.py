@@ -211,6 +211,14 @@ def datos_basicos_cfdi(contenido):
             "FechaXML": (raiz.get("Fecha") or "")[:10], "Total": raiz.get("Total", "")}
 
 
+def _archivo_xml(ruta, carpeta):
+    if ruta.parent == carpeta and re.fullmatch(r"zip-[0-9a-f]{24}\.xml", ruta.name):
+        origen = ruta.with_suffix(".origen")
+        if origen.is_file():
+            return origen.read_text(encoding="utf-8")
+    return str(ruta.relative_to(carpeta))
+
+
 def leer_cfdi(ruta, carpeta):
     raiz = ET.parse(ruta).getroot()
     if not raiz.tag.endswith("Comprobante"):
@@ -261,7 +269,7 @@ def leer_cfdi(ruta, carpeta):
     total_calc = subtotal - descuento + iva + otros_tras - ret_isr - ret_iva - otras_ret + loc_tras - loc_ret
     return {
         "Descuento": descuento,
-        "ArchivoXML": str(ruta.relative_to(carpeta)),     # ruta relativa: evita choques de nombres en subcarpetas
+        "ArchivoXML": _archivo_xml(ruta, carpeta),     # ruta relativa: evita choques de nombres en subcarpetas
         "UUID": (timbre.get("UUID", "") if timbre is not None else "").upper().strip(),
         "Version": raiz.get("Version", ""),
         "FechaXML": (raiz.get("Fecha") or "")[:10],
@@ -306,5 +314,5 @@ def leer_xmls(rutas, carpeta):
         try:
             facturas.append(leer_cfdi(ruta, carpeta))
         except Exception as e:
-            errores.append({"Archivo": str(ruta.relative_to(carpeta)), "Error": f"No se pudo leer: {e}"})
+            errores.append({"Archivo": _archivo_xml(ruta, carpeta), "Error": f"No se pudo leer: {e}"})
     return facturas, errores
