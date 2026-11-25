@@ -15,7 +15,7 @@ class TestZipLargo(unittest.TestCase):
         nombres = [carpeta_interna + grupo + "/factura.xml" for grupo in ("A", "B")]
         with zipfile.ZipFile(contenido, "w") as archivo:
             for nombre in nombres:
-                archivo.writestr(nombre, '<Comprobante SubTotal="1" Total="1"/>')
+                archivo.writestr(nombre, '<Comprobante xmlns="http://www.sat.gob.mx/cfd/4" SubTotal="1" Total="1"/>')
         with tempfile.TemporaryDirectory() as tmp:
             carpeta = Path(tmp)
             preparar_xmls(carpeta, [("Noviembre.zip", contenido.getvalue())])
